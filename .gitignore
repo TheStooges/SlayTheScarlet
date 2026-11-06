@@ -38,3 +38,31 @@
 # Build directories
 cmake-build-*
 build
+ 
+# Reference material from a game install or other people's mods.
+reference/
+
+# Safety net: personal/game files must not be committed even if they end up elsewhere.
+*.pf
+*.rep
+score.dat
+*.log
+!tests/fixtures/*.pf
+
+# Build output
+build/
+build-*/
+cmake-build-*/
+out/
+*.pdb
+*.ilk
+*.obj
+*.o
+*.exp
+
+# IDE and OS files
+.vs/
+*.vcxproj.user
+.idea/
+.DS_Store
+Thumbs.db

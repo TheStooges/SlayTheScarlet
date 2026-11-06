@@ -148,6 +148,31 @@ Netplay is a primary requirement. Each machine simulates both players from share
   vanilla peers (fine for full mode only). Needs testing alongside Giuroll.
 - Profile name in netplay: `SokuLib::getNetObject().profile1name + index * 32`.
 
+### Findings from SokuLib headers (v1.10a addresses; structure comments are reverse-engineered, so verify)
+
+- **Decks in memory:** `SokuLib::Profile` (globals `profile1`, `profile2`) holds
+  `Dequeue<unsigned short> cards[20][4]` at offset 0x1AC: the in-memory form of the `.pf` decks.
+  Candidate target for compatible-mode slot injection (write here instead of the file). NOT yet
+  verified that character select or the packet actually reads from it.
+- **Deck editor:** `ProfileDeckEdit` stores each deck as `Map<unsigned short, unsigned char>`
+  (card ID -> count), which fits the copy limit being a per-ID check separate from deck size.
+- **`GAME_MATCH` packet:** per player `u8 character, u8 skinId, u8 deckId, u8 deckSize,
+  u16 cards[deckSize], u8 disabledSimultaneousButtons`; host then client, then `u8 stage, u8 music,
+  u32 seed, u8 matchId`. The buffer is sized for up to 256 cards. The deck travels as an explicit
+  card list, plus the slot number (`deckId`).
+- **Opcodes already in use** (pick mod message IDs outside these; the list may be incomplete):
+  base game 0x01-0x0B, 0x0D, 0x0E; SokuRoll 0x10-0x14; AdvancedPracticeMode 0x15-0x17;
+  DesyncDetector 0x20-0x21; Giuroll battle input 0x6B; Soku2 0xD3. Inner `GameType` events
+  (`GAME_MATCH` etc.) are 0x01-0x0B. OnlinePractice's opcodes are unknown; ask its author.
+- **Card tables:** `SaveDataManager` (instance at 0x899F60) has `systemCards` (0x9C) and
+  `characterCards[20]` (0xA8), each `Map<int,int>`. These are probably the unlocked cards loaded
+  from `score.dat`; with the community's fully unlocked save they should list every card per
+  character, i.e. the authoritative pools. Semantics of the value are unknown; confirm by dumping.
+- **In-match deck:** `Player::deckInfo` (offset 0x57C) has `cardById` (`Map<int, CardInfo>` with
+  name, type, cost-or-slot, description), `original` and `queue` ID deques, and `availSkills[32]`.
+  `CardInfo.type` gives the card type, so the type need not be inferred from ID ranges. Card lookup
+  function at 0x436620.
+
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
 
 **Profile `.pf` deck format** (verified by parsing a real profile end to end):
@@ -248,4 +273,6 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 - Upper deck-size limits, HUD assumptions about 20 cards, replay/spectator behaviour. The copy
   limit is a separate check from size (answered above); raising it would need its own patch, so
   keep it fixed at 4 for now.
-- Authoritative per-character card pools (check SokuLib headers and EasyDecks source).
+- Authoritative per-character card pools: likely readable from `SaveDataManager` under a fully
+  unlocked save (see SokuLib findings). Plan: a throwaway logging mod dumps the card IDs, names and
+  types per character to a file, which becomes the pool data file for `core/`.
