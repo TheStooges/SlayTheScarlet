@@ -1,4 +1,4 @@
-# Slay the Scarlet — Touhou Hisoutensoku (12.3) mod
+# Slay the Scarlet - Touhou Hisoutensoku (12.3) mod
 
 A deck-building "run" mod for Touhou Hisoutensoku, inspired by Slay the Spire. The community has
 previously run this format manually as an event called "Slay the Scarlet". This mod automates it.
@@ -6,14 +6,14 @@ previously run this format manually as an event called "Slay the Scarlet". This 
 ## Concept
 
 - A run is locked to one character. Changing character means starting a separate run.
-- **Starting deck:** built with a draft tool — 20 picks, each a choice between 3 cards (1 copy each).
+- **Starting deck:** built with a draft tool - 20 picks, each a choice between 3 cards (1 copy each).
 - **After each match:** the vanilla card-reward screen (which only lists unlocks and is usually
   skipped) is replaced with a card-offer screen: choose 1 of 3 offers, which changes the deck.
 - Players then return to character select as normal and continue the set with the modified deck.
 - The card unlock system and `score.dat` are **not** touched. Players are assumed to have the
   community's fully unlocked save. All run state lives in the mod's own files.
 - **Later phase:** double-edged items ("relics") that give a buff and a matching debuff, e.g.
-  −1000 max HP / +10% card meter gain, or +10% spirit regen delay / +10% spirit regen rate.
+  -1000 max HP / +10% card meter gain, or +10% spirit regen delay / +10% spirit regen rate.
 
 ## Design principle: rules are settings
 
@@ -44,6 +44,9 @@ the copy limit or deck bounds), rather than rerolling on failure.
   required to call game functions. Build from the "x86 Native Tools Command Prompt".
 - Build system: CMake. Project is based on SokuDev/ModTemplate, with SokuLib as a git submodule.
 - The developer is comfortable in C; prefer C-style code. C++ only where SokuLib requires it.
+- **ASCII only** in every file (source, comments, docs, ini, CMake): no em dashes, curly quotes, arrows
+  or math symbols. The developer's Japanese-locale Windows misreads UTF-8 as Shift-JIS and shows
+  garbled text, and MSVC reads source files in the system code page.
 
 ## Build and run (Windows)
 
@@ -89,14 +92,14 @@ Netplay is a primary requirement. Each machine simulates both players from share
   built reaches the opponent automatically and Giuroll is unaffected. Verify early in the debugger
   which data the packet is built from.
 - **Card offers may use local RNG** (only the local player sees them). Anything affecting the
-  match itself must be derived from shared data only — never local `rand()` or time.
+  match itself must be derived from shared data only - never local `rand()` or time.
 - **Selection UI must run inside the game's frame loop** (scene/overlay), never a blocking loop, or
   network processing stops and the connection can time out. Test how long vanilla tolerates a
   player sitting on the results screen.
 - **Items affect the in-match simulation**, so both machines must know both players' items before
   the first frame, effects must be per-player, and effects should be stateless or live in game
   memory so Giuroll's save/restore covers them. Avoid mod-side state that rollback can't restore.
-- Mismatched mod versions or item/config files must be detected (version handshake) — they would
+- Mismatched mod versions or item/config files must be detected (version handshake) - they would
   otherwise desync silently.
 
 ### Modes
@@ -105,7 +108,7 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - **Compatible mode** (only one player modded, opponent vanilla): deck rewards only. Must force:
   fixed 20 cards, max 4 copies, legal cards, no items, no in-match effects, **no packet changes or
   custom messages at all**. Inject the run deck by **writing it into a real deck slot** (dedicated
-  slot, original contents backed up) before character select — NOT via a load-time hook, or the
+  slot, original contents backed up) before character select - NOT via a load-time hook, or the
   local game and the sent packet could disagree and desync. Opponent just sees a normal deck and
   the usual black screen while waiting.
 
@@ -120,7 +123,7 @@ Netplay is a primary requirement. Each machine simulates both players from share
 
 ## Reference material
 
-- SokuDev org: https://github.com/SokuDev — SokuLib (reverse-engineered structures/addresses),
+- SokuDev org: https://github.com/SokuDev - SokuLib (reverse-engineered structures/addresses),
   ModTemplate (starting point), SokuMods (loader + many open-source mods to learn from).
 - Relevant existing mods: EasyDecks (edits decks during netplay sessions), InfiniteDecks (deck
   storage), InGameHostlist / LabTool (in-game UI), FixMeiling236 (example of a determinism fix).
@@ -136,7 +139,7 @@ Netplay is a primary requirement. Each machine simulates both players from share
   `TamperNearJmpOpr` for call sites, raw byte patches inside `VirtualProtect`, then
   `FlushInstructionCache`.
 - **Max HP:** per-player max stored in `CharacterManager.objectBase.offset_0x186` (short).
-  Patches at `0x46BCA4` (HP init), `0x481F36` (round reset → custom hook), `0x488F86` (regen cap).
+  Patches at `0x46BCA4` (HP init), `0x481F36` (round reset -> custom hook), `0x488F86` (regen cap).
   Set in a hook on player init at `0x46DE31`.
 - **Card meter gain:** scaled per player (`val * mul[playerIndex] / 100`, integer maths) via
   naked asm stubs at call sites `0x468B1E` and `0x487873`.
@@ -179,13 +182,13 @@ Netplay is a primary requirement. Each machine simulates both players from share
 
 - 0x6A-byte header: controller config (leading `0xFF`, 11 int32 DirectInput keyboard scancodes,
   joystick button numbers). No deck data.
-- Then 80 decks: 20 characters × 4 slots, in SokuLib character order (Reimu, Marisa, Sakuya,
+- Then 80 decks: 20 characters x 4 slots, in SokuLib character order (Reimu, Marisa, Sakuya,
   Alice, Patchouli, Youmu, Remilia, Yuyuko, Yukari, Suika, Reisen, Aya, Komachi, Iku, Tenshi,
   Sanae, Cirno, Meiling, Utsuho, Suwako).
 - Each deck: `u8` card count, then that many `u16` little-endian card IDs, stored sorted. The
   format allows any size up to 255.
-- Card IDs: system cards 0–20 (shared by all characters); skill cards 100–111 (12 per character,
-  except Patchouli who has 15: 100–114); spell cards from 200 (seen up to 219). Card type follows
+- Card IDs: system cards 0-20 (shared by all characters); skill cards 100-111 (12 per character,
+  except Patchouli who has 15: 100-114); spell cards from 200 (seen up to 219). Card type follows
   from the ID range, but keep the per-character pools in a data table rather than hardcoding the
   ranges.
 - Players typically fill all 4 slots for every character, so compatible mode has no free slot:
@@ -218,7 +221,7 @@ source). Its startup log shows the hook set for a netplay overlay mod that works
 
 | Hook (1.10a address) | Purpose |
 |---|---|
-| BattleManager vtable state0–7 `0x8588fc`–`0x858914`, onKO `0x858918`, render `0x858924`, inputs `0x85892c` | Per-frame battle logic |
+| BattleManager vtable state0-7 `0x8588fc`-`0x858914`, onKO `0x858918`, render `0x858924`, inputs `0x85892c` | Per-frame battle logic |
 | Character select onProcess: server `0x8574e0`, client `0x857538`; onRender: `0x8574e4` / `0x85753c` | Overlay on netplay character select (server = host, client = joining player) |
 | Loading screen onProcess: server `0x857500`, client `0x857558` | Detect lock-in and count "battle N of the set" |
 | `sendto`/`recvfrom` IAT `0x857290` / `0x857280` | Custom packets with a protocol version, exchanged at character select |
@@ -256,7 +259,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    2b. Early game-side experiment, before any UI: find which memory the `GAME_MATCH` packet's deck is
    built from, and where the game reads decks from the `.pf` and trims them (see open questions).
 3. Draft tool in game (offline): card-offer UI, writes run deck.
-4. Post-match reward screen + **compatible mode** (slot injection, no networking) — first
+4. Post-match reward screen + **compatible mode** (slot injection, no networking) - first
    playable release.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
