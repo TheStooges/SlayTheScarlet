@@ -264,7 +264,9 @@ Netplay is a primary requirement. Each machine simulates both players from share
   fired. The post-match screen is `CMenuEnd`, vtable 0x859528, confirmed in game by replacing it
   (found from RTTI, and the code using `data/menu/result/result.dat` is next to its functions).
   `mod/` draws the card offer in its place, returning 1 from `onProcess` to keep the menu, and then
-  leaves through the game's own exit path by holding `inputMgrs.input.a` at 1 until it closes.
+  leaves through the game's own exit path by holding `inputMgrs.input.a` at 1 until it closes. A run
+  match with no offer due closes the screen the same way, without showing the list; a match with a
+  different deck or character still shows the vanilla list, as normal play.
 - **Skill input images:** `data/profile/deck2/022_SkillCard000Cost.bmp` to `004` (64x32) are the deck
   screen's images, one per skill input, in `cost_or_slot` order. The top half says "Skill Card", the
   bottom half has the arrows and button name. Paths load as `.bmp` though the archive holds `.cv2`.
@@ -341,8 +343,9 @@ differs from a real profile in one key binding). Useful as a source of test prof
 produce illegal decks** (a 5-copy deck was observed), so do not trust its output as valid. Back up a
 real profile before loading its output, because it replaces all decks and a key binding.
 
-**Debug keys in this install:** F1 (reduces HP by 1000, resetting at 0 to 10000), F2 (fills the hand
-from the deck) and F3 (empties it) are available offline but not in online play. They are useful for
+**Debug keys in this install:** F1 (in Practice, reduces HP by 1000, resetting at 0 to 10000; in VS
+Com, toggles HP regeneration), F2 (fills the hand from the deck) and F3 (empties it) are available
+offline but not in online play. They are useful for
 in-game testing, because a match starts with an empty hand.
 
 **Privacy:** game logs contain the opponent's IP address and local Windows paths. Never commit

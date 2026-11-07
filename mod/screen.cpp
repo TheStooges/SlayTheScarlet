@@ -104,6 +104,7 @@ static int g_match_score_left = 0;
 static int g_match_score_right = 0;
 static int g_match_reward_due = 0;
 static int g_match_won = 0;
+static int g_match_no_offer = 0;
 
 static void enter_phase(void);
 static void save_run(void);
@@ -500,6 +501,14 @@ void deck_on_result_frame(void)
 }
 
 /* Only changes: the menu returns the same value on every frame of its exit fade. */
+int deck_take_result_skip(void)
+{
+    int skip = g_match_no_offer;
+
+    g_match_no_offer = 0;
+    return skip;
+}
+
 void deck_log_result_close(int result)
 {
     static int last = -1;
@@ -680,8 +689,10 @@ static void maybe_start_reward(void)
         if (st != STS_RUN_OK)
             return;
         save_run();
-        if (outcome == STS_REWARD_NONE)
+        if (outcome == STS_REWARD_NONE) {
+            g_match_no_offer = 1;
             return;
+        }
     } else {
         slog("showing the offer that was already waiting");
     }

@@ -123,8 +123,13 @@ static int __fastcall on_battle_process(SokuLib::Battle *This)
  * takes its place. */
 static int __fastcall on_result_process(SokuLib::MenuResult *This)
 {
-    if (!g_result_closing)
+    if (!g_result_closing) {
         deck_on_result_frame();
+        if (deck_take_result_skip()) {
+            g_result_closing = 1;
+            g_wait_for_release = 1;
+        }
+    }
 
     if (screen_is_open()) {
         screen_update(SokuLib::inputMgrs.input);
