@@ -40,9 +40,8 @@
 cmake-build-*
 build
  
-# Reference material and tools.
+# Reference material.
 reference/
-tools/
 
 # Safety net: personal/game files must not be committed even if they end up elsewhere.
 *.pf

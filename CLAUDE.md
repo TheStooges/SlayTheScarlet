@@ -80,11 +80,14 @@ core/    Portable C. NO Windows or SokuLib headers. Rules engine, deck model, va
          card table, offer generation, draft logic, settings parsing, run save format.
          Builds and is unit-tested on any OS (initial development was on macOS with clang).
 data/    Data files the mod loads at runtime. cards.csv is the card table (no text).
-tests/   Console tests for core/.
-tools/   Scripts. gen_cards.py rebuilds data/cards.csv from a probe dump.
+tests/   Console tests for core/, one file per module.
 mod/     Windows-only DLL glue: SokuLib hooks, UI scenes, netplay, deck injection.
          Built only when MSVC is available.
+lib/     SokuLib, as a git submodule. Run: git submodule update --init
 ```
+
+The "probe" in the findings below was a throwaway logging mod, since removed. Its results are all
+recorded here, and online logging now lives in `mod/netlog.cpp`.
 
 `core/` modules: `deck` (model, validation), `pf` (profile read/write), `pool` (card table), `rng`
 (PCG32), `offer` (offer generator, applying a taken offer), `settings` (`.ini` parsing, validation,
