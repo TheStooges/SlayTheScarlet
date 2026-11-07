@@ -22,6 +22,9 @@ static const named_value g_replace[] = {
     {"choose", STS_REPLACE_CHOOSE}, {"by_type", STS_REPLACE_BY_TYPE},
     {"random", STS_REPLACE_RANDOM}, {NULL, 0}
 };
+static const named_value g_styles[] = {
+    {"weighted", STS_OFFER_WEIGHTED}, {"one_of_each", STS_OFFER_ONE_OF_EACH}, {NULL, 0}
+};
 static const named_value g_visibility[] = {
     {"hidden", STS_VISIBILITY_HIDDEN}, {"after_confirm", STS_VISIBILITY_AFTER_CONFIRM},
     {"live", STS_VISIBILITY_LIVE}, {NULL, 0}
@@ -33,10 +36,20 @@ static const named_value g_bool[] = {
     {"false", 0}, {"true", 1}, {NULL, 0}
 };
 
+static void default_offer_style(sts_offer_settings *o)
+{
+    o->style = STS_OFFER_WEIGHTED;
+    o->weights[STS_CARD_SYSTEM] = 1;
+    o->weights[STS_CARD_SKILL] = 1;
+    o->weights[STS_CARD_SPELL] = 1;
+}
+
 void sts_settings_defaults(sts_settings *s)
 {
     memset(s, 0, sizeof *s);
     s->rules = sts_rules_vanilla();
+    default_offer_style(&s->draft);
+    default_offer_style(&s->reward);
 
     s->draft_picks = 20;
     s->draft.mode = STS_REWARD_ADD;
@@ -127,6 +140,19 @@ static int set_offer_key(sts_offer_settings *o, const char *key, char *value)
         return set_int(value, 0, 1000, &o->copies_max);
     if (strcmp(key, "types") == 0)
         return set_types(value, &o->type_mask);
+    if (strcmp(key, "offer_style") == 0) {
+        int v;
+        int ok = find_named(value, g_styles, &v);
+        if (ok)
+            o->style = (sts_offer_style)v;
+        return ok;
+    }
+    if (strcmp(key, "system_weight") == 0)
+        return set_int(value, 0, 1000, &o->weights[STS_CARD_SYSTEM]);
+    if (strcmp(key, "skill_weight") == 0)
+        return set_int(value, 0, 1000, &o->weights[STS_CARD_SKILL]);
+    if (strcmp(key, "spell_weight") == 0)
+        return set_int(value, 0, 1000, &o->weights[STS_CARD_SPELL]);
     return -1;
 }
 
@@ -320,6 +346,15 @@ static const char *validate_offer(const sts_offer_settings *o, const sts_rules *
         return "copies_max cannot be above copy_limit";
     if (o->type_mask == 0 || (o->type_mask & ~(unsigned)STS_TYPE_ALL))
         return "types must list at least one of system, skill, spell";
+    if (o->style == STS_OFFER_WEIGHTED) {
+        int type, total = 0;
+
+        for (type = 0; type < 3; type++)
+            if (o->type_mask & STS_TYPE_BIT(type))
+                total += o->weights[type];
+        if (total == 0)
+            return "weighted offers need a weight above 0 on a type that can be offered";
+    }
     return NULL;
 }
 
@@ -404,7 +439,11 @@ static uint32_t hash_offer(uint32_t h, const sts_offer_settings *o)
     h = hash_int(h, o->copies_min);
     h = hash_int(h, o->copies_max);
     h = hash_int(h, (int)o->type_mask);
-    return hash_int(h, (int)o->replace);
+    h = hash_int(h, (int)o->replace);
+    h = hash_int(h, (int)o->style);
+    h = hash_int(h, o->weights[STS_CARD_SYSTEM]);
+    h = hash_int(h, o->weights[STS_CARD_SKILL]);
+    return hash_int(h, o->weights[STS_CARD_SPELL]);
 }
 
 uint32_t sts_settings_hash(const sts_settings *s)

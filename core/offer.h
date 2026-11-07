@@ -28,6 +28,13 @@ typedef enum {
     STS_REPLACE_RANDOM    /* random cards leave */
 } sts_replace_control;
 
+/* How an offer's card type is decided. The type comes first and the card second, or system
+ * cards would dominate just by being the most numerous. */
+typedef enum {
+    STS_OFFER_WEIGHTED,     /* each offer rolls a type, using the weights */
+    STS_OFFER_ONE_OF_EACH   /* system, skill, spell in turn, moving on if a type has nothing */
+} sts_offer_style;
+
 /* Most offers one pick can show. */
 #define STS_OFFER_MAX 8
 
@@ -42,6 +49,8 @@ typedef struct {
     int copies_max;
     unsigned type_mask;   /* which card types may be offered */
     sts_replace_control replace;  /* REPLACE only */
+    sts_offer_style style;
+    int weights[3];       /* STS_OFFER_WEIGHTED only; indexed by sts_card_type */
 } sts_offer_settings;
 
 typedef struct {

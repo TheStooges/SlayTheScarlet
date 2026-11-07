@@ -206,28 +206,133 @@ void test_offer_fairness(void)
     sts_deck d;
     sts_rng rng;
     int hits[300];
-    int c = 12;                  /* Komachi */
-    int cards, expected, i, j, n;
+    int type_hits[3];
+    int type_cards[3];
+    int c = 12;                  /* Komachi: 21 system, 12 skill, 9 spell */
+    int expected, i, j, n, t;
     const sts_card_list *l = &g_db.characters[c];
 
     memset(hits, 0, sizeof hits);
+    memset(type_hits, 0, sizeof type_hits);
     sts_deck_clear(&d);
     sts_rng_seed(&rng, 2024, 11);
     for (j = 0; j < ROLLS; j++) {
         n = sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8);
-        for (i = 0; i < n; i++)
+        for (i = 0; i < n; i++) {
             hits[o[i].id]++;
+            type_hits[o[i].type]++;
+        }
     }
-    cards = g_db.system.count + l->count;
-    expected = ROLLS * 3 / cards;
+
+    /* Equal weights: each type gets a third of the offers, however many cards it has. */
+    for (t = 0; t < 3; t++)
+        CHECK(type_hits[t] > ROLLS * 9 / 10 && type_hits[t] < ROLLS * 11 / 10);
+
+    /* Within a type, every card is equally likely. */
+    type_cards[STS_CARD_SYSTEM] = g_db.system.count;
+    type_cards[STS_CARD_SKILL] = 12;
+    type_cards[STS_CARD_SPELL] = 9;
     for (i = 0; i < g_db.system.count; i++) {
         int h = hits[g_db.system.cards[i].id];
-        CHECK(h > expected * 9 / 10 && h < expected * 11 / 10);
+        expected = type_hits[STS_CARD_SYSTEM] / type_cards[STS_CARD_SYSTEM];
+        CHECK(h > expected * 8 / 10 && h < expected * 12 / 10);
     }
     for (i = 0; i < l->count; i++) {
         int h = hits[l->cards[i].id];
-        CHECK(h > expected * 9 / 10 && h < expected * 11 / 10);
+        expected = type_hits[l->cards[i].type] / type_cards[l->cards[i].type];
+        CHECK(h > expected * 8 / 10 && h < expected * 12 / 10);
     }
+
+    /* Weights shift the shares: 2/1/1 gives system cards half of them. */
+    s.weights[STS_CARD_SYSTEM] = 2;
+    memset(type_hits, 0, sizeof type_hits);
+    for (j = 0; j < ROLLS; j++) {
+        n = sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8);
+        for (i = 0; i < n; i++)
+            type_hits[o[i].type]++;
+    }
+    CHECK(type_hits[STS_CARD_SYSTEM] > ROLLS * 3 / 2 * 9 / 10 && type_hits[STS_CARD_SYSTEM] < ROLLS * 3 / 2 * 11 / 10);
+    CHECK(type_hits[STS_CARD_SKILL] > ROLLS * 3 / 4 * 9 / 10 && type_hits[STS_CARD_SKILL] < ROLLS * 3 / 4 * 11 / 10);
+
+    /* A weight of 0 turns a type off, and a type with no cards left hands over to the others. */
+    s.weights[STS_CARD_SYSTEM] = 0;
+    for (j = 0; j < 500; j++) {
+        n = sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8);
+        CHECK(n == 3);
+        for (i = 0; i < n; i++)
+            CHECK(o[i].type != STS_CARD_SYSTEM);
+    }
+    s.weights[STS_CARD_SKILL] = 0;
+    s.weights[STS_CARD_SPELL] = 0;
+    CHECK(sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8) == 0);
+    s.weights[STS_CARD_SKILL] = 1;
+    s.type_mask = STS_TYPE_BIT(STS_CARD_SPELL) | STS_TYPE_BIT(STS_CARD_SYSTEM);
+    CHECK(sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8) == 0);
+}
+
+void test_offer_one_of_each(void)
+{
+    sts_rules r = open_rules();
+    sts_offer_settings s = add_settings();
+    sts_offer o[8];
+    sts_deck d;
+    sts_rng rng;
+    int c, i, j, n;
+
+    s.style = STS_OFFER_ONE_OF_EACH;
+    /* The weights play no part in this style. */
+    s.weights[STS_CARD_SYSTEM] = 0;
+    s.weights[STS_CARD_SKILL] = 0;
+    s.weights[STS_CARD_SPELL] = 0;
+    sts_deck_clear(&d);
+    sts_rng_seed(&rng, 8, 8);
+
+    /* Three offers are one of each, in a fixed order, for everyone. */
+    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
+        for (j = 0; j < 50; j++) {
+            n = sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8);
+            CHECK(n == 3);
+            CHECK(o[0].type == STS_CARD_SYSTEM && o[1].type == STS_CARD_SKILL && o[2].type == STS_CARD_SPELL);
+        }
+    }
+
+    /* More offers repeat the cycle, never repeating a card. */
+    s.offer_count = 6;
+    for (j = 0; j < 100; j++) {
+        int a, b;
+        n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, o, 8);
+        CHECK(n == 6);
+        for (i = 0; i < 6; i++)
+            CHECK(o[i].type == i % 3);
+        for (a = 0; a < n; a++)
+            for (b = 0; b < a; b++)
+                CHECK(o[a].id != o[b].id);
+    }
+
+    /* Fewer offers take the first types in the order. */
+    s.offer_count = 2;
+    n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, o, 8);
+    CHECK(n == 2 && o[0].type == STS_CARD_SYSTEM && o[1].type == STS_CARD_SKILL);
+
+    /* A type that cannot be offered hands its place to the next. */
+    s.offer_count = 3;
+    s.type_mask = STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL);
+    n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, o, 8);
+    CHECK(n == 3);
+    for (i = 0; i < n; i++)
+        CHECK(o[i].type != STS_CARD_SYSTEM);
+
+    /* So does one with nothing eligible: Reimu's 10 spells, all at the copy limit, and a
+     * size limit with room left for other cards. */
+    r.deck_max = 60;
+    s.type_mask = STS_TYPE_ALL;
+    sts_deck_clear(&d);
+    for (i = 0; i < g_db.characters[0].count; i++)
+        if (g_db.characters[0].cards[i].type == STS_CARD_SPELL)
+            add_copies(&d, g_db.characters[0].cards[i].id, r.copy_limit);
+    n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, o, 8);
+    CHECK(n == 3);
+    CHECK(o[0].type == STS_CARD_SYSTEM && o[1].type == STS_CARD_SKILL && o[2].type == STS_CARD_SYSTEM);
 }
 
 static void apply_offer(sts_deck *d, const sts_offer *o, sts_reward_mode mode)

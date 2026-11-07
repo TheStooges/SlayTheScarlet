@@ -50,6 +50,18 @@ void test_settings(void)
     g_text[1] = 'x';
     CHECK(parse_ini(g_text, &s, &line) == STS_SETTINGS_BAD_LINE && line == 1);
 
+    /* Offer style and weights, separately for the draft and rewards. */
+    CHECK(d.draft.style == STS_OFFER_WEIGHTED && d.reward.style == STS_OFFER_WEIGHTED);
+    CHECK(d.reward.weights[STS_CARD_SYSTEM] == 1 && d.reward.weights[STS_CARD_SKILL] == 1 && d.reward.weights[STS_CARD_SPELL] == 1);
+    CHECK(parse_ini("[draft]\noffer_style=one_of_each\n[reward]\nsystem_weight=2\nskill_weight=3\nspell_weight=4\n",
+                    &s, &line) == STS_SETTINGS_OK);
+    CHECK(s.draft.style == STS_OFFER_ONE_OF_EACH && s.reward.style == STS_OFFER_WEIGHTED);
+    CHECK(s.reward.weights[STS_CARD_SYSTEM] == 2 && s.reward.weights[STS_CARD_SKILL] == 3 && s.reward.weights[STS_CARD_SPELL] == 4);
+    CHECK(s.draft.weights[STS_CARD_SYSTEM] == 1);
+    CHECK(sts_settings_validate(&s) == NULL);
+    CHECK(parse_ini("[reward]\noffer_style=gamble\n", &s, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[reward]\nspell_weight=-1\n", &s, &line) == STS_SETTINGS_BAD_VALUE);
+
     /* Damage is reported with the right kind and line. */
     CHECK(parse_ini("[deck]\nnonsense\n", &s, &line) == STS_SETTINGS_BAD_LINE && line == 2);
     CHECK(parse_ini("[deck\n", &s, &line) == STS_SETTINGS_BAD_LINE && line == 1);
@@ -92,7 +104,14 @@ void test_settings(void)
     BAD_INI("[reward]\noffers=0\n");
     BAD_INI("[reward]\ncopies_min=3\ncopies_max=2\n");
     BAD_INI("[reward]\ncopies_max=5\n");
+    BAD_INI("[reward]\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n");
+    BAD_INI("[draft]\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n");
+    BAD_INI("[reward]\ntypes=spell\nspell_weight=0\n");
 #undef BAD_INI
+
+    /* The weights only matter to the style that uses them. */
+    CHECK(parse_ini("[reward]\noffer_style=one_of_each\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n", &s, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&s) == NULL);
 
     /* Workable variations are accepted, including a skip with otherwise odd offers. */
     CHECK(parse_ini("[draft]\ncopies_min=2\ncopies_max=2\npicks=10\n", &s, &line) == STS_SETTINGS_OK);
@@ -124,6 +143,12 @@ void test_settings(void)
         HASH_DIFFERS(reward.copies_max, 2);
         HASH_DIFFERS(reward.type_mask, 1u);
         HASH_DIFFERS(reward.replace, STS_REPLACE_RANDOM);
+        HASH_DIFFERS(reward.style, STS_OFFER_ONE_OF_EACH);
+        HASH_DIFFERS(reward.weights[STS_CARD_SYSTEM], 2);
+        HASH_DIFFERS(reward.weights[STS_CARD_SKILL], 2);
+        HASH_DIFFERS(reward.weights[STS_CARD_SPELL], 2);
+        HASH_DIFFERS(draft.style, STS_OFFER_ONE_OF_EACH);
+        HASH_DIFFERS(draft.weights[STS_CARD_SPELL], 2);
         HASH_DIFFERS(who_picks, STS_WHO_WINNER);
         HASH_DIFFERS(pick_visibility, STS_VISIBILITY_LIVE);
         HASH_DIFFERS(opponent_deck, STS_OPPONENT_DECK_FULL);

@@ -48,6 +48,10 @@ sts_offer_settings add_settings(void)
     s.copies_max = 1;
     s.type_mask = STS_TYPE_ALL;
     s.replace = STS_REPLACE_CHOOSE;
+    s.style = STS_OFFER_WEIGHTED;
+    s.weights[STS_CARD_SYSTEM] = 1;
+    s.weights[STS_CARD_SKILL] = 1;
+    s.weights[STS_CARD_SPELL] = 1;
     return s;
 }
 

@@ -98,6 +98,11 @@ By decision, every card is in the offer pool, including Catfish and the two rari
 unlock rules (rarity, sequences, story rewards) do not limit the pool, because players use a fully
 unlocked save.
 
+Offers roll a card type first and a card within it second, because a flat roll over all cards favours
+system cards (21 of them, against 12 skills and 9-14 spells: about 45-50% of offers). `offer_style` picks
+`weighted` (the type is rolled from `system_weight`, `skill_weight` and `spell_weight`, 1/1/1 by default)
+or `one_of_each` (system, skill, spell in turn), separately for the draft and rewards.
+
 Rule interpretations in `core/` that may need revisiting with the community:
 
 - `who_picks`: a player left out (loser under `winner`, winner under `loser`) keeps their deck

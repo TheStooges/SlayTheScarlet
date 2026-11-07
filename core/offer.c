@@ -5,6 +5,12 @@ typedef struct {
     int max_copies;
 } candidate;
 
+/* The eligible cards of one type. */
+typedef struct {
+    candidate items[STS_POOL_MAX_CARDS * 2];
+    int count;
+} candidate_list;
+
 static int min_int(int a, int b)
 {
     return a < b ? a : b;
@@ -62,13 +68,14 @@ static int max_copies_for(const sts_card *card, const sts_deck *deck, const sts_
     return 0;
 }
 
-static int collect_candidates(const sts_card_list *list, const sts_deck *deck, const sts_rules *rules,
-                              const sts_offer_settings *s, int capacity, candidate *out, int n)
+static void collect_candidates(const sts_card_list *list, const sts_deck *deck, const sts_rules *rules,
+                               const sts_offer_settings *s, int capacity, candidate_list *by_type)
 {
     int i;
 
     for (i = 0; i < list->count; i++) {
         const sts_card *card = &list->cards[i];
+        candidate_list *out = &by_type[card->type];
         int max_copies;
 
         if (!(s->type_mask & STS_TYPE_BIT(card->type)))
@@ -76,19 +83,52 @@ static int collect_candidates(const sts_card_list *list, const sts_deck *deck, c
         max_copies = max_copies_for(card, deck, rules, s, capacity);
         if (max_copies < s->copies_min)
             continue;
-        out[n].card = card;
-        out[n].max_copies = max_copies;
-        n++;
+        out->items[out->count].card = card;
+        out->items[out->count].max_copies = max_copies;
+        out->count++;
     }
-    return n;
+}
+
+/* The type for the offer at this position, or -1 if nothing more can be offered. */
+static int choose_type(const sts_offer_settings *s, const candidate_list *by_type, int position, sts_rng *rng)
+{
+    int total = 0, type;
+
+    if (s->style == STS_OFFER_ONE_OF_EACH) {
+        int i;
+
+        for (i = 0; i < 3; i++) {
+            type = (position + i) % 3;
+            if (by_type[type].count > 0)
+                return type;
+        }
+        return -1;
+    }
+
+    /* Only types that still have a card take part, so no roll is ever wasted. */
+    for (type = 0; type < 3; type++)
+        if (by_type[type].count > 0)
+            total += s->weights[type];
+    if (total > 0) {
+        int roll = (int)sts_rng_below(rng, (uint32_t)total);
+
+        for (type = 0; type < 3; type++) {
+            if (by_type[type].count == 0)
+                continue;
+            if (roll < s->weights[type])
+                return type;
+            roll -= s->weights[type];
+        }
+    }
+    return -1;
 }
 
 int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *deck,
                        const sts_rules *rules, const sts_offer_settings *settings,
                        sts_rng *rng, sts_offer *out, int max_out)
 {
-    candidate candidates[STS_POOL_MAX_CARDS * 2];
-    int n, want, i, capacity;
+    candidate_list by_type[3];
+    int want, i, capacity;
 
     if (character < 0 || character >= STS_NUM_CHARACTERS)
         return -1;
@@ -97,24 +137,33 @@ int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *dec
     if (settings->copies_min < 1 || settings->copies_max < settings->copies_min)
         return -1;
 
+    for (i = 0; i < 3; i++)
+        by_type[i].count = 0;
     capacity = replace_capacity(db, character, deck, settings);
-    n = collect_candidates(&db->system, deck, rules, settings, capacity, candidates, 0);
-    n = collect_candidates(&db->characters[character], deck, rules, settings, capacity, candidates, n);
+    collect_candidates(&db->system, deck, rules, settings, capacity, by_type);
+    collect_candidates(&db->characters[character], deck, rules, settings, capacity, by_type);
 
-    /* Partial Fisher-Yates: the first want entries become a uniform distinct sample. */
-    want = min_int(min_int(settings->offer_count, max_out), n);
+    want = min_int(settings->offer_count, max_out);
     for (i = 0; i < want; i++) {
-        int j = i + (int)sts_rng_below(rng, (uint32_t)(n - i));
-        candidate picked = candidates[j];
-        int range = picked.max_copies - settings->copies_min + 1;
+        int type = choose_type(settings, by_type, i, rng);
+        candidate_list *list;
+        candidate picked;
+        int j, range;
 
-        candidates[j] = candidates[i];   /* slot i is not read again, so no full swap */
+        if (type < 0)
+            break;
+        /* Taken out of its list, so one set of offers never repeats a card. */
+        list = &by_type[type];
+        j = (int)sts_rng_below(rng, (uint32_t)list->count);
+        picked = list->items[j];
+        list->items[j] = list->items[--list->count];
 
+        range = picked.max_copies - settings->copies_min + 1;
         out[i].id = picked.card->id;
         out[i].type = picked.card->type;
         out[i].copies = settings->copies_min + (int)sts_rng_below(rng, (uint32_t)range);
     }
-    return want;
+    return i;
 }
 
 int sts_offer_is_valid(const sts_card_db *db, int character, const sts_deck *deck,
