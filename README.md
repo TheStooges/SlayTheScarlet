@@ -38,7 +38,7 @@ To uninstall, remove the line and delete the folder. The mod never changes your 
 `score123.dat`, so your real decks and your save are untouched.
 
 To update, replace `SlayTheScarlet.dll` and `cards.csv`. Keep `settings.ini`, which holds your rules,
-and the `run_XX.sav` files and `active.txt`, which hold your runs.
+and the `runs` folder, which holds your runs.
 
 ## How to play
 

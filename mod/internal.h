@@ -23,6 +23,9 @@ using SokuLib::DrawUtils::Sprite;
 /* Run decks replace this deck slot, in memory only. A local choice, not a game rule. */
 #define RUN_DECK_SLOT 0
 
+/* Saves and active.txt live here, inside the DLL's folder. */
+#define RUNS_FOLDER "runs\\"
+
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define COLS 5

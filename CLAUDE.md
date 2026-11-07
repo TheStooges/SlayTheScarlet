@@ -412,8 +412,8 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    2b. Early game-side experiment, before any UI: find which memory the `GAME_MATCH` packet's deck is
    built from, and where the game reads decks from the `.pf` and trims them (see open questions).
 3. (done, offline) Draft tool in game: card-offer UI, writes run deck. Opened with F7 on the main
-   menu, a stand-in for a proper way in. One run at a time is "in use" (`active.txt` next to the DLL,
-   so it survives restarts), toggled with D on the deck screen and started by finishing a draft.
+   menu, a stand-in for a proper way in. One run at a time is "in use" (`runs/active.txt` next to the DLL,
+   beside the `run_XX.sav` saves, so it survives restarts), toggled with D on the deck screen and started by finishing a draft.
    Stopping restores the slot's previous contents, in memory only.
 4. Post-match reward screen (done, offline: replaces the vanilla unlock list) + **compatible mode**
    (slot injection, no networking; netplay select scenes not hooked yet) - first playable release.

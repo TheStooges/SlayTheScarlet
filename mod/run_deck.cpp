@@ -131,7 +131,7 @@ static void restore_real_deck(void)
 /* active.txt remembers which run is in use across restarts. */
 static void active_file_path(char *out)
 {
-    sprintf(out, "%sactive.txt", g_dir);
+    sprintf(out, "%s" RUNS_FOLDER "active.txt", g_dir);
 }
 
 void save_active_file(void)

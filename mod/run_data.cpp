@@ -16,7 +16,7 @@ void screen_set_dir(const char *dir)
 
 void run_path(char *out, size_t size, int character)
 {
-    _snprintf(out, size - 1, "%srun_%02d.sav", g_dir, character);
+    _snprintf(out, size - 1, "%s" RUNS_FOLDER "run_%02d.sav", g_dir, character);
     out[size - 1] = 0;
 }
 
@@ -65,6 +65,11 @@ void save_run(void)
 {
     char path[MAX_PATH + 32];
     sts_run_status status;
+
+    /* Nothing is in use until a run has been saved, so this is the first write to the folder. If
+     * the folder already exists this fails harmlessly, and a real problem shows up in the save. */
+    sprintf(path, "%s" RUNS_FOLDER, g_dir);
+    CreateDirectoryA(path, NULL);
 
     run_path(path, sizeof path, g_run.character);
     status = sts_run_save(path, &g_run);
