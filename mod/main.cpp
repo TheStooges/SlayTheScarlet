@@ -15,17 +15,35 @@ static int g_result_closing = 0;
 /* Set when only logging: see Initialize. */
 static int g_observer = 0;
 
+/* Records each change in how far the players are through character select: when a character gets
+ * picked, and whether the confirm button was down at that moment. */
+static void log_select_stage(const SokuLib::Select &select)
+{
+    static int last_left = -1;
+    static int last_right = -1;
+
+    if (select.leftSelectionStage == last_left && select.rightSelectionStage == last_right)
+        return;
+    last_left = select.leftSelectionStage;
+    last_right = select.rightSelectionStage;
+    slog("select stage: left %d, right %d (confirm button %d)", last_left, last_right,
+         (int)SokuLib::inputMgrs.input.a);
+}
+
 /* Netplay scenes keep running exactly as normal. Pausing one, as offline character select does
  * for a late reward, could stall the connection. */
 #define NET_SELECT_HOOK(Type, name) \
     static int (SokuLib::Type::*g_og_##Type)(); \
     static int __fastcall on_##Type(SokuLib::Type *This) \
     { \
+        int result; \
         netlog_scene(name); \
         g_result_closing = 0; \
         if (!g_observer) \
             deck_on_net_select_frame(); \
-        return (This->*g_og_##Type)(); \
+        result = (This->*g_og_##Type)(); \
+        log_select_stage(This->base); \
+        return result; \
     }
 #define NET_LOADING_HOOK(Type, name) \
     static int (SokuLib::Type::*g_og_##Type)(); \
