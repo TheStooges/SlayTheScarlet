@@ -366,6 +366,9 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    Stopping restores the slot's previous contents, in memory only.
 4. Post-match reward screen (done, offline: replaces the vanilla unlock list) + **compatible mode**
    (slot injection, no networking; netplay select scenes not hooked yet) - first playable release.
+   Played in game: replace by choice (with a confirm step), by type and random, multiple copies, and
+   `who_picks` winner and nobody. Reward modes add and remove do NOT work in game yet: they change the
+   deck size, the mod only overwrites a slot of the same size, and the game rejects non-20 decks.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
 

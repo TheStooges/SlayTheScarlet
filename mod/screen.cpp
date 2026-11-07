@@ -43,7 +43,8 @@ typedef enum {
     ST_CLOSED, ST_CHOOSE, ST_DRAFT, ST_DECK,
     ST_REWARD,          /* offers after a match */
     ST_REWARD_TYPE,     /* REPLACE by type: which type leaves */
-    ST_REWARD_REMOVE    /* REPLACE by choice: which cards leave */
+    ST_REWARD_REMOVE,   /* REPLACE by choice: which cards leave */
+    ST_REWARD_CONFIRM   /* REPLACE by choice: last check before the swap */
 } screen_state;
 typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
 
@@ -96,6 +97,7 @@ static int g_deck_art_dirty = 1;
 static int g_pending_offer = 0;
 static int g_selected[MAX_DECK_ART];
 static int g_selected_count = 0;
+static int g_last_selected = 0;
 static int g_close_after_deck = 0;
 
 /* What the last battle scene showed, kept for when the scene has gone. */
@@ -106,9 +108,23 @@ static int g_match_reward_due = 0;
 static int g_match_won = 0;
 static int g_match_no_offer = 0;
 
+/* What the last reward changed, listed on the deck screen beside the card details. Offers
+ * add one card, and copies cannot exceed the copy limit, so few lines are ever needed. */
+#define MAX_CHANGE_LINES 8
+typedef struct {
+    uint16_t id;
+    int copies;
+} deck_change;
+static deck_change g_changes_removed[MAX_CHANGE_LINES];
+static deck_change g_changes_added[MAX_CHANGE_LINES];
+static int g_changes_removed_count = 0;
+static int g_changes_added_count = 0;
+
 static void enter_phase(void);
 static void save_run(void);
 static void maybe_start_reward(void);
+static void describe_deck_change(const sts_deck *before);
+static void clear_deck_change(void);
 static void load_card_text(int character);
 static int load_data(void);
 
@@ -684,7 +700,11 @@ static void maybe_start_reward(void)
     load_card_text(g_active_character);
     /* An offer still waiting from before is shown again rather than replaced. */
     if (g_run.phase != STS_PHASE_REWARD) {
+        sts_deck before = g_run.deck;
+
         st = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+        if (outcome == STS_REWARD_AUTO)
+            describe_deck_change(&before);
         slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(st), (int)outcome);
         if (st != STS_RUN_OK)
             return;
@@ -704,9 +724,46 @@ static void maybe_start_reward(void)
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
+/* Records what a reward changed, comparing the deck with its old contents. */
+static void describe_deck_change(const sts_deck *before)
+{
+    const sts_deck *decks[2];
+    int d, i;
+
+    clear_deck_change();
+    decks[0] = before;
+    decks[1] = &g_run.deck;
+    for (d = 0; d < 2; d++) {
+        for (i = 0; i < decks[d]->count; i++) {
+            uint16_t id = decks[d]->ids[i];
+            int difference = sts_deck_count_of(&g_run.deck, id) - sts_deck_count_of(before, id);
+            deck_change *list = d == 0 ? g_changes_removed : g_changes_added;
+            int *count = d == 0 ? &g_changes_removed_count : &g_changes_added_count;
+
+            /* Each distinct card once: at its first position in the deck being scanned. */
+            if (i > 0 && decks[d]->ids[i - 1] == id)
+                continue;
+            if (d == 0)
+                difference = -difference;
+            if (difference > 0 && *count < MAX_CHANGE_LINES) {
+                list[*count].id = id;
+                list[*count].copies = difference;
+                (*count)++;
+            }
+        }
+    }
+}
+
+static void clear_deck_change(void)
+{
+    g_changes_removed_count = 0;
+    g_changes_added_count = 0;
+}
+
 /* Applies the chosen offer and shows the new deck. */
 static void commit_reward(const sts_replace_choice *choice)
 {
+    sts_deck before = g_run.deck;
     sts_run_status st = sts_run_reward_pick(&g_run, &g_db, &g_settings, g_pending_offer, choice);
 
     if (st != STS_RUN_OK) {
@@ -717,6 +774,7 @@ static void commit_reward(const sts_replace_choice *choice)
     slog("reward taken: card %u", (unsigned)g_run.offers[g_pending_offer].id);
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     g_selected_count = 0;
+    describe_deck_change(&before);
     save_run();
     enter_phase();
 }
@@ -734,6 +792,35 @@ static void commit_selected_removals(void)
     choice.remove_count = n;
     choice.type = 0;
     commit_reward(&choice);
+}
+
+/* Fills the change list with what the chosen swap would do, for the confirm screen. */
+static void preview_selected_swap(void)
+{
+    const sts_offer *o = &g_run.offers[g_pending_offer];
+    int i;
+
+    clear_deck_change();
+    for (i = 0; i < g_run.deck.count && i < MAX_DECK_ART; i++) {
+        uint16_t id;
+        int n;
+
+        if (!g_selected[i])
+            continue;
+        id = g_run.deck.ids[i];
+        /* The deck is sorted, so copies of a card are together. */
+        n = g_changes_removed_count - 1;
+        if (n >= 0 && g_changes_removed[n].id == id) {
+            g_changes_removed[n].copies++;
+        } else if (g_changes_removed_count < MAX_CHANGE_LINES) {
+            g_changes_removed[g_changes_removed_count].id = id;
+            g_changes_removed[g_changes_removed_count].copies = 1;
+            g_changes_removed_count++;
+        }
+    }
+    g_changes_added[0].id = o->id;
+    g_changes_added[0].copies = o->copies;
+    g_changes_added_count = 1;
 }
 
 /* Moves through the card grid shared by the deck and removal screens. */
@@ -924,6 +1011,7 @@ static void handle_event(screen_event ev)
         case EV_CONFIRM:
         case EV_CANCEL:
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            clear_deck_change();
             if (g_close_after_deck) {
                 g_close_after_deck = 0;
                 g_state = ST_CLOSED;
@@ -1030,16 +1118,37 @@ static void handle_event(screen_event ev)
             g_selected[g_cursor] = !g_selected[g_cursor];
             g_selected_count += g_selected[g_cursor] ? 1 : -1;
             g_dirty = 1;
-            if (g_selected_count >= g_run.offers[g_pending_offer].copies)
-                commit_selected_removals();
-            else
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            if (g_selected_count >= g_run.offers[g_pending_offer].copies) {
+                g_last_selected = g_cursor;
+                preview_selected_swap();
+                g_state = ST_REWARD_CONFIRM;
+            }
             break;
         case EV_CANCEL:
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
             g_selected_count = 0;
             g_cursor = g_pending_offer;
             g_state = ST_REWARD;
+            g_dirty = 1;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case ST_REWARD_CONFIRM:
+        switch (ev) {
+        case EV_CONFIRM:
+            commit_selected_removals();
+            break;
+        case EV_CANCEL:
+            /* Undoes only the last pick, so the others need not be chosen again. */
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            g_selected[g_last_selected] = 0;
+            g_selected_count--;
+            clear_deck_change();
+            g_state = ST_REWARD_REMOVE;
             g_dirty = 1;
             break;
         default:
@@ -1459,13 +1568,57 @@ static void add_card_details(uint16_t id, int y)
     const sts_card *c = sts_card_db_find(&g_db, g_run.character, id);
 
     /* A skill's arrows sit above its type line, so they need room under the name. */
-    int kind_y = y + (c && c->type == STS_CARD_SKILL ? 42 : 28);
+    int kind_y = y + (c && c->type == STS_CARD_SKILL ? 46 : 28);
 
     add_label(t ? t->name : "?", g_font_big, 24, y, 592, 28, COLOR_WHITE);
     if (c)
         add_card_kind(c, 24, kind_y, 592);
     if (t)
         add_wrapped(t->desc, g_font_small, 24, kind_y + 20, 592, 17, 36, 0, 6, COLOR_WHITE);
+}
+
+/* One heading and its cards. Returns the y position after them. */
+static int add_change_section(const char *heading, const deck_change *list, int count, int y, unsigned color)
+{
+    const int x = 288;
+    int i;
+
+    if (count == 0)
+        return y;
+    add_label(heading, g_font_small, x, y, 340, 20, color);
+    y += 18;
+    for (i = 0; i < count; i++) {
+        const card_text *t = find_text(list[i].id);
+        const sts_card *c = sts_card_db_find(&g_db, g_run.character, list[i].id);
+        char prefix[STS_SKILL_LABEL_SIZE + 8] = "";
+        char text[NAME_SIZE + 32];
+
+        /* "a22 Taste of Death", "4-cost Death Sign ...": what matters most about each type. */
+        if (c && c->type == STS_CARD_SKILL) {
+            char skill[STS_SKILL_LABEL_SIZE];
+            if (sts_skill_label(&g_db, g_run.character, c->id, skill))
+                sprintf(prefix, "%s ", skill);
+        } else if (c && c->type == STS_CARD_SPELL) {
+            sprintf(prefix, "%d-cost ", c->cost_or_slot);
+        }
+        if (list[i].copies > 1)
+            _snprintf(text, sizeof text - 1, "%s%s x%d", prefix, t ? t->name : "?", list[i].copies);
+        else
+            _snprintf(text, sizeof text - 1, "%s%s", prefix, t ? t->name : "?");
+        text[sizeof text - 1] = 0;
+        add_label(text, g_font_small, x + 8, y, 340, 20, COLOR_WHITE);
+        y += 17;
+    }
+    return y + 6;
+}
+
+/* What a reward changed, or is about to, in the space beside the card details. y is the top of
+ * those details; the list starts below their first line, which a long card name fills. */
+static void add_change_list(int y, const char *removed_heading, const char *added_heading)
+{
+    y += 30;
+    y = add_change_section(removed_heading, g_changes_removed, g_changes_removed_count, y, COLOR_RED);
+    add_change_section(added_heading, g_changes_added, g_changes_added_count, y, COLOR_GREEN);
 }
 
 static void rebuild_reward_remove(void)
@@ -1477,6 +1630,16 @@ static void rebuild_reward_remove(void)
 
     if (g_deck_art_dirty)
         load_deck_art();
+    if (g_state == ST_REWARD_CONFIRM) {
+        add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+        add_label("Confirm?", g_font_big, 520, 432, 110, 30, COLOR_GOLD);
+        if (g_cursor < g_run.deck.count)
+            add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+        add_change_list(DECK_Y + 2 * DECK_PITCH_Y + 8, "Removing", "Adding");
+        sprintf(line, "%s: confirm   %s: change the last pick", BUTTON_A, BUTTON_B);
+        add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        return;
+    }
     add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
@@ -1533,6 +1696,7 @@ static void rebuild_deck(void)
     y = DECK_Y + rows * DECK_PITCH_Y + 8;
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], y);
+    add_change_list(y, "Removed", "Added");
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
     sprintf(line, "%s: %s", BUTTON_D, run_deck_in_use() ? "stop using this run" : "use this run");
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_WHITE);
@@ -1564,7 +1728,10 @@ static void rebuild(void)
         rebuild_draft();
         break;
     case ST_DECK:          rebuild_deck(); break;
-    case ST_REWARD_REMOVE: rebuild_reward_remove(); break;
+    case ST_REWARD_REMOVE:
+    case ST_REWARD_CONFIRM:
+        rebuild_reward_remove();
+        break;
     case ST_REWARD_TYPE:   rebuild_reward_type(); break;
     case ST_CLOSED:        break;
     }
@@ -1603,7 +1770,7 @@ void screen_render(int opaque)
             if (g_has_art[i])
                 g_art[i].draw();
         }
-    } else if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE) {
+    } else if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) {
         /* Two rows fit above the card details. A larger deck scrolls with the cursor. */
         int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
 
@@ -1611,11 +1778,12 @@ void screen_render(int opaque)
             int x = DECK_X + (i % DECK_COLS) * DECK_PITCH_X;
             int y = DECK_Y + (i / DECK_COLS - top) * DECK_PITCH_Y;
 
-            if (i == g_cursor || (g_state == ST_REWARD_REMOVE && g_selected[i])) {
+            int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) && g_selected[i];
+
+            if (i == g_cursor || picked) {
                 /* An even margin around the image, whatever size the game's art is. */
                 SokuLib::Vector2u size = g_has_deck_art[i] ? g_deck_art[i].getSize()
                                                            : SokuLib::Vector2u{DECK_PITCH_X - 8, DECK_PITCH_Y - 8};
-                int picked = g_state == ST_REWARD_REMOVE && g_selected[i];
 
                 draw_box(x - 3, y - 3, (int)size.x + 6, (int)size.y + 6,
                          picked ? 0x80FF6060u : 0x60FFE080u, picked ? 0xFFFF6060u : 0xFFFFE080u);
