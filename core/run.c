@@ -89,11 +89,13 @@ static sts_apply_status apply_reward(sts_run *run, const sts_card_db *db, const 
         case STS_REPLACE_CHOOSE:
             if (!choice || !choice->remove_ids)
                 return STS_APPLY_BAD_REMOVAL;
-            return sts_offer_replace_chosen(&run->deck, offer, &settings->rules, choice->remove_ids, choice->remove_count);
+            return sts_offer_replace_chosen(&run->deck, offer, &settings->rules, choice->remove_ids,
+                                            choice->remove_count);
         case STS_REPLACE_BY_TYPE:
             if (!choice)
                 return STS_APPLY_BAD_REMOVAL;
-            return sts_offer_replace_by_type(&run->deck, offer, &settings->rules, db, run->character, choice->type, &run->rng);
+            return sts_offer_replace_by_type(&run->deck, offer, &settings->rules, db, run->character, choice->type,
+                                             &run->rng);
         case STS_REPLACE_RANDOM:
             return sts_offer_replace_random(&run->deck, offer, &settings->rules, &run->rng);
         }

@@ -403,7 +403,8 @@ void test_offer_one_of_each(void)
         for (j = 0; j < 50; j++) {
             count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
             CHECK(count == 3);
-            CHECK(offer[0].type == STS_CARD_SYSTEM && offer[1].type == STS_CARD_SKILL && offer[2].type == STS_CARD_SPELL);
+            CHECK(offer[0].type == STS_CARD_SYSTEM && offer[1].type == STS_CARD_SKILL
+                  && offer[2].type == STS_CARD_SPELL);
         }
     }
 
@@ -495,7 +496,8 @@ void test_offer_runs(void)
                 if (count > 0)
                     apply_offer(&deck, &offer[sts_rng_below(&rng, (uint32_t)count)], STS_REWARD_ADD);
             }
-            if (sts_deck_validate(&deck, &vanilla, NULL) != STS_DECK_OK || !sts_deck_cards_legal(&g_db, character, &deck, NULL))
+            if (sts_deck_validate(&deck, &vanilla, NULL) != STS_DECK_OK
+                || !sts_deck_cards_legal(&g_db, character, &deck, NULL))
                 violations++;
 
             for (mode_index = 0; mode_index < 3; mode_index++) {

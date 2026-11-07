@@ -74,9 +74,6 @@ typedef enum { RULES_CARRY_ON, RULES_BACK, RULES_START_OVER } rules_option;
 #define RULES_ROW_Y 150
 #define RULES_ROW_PITCH 70
 
-/* log.cpp */
-extern CRITICAL_SECTION g_log_lock;
-
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);
 int load_data(void);

@@ -5,7 +5,12 @@
 #include "internal.h"
 
 /* The log is also written from the threads that handle packets. */
-CRITICAL_SECTION g_log_lock;
+static CRITICAL_SECTION g_log_lock;
+
+void log_init(void)
+{
+    InitializeCriticalSection(&g_log_lock);
+}
 
 /* sts.log next to the DLL, restarted each launch. Holds no IPs or player names. */
 void slog(const char *fmt, ...)

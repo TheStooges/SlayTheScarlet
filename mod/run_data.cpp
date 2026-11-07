@@ -11,7 +11,6 @@ sts_run g_run;
 
 void screen_set_dir(const char *dir)
 {
-    InitializeCriticalSection(&g_log_lock);
     strncpy(g_dir, dir, sizeof g_dir - 1);
 }
 

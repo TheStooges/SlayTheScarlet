@@ -115,13 +115,15 @@ void deck_on_select_frame(void)
 static int log_battle_side(const char *name, int character, int deck_slot, SokuLib::CharacterManager &player)
 {
     /* Player::deckInfo.original; see the probe findings in CLAUDE.md */
-    auto *original = reinterpret_cast<SokuLib::Dequeue<unsigned short> *>(reinterpret_cast<char *>(&player) + 0x57C + 0x20);
+    auto *original = reinterpret_cast<SokuLib::Dequeue<unsigned short> *>(
+        reinterpret_cast<char *>(&player) + 0x57C + 0x20);
     static sts_deck loaded, expected;
     char text[1100];
     int i;
 
     ids_text(text, sizeof text, *original);
-    slog("match %s: character %d, deck choice %d, loaded %d cards: %s", name, character, deck_slot, original->size, text);
+    slog("match %s: character %d, deck choice %d, loaded %d cards: %s",
+         name, character, deck_slot, original->size, text);
     if (!g_active || character != g_active_character)
         return 0;
 
@@ -148,12 +150,15 @@ void deck_on_battle_frame(void)
     if (now - last_tick > 1000) {
         __try {
             auto &mgr = SokuLib::getBattleMgr();
-            int offline = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCOM || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSPLAYER;
+            int offline = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCOM
+                || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSPLAYER;
             /* SokuLib's names are from the opponent's view: "VSCLIENT" means you are the host. */
             int host = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT;
             int client = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER;
-            int left = log_battle_side("left", (int)SokuLib::leftPlayerInfo.character, SokuLib::leftPlayerInfo.deck, mgr.leftCharacterManager);
-            int right = log_battle_side("right", (int)SokuLib::rightPlayerInfo.character, SokuLib::rightPlayerInfo.deck, mgr.rightCharacterManager);
+            int left = log_battle_side("left", (int)SokuLib::leftPlayerInfo.character, SokuLib::leftPlayerInfo.deck,
+                                       mgr.leftCharacterManager);
+            int right = log_battle_side("right", (int)SokuLib::rightPlayerInfo.character, SokuLib::rightPlayerInfo.deck,
+                                        mgr.rightCharacterManager);
 
             /* Only VS matches played by a person earn a reward: not practice, replays or
              * spectating. Offline the run deck only reaches the left player; online, the local
@@ -163,7 +168,8 @@ void deck_on_battle_frame(void)
                 && (((offline || host) && left) || (client && right));
             g_match_score_left = 0;
             g_match_score_right = 0;
-            slog("match mode %d submode %d, counts for a reward: %d", (int)SokuLib::mainMode, (int)SokuLib::subMode, g_match_used_run_deck);
+            slog("match mode %d submode %d, counts for a reward: %d",
+                 (int)SokuLib::mainMode, (int)SokuLib::subMode, g_match_used_run_deck);
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             slog("match: could not read the decks");

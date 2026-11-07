@@ -229,6 +229,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     PathRemoveFileSpecA(dir);
     PathAddBackslashA(dir);
     screen_set_dir(dir);
+    log_init();
 
     /* Development aid: with observer.txt beside the DLL, only netplay is logged. No screens, no
      * deck writes, so an install can stand in for a vanilla opponent and still show its side. */

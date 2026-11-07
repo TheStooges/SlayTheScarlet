@@ -101,16 +101,16 @@ static void ready_run(sts_run *run, const sts_settings *settings, int character,
     CHECK(run->phase == STS_PHASE_READY);
 }
 
-void test_run_rewards(void)
+/* replace + choose: the default. Refused choices keep the offers on screen. */
+static void test_rewards_replace_choose(void)
 {
     static sts_run run, before;
     sts_settings settings;
     sts_reward_outcome out;
     sts_replace_choice choice;
     uint16_t remove[4];
-    int line = 0, i, j;
+    int i;
 
-    /* replace + choose: the default. Refused choices keep the offers on screen. */
     sts_settings_defaults(&settings);
     ready_run(&run, &settings, 0, 7);
     CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_WRONG_PHASE);
@@ -142,29 +142,41 @@ void test_run_rewards(void)
         CHECK(sts_deck_count_of(&run.deck, taken) >= had);
     }
     CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+}
 
-    /* who_picks: a left-out player keeps the deck and stays READY; the count still rises. */
-    {
-        static const struct { sts_who_picks who; int won; int offers; } cases[] = {
-            {STS_WHO_BOTH, 1, 1}, {STS_WHO_BOTH, 0, 1},
-            {STS_WHO_WINNER, 1, 1}, {STS_WHO_WINNER, 0, 0},
-            {STS_WHO_LOSER, 1, 0}, {STS_WHO_LOSER, 0, 1},
-        };
-        size_t k;
-        for (k = 0; k < sizeof cases / sizeof cases[0]; k++) {
-            sts_settings_defaults(&settings);
-            settings.who_picks = cases[k].who;
-            ready_run(&run, &settings, 3, 11);
-            before = run;
-            CHECK(sts_run_begin_reward(&run, &g_db, &settings, cases[k].won, &out) == STS_RUN_OK);
-            CHECK(out == (cases[k].offers ? STS_REWARD_OFFERS : STS_REWARD_NONE));
-            CHECK(run.phase == (cases[k].offers ? STS_PHASE_REWARD : STS_PHASE_READY));
-            CHECK(decks_equal(&run.deck, &before.deck));
-            CHECK(run.matches_played == 1);
-        }
+/* who_picks: a left-out player keeps the deck and stays READY; the count still rises. */
+static void test_rewards_who_picks(void)
+{
+    static sts_run run, before;
+    sts_settings settings;
+    sts_reward_outcome out;
+    static const struct { sts_who_picks who; int won; int offers; } cases[] = {
+        {STS_WHO_BOTH, 1, 1}, {STS_WHO_BOTH, 0, 1},
+        {STS_WHO_WINNER, 1, 1}, {STS_WHO_WINNER, 0, 0},
+        {STS_WHO_LOSER, 1, 0}, {STS_WHO_LOSER, 0, 1},
+    };
+    size_t k;
+    for (k = 0; k < sizeof cases / sizeof cases[0]; k++) {
+        sts_settings_defaults(&settings);
+        settings.who_picks = cases[k].who;
+        ready_run(&run, &settings, 3, 11);
+        before = run;
+        CHECK(sts_run_begin_reward(&run, &g_db, &settings, cases[k].won, &out) == STS_RUN_OK);
+        CHECK(out == (cases[k].offers ? STS_REWARD_OFFERS : STS_REWARD_NONE));
+        CHECK(run.phase == (cases[k].offers ? STS_PHASE_REWARD : STS_PHASE_READY));
+        CHECK(decks_equal(&run.deck, &before.deck));
+        CHECK(run.matches_played == 1);
     }
+}
 
-    /* nobody: changes the deck by itself, for winner and loser, whatever replacement says. */
+/* nobody: changes the deck by itself, for winner and loser, whatever replacement says. */
+static void test_rewards_nobody(void)
+{
+    static sts_run run, before;
+    sts_settings settings;
+    sts_reward_outcome out;
+    int i, j;
+
     sts_settings_defaults(&settings);
     settings.who_picks = STS_WHO_NOBODY;
     for (i = 0; i < 2; i++) {
@@ -179,9 +191,16 @@ void test_run_rewards(void)
         }
         CHECK(changed > 50);
     }
+}
 
-    /* nobody removes at random, so the by_type limit on copies must not apply: no type
-     * here has 3 cards, but the deck can still give up 3. */
+/* nobody removes at random, so the by_type limit on copies must not apply: no type
+ * here has 3 cards, but the deck can still give up 3. */
+static void test_rewards_nobody_ignores_by_type(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    sts_reward_outcome out;
+
     sts_settings_defaults(&settings);
     settings.rules.deck_min = 6;
     settings.rules.deck_max = 6;
@@ -198,8 +217,15 @@ void test_run_rewards(void)
     add_copies(&run.deck, 200, 2);
     CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_AUTO);
     CHECK(run.deck.count == 6);
+}
 
-    /* skip: no offers for anyone, with or without a picker. */
+/* skip: no offers for anyone, with or without a picker. */
+static void test_rewards_skip(void)
+{
+    static sts_run run, before;
+    sts_settings settings;
+    sts_reward_outcome out;
+
     sts_settings_defaults(&settings);
     settings.reward.mode = STS_REWARD_SKIP;
     settings.who_picks = STS_WHO_NOBODY;
@@ -214,8 +240,17 @@ void test_run_rewards(void)
     before = run;
     CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     CHECK(decks_equal(&run.deck, &before.deck) && run.phase == STS_PHASE_READY);
+}
 
-    /* replace + by_type: the player's type is honoured; an unavailable one is refused. */
+/* replace + by_type: the player's type is honoured; an unavailable one is refused. */
+static void test_rewards_by_type(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    sts_reward_outcome out;
+    sts_replace_choice choice;
+    int j;
+
     sts_settings_defaults(&settings);
     settings.reward.replace = STS_REPLACE_BY_TYPE;
     ready_run(&run, &settings, 2, 31);
@@ -246,8 +281,16 @@ void test_run_rewards(void)
         }
         CHECK(run.deck.count == 20);
     }
+}
 
-    /* replace + random needs no choice from the player. */
+/* replace + random needs no choice from the player. */
+static void test_rewards_random(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    sts_reward_outcome out;
+    int j;
+
     sts_settings_defaults(&settings);
     settings.reward.replace = STS_REPLACE_RANDOM;
     ready_run(&run, &settings, 2, 32);
@@ -256,8 +299,16 @@ void test_run_rewards(void)
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, (int)(j % 3), NULL) == STS_RUN_OK);
         CHECK(run.deck.count == 20 && sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
     }
+}
 
-    /* add and remove walk the deck to its bounds and then stop offering. */
+/* add and remove walk the deck to its bounds and then stop offering. */
+static void test_rewards_add_and_remove(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    sts_reward_outcome out;
+    int line = 0, j;
+
     CHECK(parse_ini("[deck]\nsize_min=20\nsize_max=23\n[reward]\nmode=add\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
     ready_run(&run, &settings, 4, 41);
@@ -282,10 +333,23 @@ void test_run_rewards(void)
     CHECK(run.deck.count == 18);
 }
 
+void test_run_rewards(void)
+{
+    test_rewards_replace_choose();
+    test_rewards_who_picks();
+    test_rewards_nobody();
+    test_rewards_nobody_ignores_by_type();
+    test_rewards_skip();
+    test_rewards_by_type();
+    test_rewards_random();
+    test_rewards_add_and_remove();
+}
+
 static int runs_equal(const sts_run *first, const sts_run *second)
 {
     int i;
-    if (first->settings_hash != second->settings_hash || first->character != second->character || first->phase != second->phase
+    if (first->settings_hash != second->settings_hash || first->character != second->character
+        || first->phase != second->phase
         || first->picks_done != second->picks_done || first->matches_played != second->matches_played
         || first->rng.state != second->rng.state || first->rng.inc != second->rng.inc
         || !decks_equal(&first->deck, &second->deck) || first->offer_count != second->offer_count)
@@ -306,46 +370,49 @@ static int write_file(const char *path, const char *data, size_t count)
     return fclose(file) == 0 && ok;
 }
 
-void test_run_save(void)
+/* Round trip in all three phases. Leaves the run waiting on a reward, for the tests after it. */
+static void test_save_round_trip(sts_run *run)
 {
-    static const char *const path = "sts_test_run.sav";
-    static const char *const tmp = "sts_test_run.sav.tmp";
-    static sts_run run, loaded, other;
-    static char text[STS_RUN_TEXT_MAX], broken[STS_RUN_TEXT_MAX];
+    static sts_run loaded;
+    static char text[STS_RUN_TEXT_MAX];
     sts_settings settings;
     sts_reward_outcome out;
-    size_t count, i;
-    int pick, bad;
+    size_t count;
+    int pick;
 
     sts_settings_defaults(&settings);
-    remove(path);
-    remove(tmp);
-
-    /* Round trip in all three phases. */
-    CHECK(sts_run_start(&run, &g_db, &settings, 7, 555) == STS_RUN_OK);
+    CHECK(sts_run_start(run, &g_db, &settings, 7, 555) == STS_RUN_OK);
     for (pick = 0; pick < 5; pick++)
-        CHECK(sts_run_draft_pick(&run, &g_db, &settings, 0) == STS_RUN_OK);
-    count = sts_run_serialize(&run, text, sizeof text);
-    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(&run, &loaded));
+        CHECK(sts_run_draft_pick(run, &g_db, &settings, 0) == STS_RUN_OK);
+    count = sts_run_serialize(run, text, sizeof text);
+    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
     CHECK(sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
 
     /* Resuming mid-draft gives exactly the run that was never interrupted: a reload
      * shows the same offers, so it cannot reroll them. */
-    CHECK(finish_draft(&run, &settings) == STS_RUN_OK);
+    CHECK(finish_draft(run, &settings) == STS_RUN_OK);
     CHECK(finish_draft(&loaded, &settings) == STS_RUN_OK);
-    CHECK(runs_equal(&run, &loaded));
+    CHECK(runs_equal(run, &loaded));
 
-    count = sts_run_serialize(&run, text, sizeof text);
-    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(&run, &loaded));
+    count = sts_run_serialize(run, text, sizeof text);
+    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
     CHECK(loaded.phase == STS_PHASE_READY && sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
 
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
-    count = sts_run_serialize(&run, text, sizeof text);
-    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(&run, &loaded));
+    CHECK(sts_run_begin_reward(run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    count = sts_run_serialize(run, text, sizeof text);
+    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
     CHECK(loaded.phase == STS_PHASE_REWARD && sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
+}
 
-    /* The largest deck still fits; a small buffer is reported. */
-    other = run;
+/* The largest deck still fits; a small buffer is reported. */
+static void test_save_limits(const sts_run *run)
+{
+    static sts_run loaded, other;
+    static char text[STS_RUN_TEXT_MAX];
+    size_t count;
+    int pick;
+
+    other = *run;
     other.deck.count = STS_MAX_DECK;
     for (pick = 0; pick < STS_MAX_DECK; pick++)
         other.deck.ids[pick] = 0xFFFF;
@@ -356,13 +423,21 @@ void test_run_save(void)
         other.offers[pick].type = STS_CARD_SPELL;
         other.offers[pick].copies = STS_MAX_DECK;
     }
-    i = sts_run_serialize(&other, text, sizeof text);
-    CHECK(i > 0 && sts_run_parse(text, i, &loaded) == STS_RUN_OK && runs_equal(&other, &loaded));
-    CHECK(sts_run_serialize(&run, text, 10) == 0);
-    CHECK(sts_run_serialize(&run, text, 0) == 0);
+    count = sts_run_serialize(&other, text, sizeof text);
+    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(&other, &loaded));
+    CHECK(sts_run_serialize(run, text, 10) == 0);
+    CHECK(sts_run_serialize(run, text, 0) == 0);
+}
+
+static void test_save_text(const sts_run *run)
+{
+    static sts_run loaded;
+    static char text[STS_RUN_TEXT_MAX], broken[STS_RUN_TEXT_MAX];
+    size_t count, i;
+    int bad;
 
     /* The output is plain ASCII. */
-    count = sts_run_serialize(&run, text, sizeof text);
+    count = sts_run_serialize(run, text, sizeof text);
     bad = 0;
     for (i = 0; i < count; i++)
         if ((unsigned char)text[i] > 127) bad++;
@@ -391,50 +466,69 @@ void test_run_save(void)
         written_length = body + (size_t)sprintf(broken + body, "check %08x\n", (unsigned)check);
         CHECK(sts_run_parse(broken, written_length, &loaded) == STS_RUN_BAD_VERSION);
     }
+}
 
-    /* Validation catches what a checksum cannot: changed rules and illegal contents. */
-    {
-        sts_settings changed = settings;
-        count = sts_run_serialize(&run, text, sizeof text);
-        CHECK(sts_run_parse(text, count, &loaded) == STS_RUN_OK);
-        changed.rules.copy_limit = 3;
-        CHECK(sts_run_validate(&loaded, &g_db, &changed) == STS_RUN_SETTINGS_CHANGED);
+/* Validation catches what a checksum cannot: changed rules and illegal contents. */
+static void test_save_validation(const sts_run *run)
+{
+    static sts_run loaded, other;
+    static char text[STS_RUN_TEXT_MAX];
+    sts_settings settings, changed;
+    size_t count;
 
-        other = loaded;
-        other.character = 20;
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.deck.ids[0] = 999;      /* not a real card */
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.deck.count = 19;        /* below size_min outside the draft */
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.offer_count = 0;        /* REWARD with nothing to pick */
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.offers[0].id = 999;
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.offers[0].type = (uint8_t)(other.offers[0].type == STS_CARD_SPELL ? STS_CARD_SKILL : STS_CARD_SPELL);
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.offers[0].copies = 0;
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.picks_done = 21;
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-        other = loaded;
-        other.phase = STS_PHASE_READY;  /* READY must not carry offers */
-        CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
-    }
+    sts_settings_defaults(&settings);
+    changed = settings;
+    count = sts_run_serialize(run, text, sizeof text);
+    CHECK(sts_run_parse(text, count, &loaded) == STS_RUN_OK);
+    changed.rules.copy_limit = 3;
+    CHECK(sts_run_validate(&loaded, &g_db, &changed) == STS_RUN_SETTINGS_CHANGED);
+
+    other = loaded;
+    other.character = 20;
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.deck.ids[0] = 999;      /* not a real card */
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.deck.count = 19;        /* below size_min outside the draft */
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.offer_count = 0;        /* REWARD with nothing to pick */
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.offers[0].id = 999;
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.offers[0].type = (uint8_t)(other.offers[0].type == STS_CARD_SPELL ? STS_CARD_SKILL : STS_CARD_SPELL);
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.offers[0].copies = 0;
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.picks_done = 21;
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other = loaded;
+    other.phase = STS_PHASE_READY;  /* READY must not carry offers */
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+}
+
+static void test_save_files(const sts_run *run)
+{
+    static const char *const path = "sts_test_run.sav";
+    static const char *const tmp = "sts_test_run.sav.tmp";
+    static sts_run loaded, other;
+    static char text[STS_RUN_TEXT_MAX];
+    size_t count;
+
+    remove(path);
+    remove(tmp);
 
     /* Files: no save yet, then a normal save and overwrite, leaving no temp file. */
     CHECK(sts_run_load(path, &loaded) == STS_RUN_IO);
-    CHECK(sts_run_save(path, &run) == STS_RUN_OK);
-    CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(&run, &loaded));
-    other = run;
-    other.matches_played = run.matches_played + 1;
+    CHECK(sts_run_save(path, run) == STS_RUN_OK);
+    CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
+    other = *run;
+    other.matches_played = run->matches_played + 1;
     CHECK(sts_run_save(path, &other) == STS_RUN_OK);
     CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(&other, &loaded));
     {
@@ -444,17 +538,17 @@ void test_run_save(void)
     }
 
     /* A crash during the temp write: the partial file is ignored, the old save loads. */
-    count = sts_run_serialize(&run, text, sizeof text);
+    count = sts_run_serialize(run, text, sizeof text);
     CHECK(write_file(tmp, text, count / 2));
     CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(&other, &loaded));
 
     /* A crash just before the rename: the complete temp file is the newer one. */
     CHECK(write_file(tmp, text, count));
-    CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(&run, &loaded));
+    CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
 
     /* Even with the main file gone, as after a remove with the rename not done. */
     remove(path);
-    CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(&run, &loaded));
+    CHECK(sts_run_load(path, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
 
     /* A later save clears the leftover and wins. */
     CHECK(sts_run_save(path, &other) == STS_RUN_OK);
@@ -468,6 +562,17 @@ void test_run_save(void)
     remove(path);
     remove(tmp);
     CHECK(strcmp(sts_run_status_str(STS_RUN_DAMAGED), "save file is damaged") == 0);
+}
+
+void test_run_save(void)
+{
+    static sts_run run;
+
+    test_save_round_trip(&run);
+    test_save_limits(&run);
+    test_save_text(&run);
+    test_save_validation(&run);
+    test_save_files(&run);
 }
 
 /* A whole run, saved and reloaded after every step, stays legal in every mode. */
@@ -496,7 +601,8 @@ void test_run_endurance(void)
         CHECK(sts_settings_validate(&settings) == NULL);
         for (character = 0; character < STS_NUM_CHARACTERS; character++) {
             size_t count;
-            if (sts_run_start(&run, &g_db, &settings, character, (uint64_t)(i * 100 + (size_t)character)) != STS_RUN_OK) stuck++;
+            if (sts_run_start(&run, &g_db, &settings, character, (uint64_t)(i * 100 + (size_t)character)) != STS_RUN_OK)
+                stuck++;
             if (finish_draft(&run, &settings) != STS_RUN_OK) stuck++;
             for (match = 0; match < 60; match++) {
                 sts_reward_outcome out;
@@ -523,7 +629,8 @@ void test_run_endurance(void)
                             if (run.deck.ids[deck_position] != run.offers[idx].id)
                                 remove_ids[k++] = run.deck.ids[deck_position];
                     } else if (settings.reward.replace == STS_REPLACE_BY_TYPE) {
-                        unsigned mask = sts_replace_types_available(&g_db, character, &run.deck, run.offers[idx].id, run.offers[idx].copies);
+                        unsigned mask = sts_replace_types_available(&g_db, character, &run.deck, run.offers[idx].id,
+                                                                run.offers[idx].copies);
                         choice.type = (mask & 1u) ? 0 : (mask & 2u) ? 1 : 2;
                     }
                     if (sts_run_reward_pick(&run, &g_db, &settings, idx, &choice) != STS_RUN_OK)

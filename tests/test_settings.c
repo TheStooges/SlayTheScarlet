@@ -3,7 +3,7 @@
 
 static char g_text[512];
 
-void test_settings(void)
+static void test_settings_defaults(void)
 {
     sts_settings settings, defaults;
     int line = 0;
@@ -22,6 +22,12 @@ void test_settings(void)
     CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
     CHECK(parse_ini("# c\n; c\n\n  [deck]  \r\n  size_max = 30  \r\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(settings.rules.deck_max == 30 && settings.rules.deck_min == 20);
+}
+
+static void test_settings_every_key(void)
+{
+    sts_settings settings;
+    int line = 0;
 
     /* Every setting is reachable. */
     CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=25\ncopy_limit=3\n"
@@ -33,12 +39,19 @@ void test_settings(void)
     CHECK(settings.rules.deck_min == 15 && settings.rules.deck_max == 25 && settings.rules.copy_limit == 3);
     CHECK(settings.draft_picks == 22 && settings.draft.offer_count == 4 && settings.draft.copies_max == 2);
     CHECK(settings.draft.type_mask == (STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL)));
-    CHECK(settings.reward.mode == STS_REWARD_ADD && settings.who_picks == STS_WHO_LOSER && settings.reward.offer_count == 5);
+    CHECK(settings.reward.mode == STS_REWARD_ADD && settings.who_picks == STS_WHO_LOSER
+          && settings.reward.offer_count == 5);
     CHECK(settings.reward.copies_min == 2 && settings.reward.copies_max == 3);
     CHECK(settings.reward.type_mask == STS_TYPE_BIT(STS_CARD_SYSTEM) && settings.reward.replace == STS_REPLACE_BY_TYPE);
     CHECK(settings.pick_visibility == STS_VISIBILITY_LIVE && settings.opponent_deck == STS_OPPONENT_DECK_FULL);
     CHECK(settings.items_enabled == 1);
     CHECK(sts_settings_validate(&settings) == NULL);
+}
+
+static void test_settings_long_lines(void)
+{
+    sts_settings settings;
+    int line = 0;
 
     /* A long comment is fine; a long setting is refused rather than truncated. */
     memset(g_text, 'x', 300);
@@ -49,18 +62,36 @@ void test_settings(void)
     CHECK(parse_ini(g_text, &settings, &line) == STS_SETTINGS_OK);
     g_text[1] = 'x';
     CHECK(parse_ini(g_text, &settings, &line) == STS_SETTINGS_BAD_LINE && line == 1);
+}
+
+static void test_settings_offer_style(void)
+{
+    sts_settings settings, defaults;
+    int line = 0;
+
+    sts_settings_defaults(&defaults);
 
     /* Offer style and weights, separately for the draft and rewards. */
     CHECK(defaults.draft.style == STS_OFFER_WEIGHTED && defaults.reward.style == STS_OFFER_WEIGHTED);
-    CHECK(defaults.reward.weights[STS_CARD_SYSTEM] == 1 && defaults.reward.weights[STS_CARD_SKILL] == 1 && defaults.reward.weights[STS_CARD_SPELL] == 1);
+    CHECK(defaults.reward.weights[STS_CARD_SYSTEM] == 1 && defaults.reward.weights[STS_CARD_SKILL] == 1
+          && defaults.reward.weights[STS_CARD_SPELL] == 1);
     CHECK(parse_ini("[draft]\noffer_style=one_of_each\n[reward]\nsystem_weight=2\nskill_weight=3\nspell_weight=4\n",
                     &settings, &line) == STS_SETTINGS_OK);
     CHECK(settings.draft.style == STS_OFFER_ONE_OF_EACH && settings.reward.style == STS_OFFER_WEIGHTED);
-    CHECK(settings.reward.weights[STS_CARD_SYSTEM] == 2 && settings.reward.weights[STS_CARD_SKILL] == 3 && settings.reward.weights[STS_CARD_SPELL] == 4);
+    CHECK(settings.reward.weights[STS_CARD_SYSTEM] == 2 && settings.reward.weights[STS_CARD_SKILL] == 3
+          && settings.reward.weights[STS_CARD_SPELL] == 4);
     CHECK(settings.draft.weights[STS_CARD_SYSTEM] == 1);
     CHECK(sts_settings_validate(&settings) == NULL);
     CHECK(parse_ini("[reward]\noffer_style=gamble\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
     CHECK(parse_ini("[reward]\nspell_weight=-1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+}
+
+static void test_settings_errors(void)
+{
+    sts_settings settings, defaults;
+    int line = 0;
+
+    sts_settings_defaults(&defaults);
 
     /* Damage is reported with the right kind and line. */
     CHECK(parse_ini("[deck]\nnonsense\n", &settings, &line) == STS_SETTINGS_BAD_LINE && line == 2);
@@ -80,6 +111,12 @@ void test_settings(void)
     CHECK(sts_settings_load("no/such/file.ini", &settings, &line) == STS_SETTINGS_IO);
     CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));    /* defaults even so */
     CHECK(strcmp(sts_settings_status_str(STS_SETTINGS_BAD_VALUE), "bad value") == 0);
+}
+
+static void test_settings_validation(void)
+{
+    sts_settings settings;
+    int line = 0;
 
     /* Combinations that could never work are refused. */
 #define BAD_INI(text) do { \
@@ -110,7 +147,8 @@ void test_settings(void)
 #undef BAD_INI
 
     /* The weights only matter to the style that uses them. */
-    CHECK(parse_ini("[reward]\noffer_style=one_of_each\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[reward]\noffer_style=one_of_each\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n",
+                    &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
 
     /* Workable variations are accepted, including a skip with otherwise odd offers. */
@@ -122,71 +160,94 @@ void test_settings(void)
     CHECK(sts_settings_validate(&settings) == NULL);
     CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=25\n[reward]\nmode=remove\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
+}
+
+static void test_settings_fingerprint(void)
+{
+    sts_settings settings, defaults;
+    uint32_t base;
+
+    sts_settings_defaults(&defaults);
+    base = sts_settings_hash(&defaults);
 
     /* The fingerprint notices a change to any rule. */
-    {
-        uint32_t base = sts_settings_hash(&defaults);
 #define HASH_DIFFERS(field, value) do { \
-            settings = defaults; settings.field = value; \
-            CHECK(sts_settings_hash(&settings) != base); \
-        } while (0)
-        HASH_DIFFERS(rules.deck_min, 19);
-        HASH_DIFFERS(rules.deck_max, 21);
-        HASH_DIFFERS(rules.copy_limit, 3);
-        HASH_DIFFERS(draft_picks, 21);
-        HASH_DIFFERS(draft.offer_count, 4);
-        HASH_DIFFERS(draft.copies_max, 2);
-        HASH_DIFFERS(draft.type_mask, 1u);
-        HASH_DIFFERS(reward.mode, STS_REWARD_SKIP);
-        HASH_DIFFERS(reward.offer_count, 4);
-        HASH_DIFFERS(reward.copies_min, 2);
-        HASH_DIFFERS(reward.copies_max, 2);
-        HASH_DIFFERS(reward.type_mask, 1u);
-        HASH_DIFFERS(reward.replace, STS_REPLACE_RANDOM);
-        HASH_DIFFERS(reward.style, STS_OFFER_ONE_OF_EACH);
-        HASH_DIFFERS(reward.weights[STS_CARD_SYSTEM], 2);
-        HASH_DIFFERS(reward.weights[STS_CARD_SKILL], 2);
-        HASH_DIFFERS(reward.weights[STS_CARD_SPELL], 2);
-        HASH_DIFFERS(draft.style, STS_OFFER_ONE_OF_EACH);
-        HASH_DIFFERS(draft.weights[STS_CARD_SPELL], 2);
-        HASH_DIFFERS(who_picks, STS_WHO_WINNER);
-        HASH_DIFFERS(pick_visibility, STS_VISIBILITY_LIVE);
-        HASH_DIFFERS(opponent_deck, STS_OPPONENT_DECK_FULL);
-        HASH_DIFFERS(items_enabled, 1);
+        settings = defaults; settings.field = value; \
+        CHECK(sts_settings_hash(&settings) != base); \
+    } while (0)
+    HASH_DIFFERS(rules.deck_min, 19);
+    HASH_DIFFERS(rules.deck_max, 21);
+    HASH_DIFFERS(rules.copy_limit, 3);
+    HASH_DIFFERS(draft_picks, 21);
+    HASH_DIFFERS(draft.offer_count, 4);
+    HASH_DIFFERS(draft.copies_max, 2);
+    HASH_DIFFERS(draft.type_mask, 1u);
+    HASH_DIFFERS(reward.mode, STS_REWARD_SKIP);
+    HASH_DIFFERS(reward.offer_count, 4);
+    HASH_DIFFERS(reward.copies_min, 2);
+    HASH_DIFFERS(reward.copies_max, 2);
+    HASH_DIFFERS(reward.type_mask, 1u);
+    HASH_DIFFERS(reward.replace, STS_REPLACE_RANDOM);
+    HASH_DIFFERS(reward.style, STS_OFFER_ONE_OF_EACH);
+    HASH_DIFFERS(reward.weights[STS_CARD_SYSTEM], 2);
+    HASH_DIFFERS(reward.weights[STS_CARD_SKILL], 2);
+    HASH_DIFFERS(reward.weights[STS_CARD_SPELL], 2);
+    HASH_DIFFERS(draft.style, STS_OFFER_ONE_OF_EACH);
+    HASH_DIFFERS(draft.weights[STS_CARD_SPELL], 2);
+    HASH_DIFFERS(who_picks, STS_WHO_WINNER);
+    HASH_DIFFERS(pick_visibility, STS_VISIBILITY_LIVE);
+    HASH_DIFFERS(opponent_deck, STS_OPPONENT_DECK_FULL);
+    HASH_DIFFERS(items_enabled, 1);
 #undef HASH_DIFFERS
+}
+
+/* Compatible mode always ends up legal, 20 cards, 4 copies, no items. */
+static void test_settings_compatible(void)
+{
+    sts_settings settings, defaults;
+    int line = 0;
+    static const char *const inis[] = {
+        "",
+        "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=add\n",
+        "[deck]\nsize_min=10\nsize_max=10\n[draft]\npicks=10\n",
+        "[deck]\nsize_max=40\n[draft]\ncopies_min=2\ncopies_max=2\npicks=20\n",
+        "[deck]\ncopy_limit=2\n[reward]\nmode=remove\ncopies_max=2\n[items]\nenabled=true\n",
+        "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=skip\n[netplay]\npick_visibility=live\n",
+    };
+    size_t i;
+
+    sts_settings_defaults(&defaults);
+    for (i = 0; i < sizeof inis / sizeof inis[0]; i++) {
+        CHECK(parse_ini(inis[i], &settings, &line) == STS_SETTINGS_OK);
+        sts_settings_force_compatible(&settings);
+        CHECK(sts_settings_validate(&settings) == NULL);
+        CHECK(settings.rules.deck_min == 20 && settings.rules.deck_max == 20 && settings.rules.copy_limit == 4);
+        CHECK(settings.items_enabled == 0);
+        CHECK(settings.reward.mode == STS_REWARD_REPLACE || settings.reward.mode == STS_REWARD_SKIP);
     }
 
-    /* Compatible mode always ends up legal, 20 cards, 4 copies, no items. */
-    {
-        static const char *const inis[] = {
-            "",
-            "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=add\n",
-            "[deck]\nsize_min=10\nsize_max=10\n[draft]\npicks=10\n",
-            "[deck]\nsize_max=40\n[draft]\ncopies_min=2\ncopies_max=2\npicks=20\n",
-            "[deck]\ncopy_limit=2\n[reward]\nmode=remove\ncopies_max=2\n[items]\nenabled=true\n",
-            "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=skip\n[netplay]\npick_visibility=live\n",
-        };
-        size_t i;
-        for (i = 0; i < sizeof inis / sizeof inis[0]; i++) {
-            CHECK(parse_ini(inis[i], &settings, &line) == STS_SETTINGS_OK);
-            sts_settings_force_compatible(&settings);
-            CHECK(sts_settings_validate(&settings) == NULL);
-            CHECK(settings.rules.deck_min == 20 && settings.rules.deck_max == 20 && settings.rules.copy_limit == 4);
-            CHECK(settings.items_enabled == 0);
-            CHECK(settings.reward.mode == STS_REWARD_REPLACE || settings.reward.mode == STS_REWARD_SKIP);
-        }
+    /* Rules that are already compatible stay exactly as they were, so a run saved under the
+     * defaults is not treated as made under different rules. */
+    sts_settings_defaults(&settings);
+    sts_settings_force_compatible(&settings);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
 
-        /* Rules that are already compatible stay exactly as they were, so a run saved under the
-         * defaults is not treated as made under different rules. */
-        sts_settings_defaults(&settings);
-        sts_settings_force_compatible(&settings);
-        CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+    /* It only changes what it must: other reward and draft choices survive. */
+    CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=30\n[draft]\noffers=5\n"
+                    "[reward]\nmode=add\noffers=4\nwho_picks=winner\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_force_compatible(&settings);
+    CHECK(settings.reward.mode == STS_REWARD_REPLACE && settings.reward.offer_count == 4);
+    CHECK(settings.draft.offer_count == 5 && settings.who_picks == STS_WHO_WINNER);
+}
 
-        /* It only changes what it must: other reward and draft choices survive. */
-        CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=30\n[draft]\noffers=5\n"
-                        "[reward]\nmode=add\noffers=4\nwho_picks=winner\n", &settings, &line) == STS_SETTINGS_OK);
-        sts_settings_force_compatible(&settings);
-        CHECK(settings.reward.mode == STS_REWARD_REPLACE && settings.reward.offer_count == 4);
-        CHECK(settings.draft.offer_count == 5 && settings.who_picks == STS_WHO_WINNER);
-    }
+void test_settings(void)
+{
+    test_settings_defaults();
+    test_settings_every_key();
+    test_settings_long_lines();
+    test_settings_offer_style();
+    test_settings_errors();
+    test_settings_validation();
+    test_settings_fingerprint();
+    test_settings_compatible();
 }

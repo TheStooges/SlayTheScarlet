@@ -90,7 +90,8 @@ void screen_render_title_hint(void)
         lines[i].draw();
 }
 
-static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int pos_y, int width, int height, unsigned color)
+static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int pos_y, int width, int height,
+                      unsigned color)
 {
     Sprite *sprite;
     SokuLib::Vector2i real;
@@ -405,7 +406,8 @@ static void rebuild_draft(void)
         int pos_x = offer_x(i, g_run.offer_count);
 
         load_art(i, offer->id, pos_x + 8, OFFER_Y + 8);
-        add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3, COLOR_WHITE);
+        add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3,
+                    COLOR_WHITE);
         if (card)
             add_card_kind(card, pos_x + 8, OFFER_Y + 202, OFFER_W - 16);
         if (offer->copies > 1) {
@@ -572,7 +574,8 @@ static void rebuild_reward_type(void)
         add_label(line, g_font_big, 56, 110 + type * 50, 500, 28,
                   (mask & STS_TYPE_BIT(type)) ? COLOR_WHITE : COLOR_GREY);
     }
-    sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.", offer->copies, entry ? entry->name : "?");
+    sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.",
+            offer->copies, entry ? entry->name : "?");
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
     sprintf(line, "Up/Down: choose   %s: confirm   %s: back to the offers", BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);

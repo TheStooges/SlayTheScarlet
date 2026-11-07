@@ -95,7 +95,8 @@ static void collect_candidates(const sts_card_db *db, int character, const sts_c
 }
 
 /* The type for the offer at this position, or -1 if nothing more can be offered. */
-static int choose_type(const sts_offer_settings *offer_settings, const candidate_list *by_type, int position, sts_rng *rng)
+static int choose_type(const sts_offer_settings *offer_settings, const candidate_list *by_type, int position,
+                       sts_rng *rng)
 {
     int total = 0, type;
 

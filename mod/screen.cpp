@@ -511,6 +511,7 @@ static void take_reward_offer(void)
         g_state = ST_REWARD_REMOVE;
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     } else if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_BY_TYPE) {
+        /* One step on from the last type wraps round to the first that is available. */
         g_cursor = 2;
         next_available_type(1);
         g_state = ST_REWARD_TYPE;
@@ -739,12 +740,6 @@ int screen_is_open(void)
 
 void screen_open(void)
 {
-    {
-        /* For checking the hints against the key config screen. */
-        const SokuLib::KeyBindings &keyboard = SokuLib::profile1.keyboardBindings;
-        const SokuLib::KeyBindings &pad = SokuLib::profile1.controllerBindings;
-        slog("bindings: keyboard a=%d b=%d c=%d d=%d, pad a=%d b=%d c=%d d=%d", keyboard.a, keyboard.b, keyboard.c, keyboard.d, pad.a, pad.b, pad.c, pad.d);
-    }
     g_error[0] = 0;
     g_status[0] = 0;
     load_data();
