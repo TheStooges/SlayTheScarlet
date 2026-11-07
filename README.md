@@ -113,6 +113,9 @@ cmake --build . --target SlayTheScarlet
 
 The DLL, `cards.csv` and `settings.ini` end up in `build/mod`.
 
+To make a release zip, run `tools\build_release.bat` from the same prompt, then
+`python tools\package_release.py <version>`. The zip goes in `release/`.
+
 `core/` holds the rules, offers and run saves as portable C with no game dependencies, and `tests/`
 covers it. `mod/` is the Windows DLL: hooks, screens and deck handling. `CLAUDE.md` has the design
 notes and reverse-engineering findings.

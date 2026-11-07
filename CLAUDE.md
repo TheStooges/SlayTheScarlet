@@ -69,6 +69,10 @@ cmake --build . --target <TargetName>
 
 - Release builds: `-DCMAKE_BUILD_TYPE=Release`. They keep a separate PDB for reading crash dumps; keep
   the one matching each release. Finished releases go in the gitignored `release/` folder.
+- Making a release: `tools\build_release.bat` (tests, Release DLL, checks on its imports), then
+  `python tools\package_release.py <version>` (zip and debug files in `release/`, refused with
+  uncommitted changes, scanned for local paths and the user name). Attach only the zip to the GitHub
+  release, as a pre-release while it is a test.
 - If CMake was configured in the wrong prompt, delete `build/` and reconfigure; the compiler
   choice is cached.
 - Register the DLL in the game's `SWRSToys.ini` with an absolute, forward-slash path:
