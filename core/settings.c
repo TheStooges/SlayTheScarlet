@@ -71,6 +71,7 @@ void sts_settings_defaults(sts_settings *settings)
     settings->opponent_deck = STS_OPPONENT_DECK_CHANGE;
     settings->items_enabled = 0;
     settings->allow_rule_changes = 0;
+    settings->draft_show_deck = 1;
 }
 
 static int set_int(const char *value, int min, int max, int *out)
@@ -171,6 +172,8 @@ static int set_key(sts_settings *settings, const char *section, const char *key,
     } else if (strcmp(section, "draft") == 0) {
         if (strcmp(key, "picks") == 0)
             return set_int(value, 0, 1000, &settings->draft_picks);
+        if (strcmp(key, "show_deck") == 0)
+            return find_named(value, g_bool, &settings->draft_show_deck);
         return set_offer_key(&settings->draft, key, value);
     } else if (strcmp(section, "reward") == 0) {
         if (strcmp(key, "mode") == 0) {

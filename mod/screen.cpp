@@ -76,11 +76,11 @@ static void enter_phase(void)
     g_cursor = 0;
     g_alt_armed = 0;
     g_dirty = 1;
+    g_deck_art_dirty = 1;
     if (g_run.phase == STS_PHASE_DRAFT) {
         g_state = ST_DRAFT;
     } else {
         g_state = g_run.phase == STS_PHASE_REWARD ? ST_REWARD : ST_DECK;
-        g_deck_art_dirty = 1;
         /* Opening a run only looks at it. A run already in use picks up any new deck. */
         if (run_deck_in_use())
             activate_run_deck();

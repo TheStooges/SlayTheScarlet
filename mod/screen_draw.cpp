@@ -379,10 +379,37 @@ static void rebuild_choose(void)
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
+/* The deck so far, beside the description on the draft screen. Cards are drawn small, with
+ * outlines of the same size for the picks still to come. Larger decks show their most recent cards. */
+#define DRAFT_DECK_X 296
+#define DRAFT_DECK_Y 332
+#define DRAFT_DECK_COLS 10
+#define DRAFT_DECK_SLOTS 20
+#define DRAFT_DECK_PITCH_X 32
+#define DRAFT_DECK_PITCH_Y 49
+#define DRAFT_DECK_CARD_W 28
+#define DRAFT_DECK_CARD_H 46
+/* The game's card images have an empty margin, so the image is drawn larger than the box for the
+ * visible card to fill it. */
+#define DRAFT_DECK_IMAGE_W 31
+#define DRAFT_DECK_IMAGE_H 47
+#define DRAFT_DECK_IMAGE_OFFSET_X (-1)
+
+static int draft_deck_shown(void)
+{
+    return g_state == ST_DRAFT && g_settings.draft_show_deck;
+}
+
 static void rebuild_draft(void)
 {
     char line[192];
     int i;
+
+    if (draft_deck_shown()) {
+        if (g_deck_art_dirty)
+            load_deck_art();
+        add_label("Your deck so far", g_font_small, DRAFT_DECK_X, DRAFT_DECK_Y - 24, 320, 20, COLOR_GREY);
+    }
 
     if (g_state == ST_REWARD) {
         const char *verb = g_settings.reward.mode == STS_REWARD_ADD ? "add"
@@ -650,6 +677,28 @@ static void draw_box(int pos_x, int pos_y, int width, int height, unsigned fill,
     g_box.draw();
 }
 
+static void draw_draft_deck(void)
+{
+    int first = g_run.deck.count > DRAFT_DECK_SLOTS ? g_run.deck.count - DRAFT_DECK_SLOTS : 0;
+    int slots = g_settings.rules.deck_min < DRAFT_DECK_SLOTS ? g_settings.rules.deck_min : DRAFT_DECK_SLOTS;
+    int i;
+
+    for (i = 0; i < DRAFT_DECK_SLOTS; i++) {
+        int index = first + i;
+        int pos_x = DRAFT_DECK_X + (i % DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_X;
+        int pos_y = DRAFT_DECK_Y + (i / DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_Y;
+
+        if (index < g_run.deck.count && index < MAX_DECK_ART && g_has_deck_art[index]) {
+            g_deck_art[index].setSize({DRAFT_DECK_IMAGE_W, DRAFT_DECK_IMAGE_H});
+            g_deck_art[index].tint = COLOR_WHITE;
+            g_deck_art[index].setPosition({pos_x + DRAFT_DECK_IMAGE_OFFSET_X, pos_y});
+            g_deck_art[index].draw();
+        } else if (i < slots) {
+            draw_box(pos_x, pos_y, DRAFT_DECK_CARD_W, DRAFT_DECK_CARD_H, 0x18FFFFFFu, 0x50FFFFFFu);
+        }
+    }
+}
+
 void screen_render(int opaque)
 {
     int i;
@@ -676,6 +725,8 @@ void screen_render(int opaque)
             if (g_has_art[i])
                 g_art[i].draw();
         }
+        if (draft_deck_shown())
+            draw_draft_deck();
     } else if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) {
         /* Two rows fit above the card details. A larger deck scrolls with the cursor. */
         int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
@@ -685,6 +736,10 @@ void screen_render(int opaque)
             int pos_y = DECK_Y + (i / DECK_COLS - top) * DECK_PITCH_Y;
 
             int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) && g_selected[i];
+
+            /* The draft screen draws these same images smaller. */
+            if (g_has_deck_art[i])
+                g_deck_art[i].setSize(g_deck_art[i].texture.getSize());
 
             if (i == g_cursor || picked) {
                 /* An even margin around the image, whatever size the game's art is. */

@@ -72,7 +72,8 @@ Offline, only player 1 uses the run deck.
 Rules are set in `settings.ini`, which lists and explains every option. You can change the draft
 length, how many cards are offered, which card types appear and how often, who gets an offer after a
 match (both players, winner, loser, or nobody for a random change), and whether you replace chosen
-cards, a card type, or random cards.
+cards, a card type, or random cards. Setting `show_deck=false` makes the draft blind, hiding the
+cards you have picked so far.
 
 The defaults are provisional, until the community has played with them.
 

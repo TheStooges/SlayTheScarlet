@@ -44,6 +44,9 @@ typedef struct {
     /* May a run made under other rules carry on under these? This says how to treat a
      * rule change rather than being a rule, so it is not part of the fingerprint. */
     int allow_rule_changes;
+    /* Is the deck so far shown while drafting? It changes nothing about the deck or what is
+     * offered, so a run can carry on when it changes: not part of the fingerprint. */
+    int draft_show_deck;
 } sts_settings;
 
 typedef enum {

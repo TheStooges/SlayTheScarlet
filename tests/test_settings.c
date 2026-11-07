@@ -240,9 +240,28 @@ static void test_settings_compatible(void)
     CHECK(settings.draft.offer_count == 5 && settings.who_picks == STS_WHO_WINNER);
 }
 
+/* Showing the deck during a draft is on by default, and changing it does not end a run. */
+static void test_settings_show_deck(void)
+{
+    sts_settings settings, defaults;
+    int line = 0;
+
+    sts_settings_defaults(&defaults);
+    CHECK(defaults.draft_show_deck == 1);
+    CHECK(parse_ini("[draft]\nshow_deck=false\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(settings.draft_show_deck == 0);
+    CHECK(sts_settings_validate(&settings) == NULL);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+    CHECK(parse_ini("[draft]\nshow_deck=1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[reward]\nshow_deck=true\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
+    sts_settings_force_compatible(&defaults);
+    CHECK(defaults.draft_show_deck == 1);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
+    test_settings_show_deck();
     test_settings_every_key();
     test_settings_long_lines();
     test_settings_offer_style();
