@@ -1,4 +1,13 @@
-add_executable(sts_tests test_main.c)
+add_executable(sts_tests
+  test_main.c
+  test_util.c
+  test_deck.c
+  test_offer.c
+  test_pf.c
+  test_pool.c
+  test_rng.c
+  test_run.c
+  test_settings.c)
 target_link_libraries(sts_tests PRIVATE sts_core)
 target_compile_definitions(sts_tests PRIVATE
   STS_CARDS_PATH="${CMAKE_SOURCE_DIR}/data/cards.csv"
