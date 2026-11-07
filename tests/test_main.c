@@ -336,6 +336,49 @@ static void test_card_db_file(void)
     CHECK(sts_card_db_find(&g_db, 4, 112) != NULL);
     CHECK(!sts_card_db_find(&g_db, -1, 0) && !sts_card_db_find(&g_db, STS_NUM_CHARACTERS, 0));
 
+    /* Skill notation, from the community's names for Patchouli's skills. */
+    {
+        static const struct { int character; uint16_t id; const char *label; } known[] = {
+            {4, 100, "d236"},   /* Summer Red */
+            {4, 102, "d623"},   /* Spring Wind */
+            {4, 103, "d214"},   /* Autumn Edge */
+            {4, 104, "d421"},   /* Dew Spear */
+            {4, 101, "d22"},    /* Winter Element */
+            {4, 114, "a421"},   /* Diamond Hardness */
+            {5, 101, "d623"},   /* Youmu: Crescent Moon Slash */
+            {12, 100, "d236"},  /* Komachi: Spirits of the Firm */
+        };
+        char label[STS_SKILL_LABEL_SIZE];
+        size_t k;
+        int i;
+
+        for (k = 0; k < sizeof known / sizeof known[0]; k++) {
+            CHECK(sts_skill_label(&g_db, known[k].character, known[k].id, label) == 1);
+            CHECK(strcmp(label, known[k].label) == 0);
+        }
+
+        /* Every skill has a label. Each character has one default per input, and as many
+         * alternates per default as the game gives (two). */
+        for (c = 0; c < STS_NUM_CHARACTERS; c++) {
+            const sts_card_list *l = &g_db.characters[c];
+            int defaults = 0, alternates = 0;
+            for (i = 0; i < l->count; i++) {
+                if (l->cards[i].type != STS_CARD_SKILL) continue;
+                CHECK(sts_skill_label(&g_db, c, l->cards[i].id, label) == 1);
+                if (label[0] == 'd') defaults++;
+                if (label[0] == 'a') alternates++;
+            }
+            CHECK(defaults == (c == 4 ? 5 : 4));
+            CHECK(alternates == defaults * 2);
+        }
+
+        /* Anything that is not one of this character's skills has no label. */
+        CHECK(sts_skill_label(&g_db, 0, 200, label) == 0 && label[0] == 0);   /* a spell */
+        CHECK(sts_skill_label(&g_db, 0, 0, label) == 0 && label[0] == 0);     /* a system card */
+        CHECK(sts_skill_label(&g_db, 0, 112, label) == 0 && label[0] == 0);   /* only Patchouli's */
+        CHECK(sts_skill_label(&g_db, -1, 100, label) == 0 && label[0] == 0);
+    }
+
     /* A skill family shares one slot value across its upgrades. */
     CHECK(sts_card_db_find(&g_db, 1, 100)->cost_or_slot == sts_card_db_find(&g_db, 1, 104)->cost_or_slot);
     CHECK(sts_card_db_find(&g_db, 1, 100)->cost_or_slot == sts_card_db_find(&g_db, 1, 108)->cost_or_slot);

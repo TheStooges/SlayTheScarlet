@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "pool.h"
@@ -184,6 +185,31 @@ const sts_card *sts_card_db_find(const sts_card_db *db, int character, uint16_t 
         return NULL;
     c = find_in_list(&db->system, id);
     return c ? c : find_in_list(&db->characters[character], id);
+}
+
+int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out)
+{
+    /* Indexed by a skill's cost_or_slot value, which is the same for all its upgrades. */
+    static const char *const inputs[] = { "236", "214", "623", "421", "22" };
+    const sts_card *card = sts_card_db_find(db, character, id);
+    const sts_card_list *list;
+    int i, is_default = 1;
+
+    out[0] = 0;
+    if (!card || card->type != STS_CARD_SKILL)
+        return 0;
+    if (card->cost_or_slot >= sizeof inputs / sizeof inputs[0])
+        return 0;
+
+    /* The default skill is the lowest ID on its input. */
+    list = &db->characters[character];
+    for (i = 0; i < list->count; i++) {
+        const sts_card *other = &list->cards[i];
+        if (other->type == STS_CARD_SKILL && other->cost_or_slot == card->cost_or_slot && other->id < id)
+            is_default = 0;
+    }
+    sprintf(out, "%c%s", is_default ? 'd' : 'a', inputs[card->cost_or_slot]);
+    return 1;
 }
 
 int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *d, uint16_t *bad_id)

@@ -57,6 +57,13 @@ const char *sts_db_status_str(sts_db_status s);
  * character cannot use it. */
 const sts_card *sts_card_db_find(const sts_card_db *db, int character, uint16_t id);
 
+/* Community notation for a skill card: "d" for the default skill on an input or "a" for
+ * an alternate, then the input in numpad notation, such as "d236" or "a421". Writes to
+ * out (at least STS_SKILL_LABEL_SIZE bytes) and returns 1, or returns 0 and writes an
+ * empty string if the card is not a skill this character has. */
+#define STS_SKILL_LABEL_SIZE 8
+int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out);
+
 /* Returns 1 if the character can use every card in the deck. Otherwise returns 0
  * and sets *bad_id (if non-NULL) to the first card it cannot use. */
 int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *d, uint16_t *bad_id);

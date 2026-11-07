@@ -224,8 +224,11 @@ Netplay is a primary requirement. Each machine simulates both players from share
   (type 1); 9-14 spells per character (type 2). Spell IDs have gaps and are per character: 213 is a
   different card for Patchouli, Cirno and Utsuho. The save's maps list exactly the same IDs as the
   CSVs on a save that has every card.
-- **Skill families:** for skills, cost-or-slot is the family. Upgrades share it (100, 104, 108 for
-  most characters; ID stride 5 for Patchouli). The numbers do not follow ID order.
+- **Skill inputs:** for skills, cost-or-slot is the input: 0=236, 1=214, 2=623, 3=421, 4=22. The
+  three versions of a skill share it (100, 104, 108 for most characters; ID stride 5 for Patchouli),
+  and the lowest ID is the default. The community writes these as d236 (default) and a421
+  (alternate), in numpad notation; `sts_skill_label` produces that. Most characters use only 4 of the
+  5 inputs. The numbers do not follow ID order.
 - **Map values:** range 4 to 1166, probably copies owned from the unlock system (inferred, not
   confirmed). Whether a save with fewer than 4 copies restricts a deck is untested.
 - **`cardById` is deck-only:** it holds the deck's unique skill and spell cards, no system cards, so
@@ -239,9 +242,17 @@ Netplay is a primary requirement. Each machine simulates both players from share
   match, including `cardById` and the in-match `original` deck. Verified with Reimu as P1 in two
   matches, including a write between matches. The written deck stayed in memory across
   match -> select and title -> select, and no `.pf` file changed on disk after closing the game.
-  Not yet tested: netplay and the `GAME_MATCH` packet, the deck editor saving a written deck to
-  disk, changing profile, P2, and writes that change the deck size (these must allocate through
-  the game's allocator).
+  Not yet tested: netplay and the `GAME_MATCH` packet, changing profile, P2, and writes that change
+  the deck size (these must allocate through the game's allocator).
+- **The profile menu replaces a written deck:** with no scene change, the slot went back to the
+  profile's own deck on each visit (the log first sees it on the title scene, with no menu open).
+  The editor also shows the `.pf` deck, and saving from it wrote only the player's edit: the run
+  deck did not reach the `.pf`, and the run deck was untouched. So real decks are safe, but a deck
+  written once at the title is NOT enough: `mod/` rewrites the active run deck on every frame of
+  offline character select (`VTable_Select.onProcess`), which reached the match after a profile menu
+  visit. Netplay select scenes have their own vtables and are not hooked yet.
+- **Card text layout:** descriptions are stored in fixed rows of 36 bytes, padded with spaces and
+  sometimes splitting a word. `createFromText` does not wrap, so `mod/` draws each row separately.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
 
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
