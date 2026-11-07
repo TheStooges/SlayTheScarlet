@@ -17,6 +17,15 @@
 #include "settings.h"
 #include "util.h"
 
+/* CMake sets absolute paths for these. The fallbacks work when run from the repo root,
+ * and keep editors that do not know the CMake definitions from flagging them. */
+#ifndef STS_CARDS_PATH
+#define STS_CARDS_PATH "data/cards.csv"
+#endif
+#ifndef STS_SETTINGS_PATH
+#define STS_SETTINGS_PATH "data/settings.ini"
+#endif
+
 static int g_run, g_fail;
 
 #define CHECK(cond) do { \
