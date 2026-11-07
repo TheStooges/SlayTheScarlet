@@ -1,4 +1,4 @@
-add_library(sts_core STATIC deck.c pf.c)
+add_library(sts_core STATIC deck.c offer.c pf.c pool.c rng.c)
 target_include_directories(sts_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 if(MSVC)
   target_compile_definitions(sts_core PRIVATE _CRT_SECURE_NO_WARNINGS)

@@ -20,13 +20,6 @@ typedef enum {
     STS_DECK_COPY_LIMIT   /* some card appears more than rules.copy_limit times */
 } sts_deck_status;
 
-typedef enum {
-    STS_CARD_SYSTEM,
-    STS_CARD_SKILL,
-    STS_CARD_SPELL,
-    STS_CARD_UNKNOWN
-} sts_card_type;
-
 void sts_deck_clear(sts_deck *d);
 
 /* Appends a card. Returns 0, or -1 if the deck is already at STS_MAX_DECK. */
@@ -42,10 +35,5 @@ void sts_deck_sort(sts_deck *d);
 sts_deck_status sts_deck_validate(const sts_deck *d, const sts_rules *r, uint16_t *bad_id);
 
 const char *sts_deck_status_str(sts_deck_status s);
-
-/* PROVISIONAL: derives the type from the ID range observed in real profiles
- * (system 0-20, skill 100-199, spell 200+). Replace with the per-character
- * pool table once there is an authoritative source. */
-sts_card_type sts_card_type_of(uint16_t id);
 
 #endif

@@ -1,5 +1,6 @@
 add_executable(sts_tests test_main.c)
 target_link_libraries(sts_tests PRIVATE sts_core)
+target_compile_definitions(sts_tests PRIVATE STS_CARDS_PATH="${CMAKE_SOURCE_DIR}/data/cards.csv")
 if(MSVC)
   target_compile_definitions(sts_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(sts_tests PRIVATE /W4)

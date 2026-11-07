@@ -60,14 +60,3 @@ const char *sts_deck_status_str(sts_deck_status s)
     }
     return "unknown";
 }
-
-sts_card_type sts_card_type_of(uint16_t id)
-{
-    if (id <= 20)
-        return STS_CARD_SYSTEM;
-    if (id >= 100 && id < 200)
-        return STS_CARD_SKILL;
-    if (id >= 200)
-        return STS_CARD_SPELL;
-    return STS_CARD_UNKNOWN;
-}

@@ -73,12 +73,18 @@ cmake --build . --target <TargetName>
 
 ```
 core/    Portable C. NO Windows or SokuLib headers. Rules engine, deck model, validation,
-         offer generation, draft logic, settings parsing, run save format. Builds and is
-         unit-tested on any OS (initial development is on macOS with clang).
+         card table, offer generation, draft logic, settings parsing, run save format.
+         Builds and is unit-tested on any OS (initial development was on macOS with clang).
+data/    Data files the mod loads at runtime. cards.csv is the card table (no text).
 tests/   Console tests for core/.
+tools/   Scripts. gen_cards.py rebuilds data/cards.csv from a probe dump.
 mod/     Windows-only DLL glue: SokuLib hooks, UI scenes, netplay, deck injection.
          Built only when MSVC is available.
 ```
+
+`core/` implemented so far: `deck` (model, validation), `pf` (profile read/write), `pool` (card
+table), `rng` (PCG32), `offer` (offer generator). Draft logic, settings parsing and the run save
+format are still to do.
 
 Keep `core/` free of game dependencies so the logic can be developed and tested without the game.
 Use integer maths for anything that could affect a match (determinism across machines).
@@ -168,13 +174,40 @@ Netplay is a primary requirement. Each machine simulates both players from share
   DesyncDetector 0x20-0x21; Giuroll battle input 0x6B; Soku2 0xD3. Inner `GameType` events
   (`GAME_MATCH` etc.) are 0x01-0x0B. OnlinePractice's opcodes are unknown; ask its author.
 - **Card tables:** `SaveDataManager` (instance at 0x899F60) has `systemCards` (0x9C) and
-  `characterCards[20]` (0xA8), each `Map<int,int>`. These are probably the unlocked cards loaded
-  from `score.dat`; with the community's fully unlocked save they should list every card per
-  character, i.e. the authoritative pools. Semantics of the value are unknown; confirm by dumping.
+  `characterCards[20]` (0xA8), each `Map<int,int>` (see the probe findings below).
 - **In-match deck:** `Player::deckInfo` (offset 0x57C) has `cardById` (`Map<int, CardInfo>` with
   name, type, cost-or-slot, description), `original` and `queue` ID deques, and `availSkills[32]`.
-  `CardInfo.type` gives the card type, so the type need not be inferred from ID ranges. Card lookup
-  function at 0x436620.
+  Card lookup function at 0x436620.
+- **Map node layout:** `Map::Node` is left, parent, right, value, color, isNil. `isNil` comes
+  AFTER the value, so its offset depends on the map's value size (0x15 for `Map<int,int>`, 0x71 for
+  `Map<int,CardInfo>`). Do not assume the modern MSVC layout.
+
+### Findings from the probe (offline, v1.10a, verified in game)
+
+- **Authoritative card data:** the game's own `data/csv/<folder>/spellcard.csv` and
+  `data/csv/common/spellcard.csv`, readable through `SokuLib::CSVParser` (the `data` deque holds the
+  cells). `SokuLib::getCharName` gives the folder name (e.g. Reisen is `udonge`, Cirno `chirno`,
+  Meiling `meirin`). Columns start: id, name, type, cost-or-slot, description. Under `th123e` the
+  text is English. 21 names have a literal `<a> ` suffix to strip before display.
+- **Text is read at runtime:** `data/cards.csv` holds no names. The mod should read them from the
+  game, so players see the language they launched with. `th123e.exe` is an 8 KB launcher for the
+  same `th123.exe`, so addresses and the version hash are shared.
+- **Card pools:** 482 cards. 21 system (0-20, type 0); 12 skills per character, 15 for Patchouli
+  (type 1); 9-14 spells per character (type 2). Spell IDs have gaps and are per character: 213 is a
+  different card for Patchouli, Cirno and Utsuho. The save's maps list exactly the same IDs as the
+  CSVs on a save that has every card.
+- **Skill families:** for skills, cost-or-slot is the family. Upgrades share it (100, 104, 108 for
+  most characters; ID stride 5 for Patchouli). The numbers do not follow ID order.
+- **Map values:** range 4 to 1166, probably copies owned from the unlock system (inferred, not
+  confirmed). Whether a save with fewer than 4 copies restricts a deck is untested.
+- **`cardById` is deck-only:** it holds the deck's unique skill and spell cards, no system cards, so
+  it cannot be used as a pool or name list. Two of 18 dumps were missing cards, both on side 1, possibly
+  because it is filled during background loading (not proven). Do not read it until the match has
+  started.
+- **`profile1`/`profile2`:** both are filled by the main menu and hold all 80 decks of the selected
+  `.pf` files, matching the files as sets of cards. Whether a match or packet reads from this memory
+  is still unknown.
+- **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
 
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
 
@@ -188,9 +221,8 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - Each deck: `u8` card count, then that many `u16` little-endian card IDs, stored sorted. The
   format allows any size up to 255.
 - Card IDs: system cards 0-20 (shared by all characters); skill cards 100-111 (12 per character,
-  except Patchouli who has 15: 100-114); spell cards from 200 (seen up to 219). Card type follows
-  from the ID range, but keep the per-character pools in a data table rather than hardcoding the
-  ranges.
+  except Patchouli who has 15: 100-114); spell cards from 200 (up to 219). Use `data/cards.csv`
+  rather than hardcoding the ranges.
 - Players typically fill all 4 slots for every character, so compatible mode has no free slot:
   it must overwrite one and back it up, and the backup and restore must survive crashes.
 - **Game-side validation (observed in game, using a randomizer-generated profile):** a deck with 5
@@ -201,9 +233,6 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - A second, independently produced profile (see DeckRandomizer below) parses with the same layout,
   with decks written **unsorted**, and loads in game. Sort order is therefore not required by the
   reader, but write sorted decks anyway to match what the game itself produces.
-- Card pools: the union of IDs seen across profiles only gives a lower bound per character (e.g. 8 of
-  Yuyuko's skill cards were seen). IDs 213-219 appear for several characters, so it is unclear
-  whether they are character-specific or shared. An authoritative pool table is still needed.
 
 **Installed mods to coexist with.** Goal: the mod is standalone and works alongside the usual
 community bundle; don't require players to disable other mods. Enabled in a typical install:
@@ -276,6 +305,3 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 - Upper deck-size limits, HUD assumptions about 20 cards, replay/spectator behaviour. The copy
   limit is a separate check from size (answered above); raising it would need its own patch, so
   keep it fixed at 4 for now.
-- Authoritative per-character card pools: likely readable from `SaveDataManager` under a fully
-  unlocked save (see SokuLib findings). Plan: a throwaway logging mod dumps the card IDs, names and
-  types per character to a file, which becomes the pool data file for `core/`.
