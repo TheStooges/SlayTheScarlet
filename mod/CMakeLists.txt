@@ -3,7 +3,16 @@ add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/SokuLib ${CMAKE_BINARY_DIR}/SokuLib)
 
-add_library(SlayTheScarlet MODULE main.cpp netlog.cpp screen.cpp)
+add_library(SlayTheScarlet MODULE
+  main.cpp
+  card_text.cpp
+  log.cpp
+  match.cpp
+  netlog.cpp
+  run_data.cpp
+  run_deck.cpp
+  screen.cpp
+  screen_draw.cpp)
 set_target_properties(SlayTheScarlet PROPERTIES CXX_STANDARD 17)
 target_compile_options(SlayTheScarlet PRIVATE /Zi)
 target_compile_definitions(SlayTheScarlet PRIVATE

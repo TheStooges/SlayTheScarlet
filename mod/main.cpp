@@ -4,6 +4,9 @@
 #include <shlwapi.h>
 #include <string.h>
 #include "netlog.h"
+#include "log.h"
+#include "match.h"
+#include "run_deck.h"
 #include "screen.h"
 
 /* The reward is done and the Result menu is being told to close. */

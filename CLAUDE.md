@@ -361,7 +361,7 @@ LabTool are usually disabled.
   `.pf`. Seen in game: Komachi's Deck 1 on disk became the run deck plus the player's edit. The run
   deck itself was unharmed, because online character select rewrote it. This differs from the
   profile menu, which shows and saves the real deck. So runs are refused while `EasyDecks.dll` or
-  `InfiniteDecks.dll` is loaded (`blocking_mod` in `mod/screen.cpp`). Both count as cheat mods in this
+  `InfiniteDecks.dll` is loaded (`blocking_mod` in `mod/run_deck.cpp`). Both count as cheat mods in this
   community, so asking players to disable them is acceptable.
 
 **OnlinePractice** (a friend's netplay mod; only its `.ini` and `.log` are available, not the

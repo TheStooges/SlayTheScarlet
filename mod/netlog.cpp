@@ -5,7 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "netlog.h"
-#include "screen.h"
+#include "log.h"
+#include "run_deck.h"
 
 /* The game's import table entries (v1.10a), found by the OnlinePractice mod's log. */
 #define IAT_SENDTO   0x00857290u
