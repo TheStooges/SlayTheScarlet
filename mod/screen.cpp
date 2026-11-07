@@ -33,7 +33,12 @@ using SokuLib::DrawUtils::Sprite;
 #define DESC_SIZE 512
 #define MAX_CARD_TEXT (STS_POOL_MAX_CARDS * 2)
 
-typedef enum { ST_CLOSED, ST_CHOOSE, ST_DRAFT, ST_DECK } screen_state;
+typedef enum {
+    ST_CLOSED, ST_CHOOSE, ST_DRAFT, ST_DECK,
+    ST_REWARD,          /* offers after a match */
+    ST_REWARD_TYPE,     /* REPLACE by type: which type leaves */
+    ST_REWARD_REMOVE    /* REPLACE by choice: which cards leave */
+} screen_state;
 typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT } screen_event;
 
 typedef struct {
@@ -80,6 +85,24 @@ static RectangleShape g_box;
 static Sprite g_deck_art[MAX_DECK_ART];
 static int g_has_deck_art[MAX_DECK_ART];
 static int g_deck_art_dirty = 1;
+
+/* The reward being resolved. */
+static int g_pending_offer = 0;
+static int g_selected[MAX_DECK_ART];
+static int g_selected_count = 0;
+static int g_close_after_deck = 0;
+
+/* What the last battle scene showed, kept for when the scene has gone. */
+static int g_match_used_run_deck = 0;
+static int g_match_score_left = 0;
+static int g_match_score_right = 0;
+static int g_match_reward_due = 0;
+static int g_match_won = 0;
+
+static void enter_phase(void);
+static void save_run(void);
+static void maybe_start_reward(void);
+static void load_card_text(int character);
 
 /* ---------- data ---------- */
 
@@ -324,8 +347,43 @@ static void note_slot_change(const char *where)
     }
 }
 
+/* Called when a scene after the battle starts: was that a finished match with the run deck? */
+static void finish_match(void)
+{
+    int left = g_match_score_left, right = g_match_score_right;
+
+    if (!g_match_used_run_deck)
+        return;
+    g_match_used_run_deck = 0;
+    slog("match over: rounds won %d to %d", left, right);
+    if (left == right || (left < 2 && right < 2)) {
+        slog("match was not finished, no reward");
+        return;
+    }
+    g_match_won = left > right;
+    g_match_reward_due = 1;
+}
+
+void deck_on_result_frame(void)
+{
+    finish_match();
+    maybe_start_reward();
+}
+
+/* Only changes: the menu returns the same value on every frame of its exit fade. */
+void deck_log_result_close(int result)
+{
+    static int last = -1;
+
+    if (result != last)
+        slog("result menu closing, it returned %d", result);
+    last = result;
+}
+
 void deck_on_title_frame(void)
 {
+    finish_match();
+    maybe_start_reward();
     note_slot_change("title");
 }
 
@@ -340,6 +398,9 @@ void deck_on_select_frame(void)
         slog("character select entered, run deck %s", g_active ? "active" : "not active");
     last_tick = now;
 
+    finish_match();
+    maybe_start_reward();
+
     if (!g_active)
         return;
     note_slot_change("character select");
@@ -353,7 +414,8 @@ void deck_on_select_frame(void)
     }
 }
 
-static void log_battle_side(const char *name, int character, int deck_slot, SokuLib::CharacterManager &player)
+/* Returns 1 if this side is playing the active run deck. */
+static int log_battle_side(const char *name, int character, int deck_slot, SokuLib::CharacterManager &player)
 {
     /* Player::deckInfo.original; see the probe findings in CLAUDE.md */
     auto *original = reinterpret_cast<SokuLib::Dequeue<unsigned short> *>(reinterpret_cast<char *>(&player) + 0x57C + 0x20);
@@ -364,7 +426,7 @@ static void log_battle_side(const char *name, int character, int deck_slot, Soku
     ids_text(text, sizeof text, *original);
     slog("match %s: character %d, deck choice %d, loaded %d cards: %s", name, character, deck_slot, original->size, text);
     if (!g_active || character != g_active_character)
-        return;
+        return 0;
 
     sts_deck_clear(&loaded);
     for (i = 0; i < original->size && i < STS_MAX_DECK; i++)
@@ -372,10 +434,12 @@ static void log_battle_side(const char *name, int character, int deck_slot, Soku
     sts_deck_sort(&loaded);
     expected = g_active_deck;
     sts_deck_sort(&expected);
-    if (loaded.count == expected.count && memcmp(loaded.ids, expected.ids, (size_t)loaded.count * 2) == 0)
+    if (loaded.count == expected.count && memcmp(loaded.ids, expected.ids, (size_t)loaded.count * 2) == 0) {
         slog("match %s uses the RUN deck", name);
-    else
-        slog("match %s does NOT use the run deck", name);
+        return 1;
+    }
+    slog("match %s does NOT use the run deck", name);
+    return 0;
 }
 
 void deck_on_battle_frame(void)
@@ -387,14 +451,30 @@ void deck_on_battle_frame(void)
     if (now - last_tick > 1000) {
         __try {
             auto &mgr = SokuLib::getBattleMgr();
-            log_battle_side("left", (int)SokuLib::leftPlayerInfo.character, SokuLib::leftPlayerInfo.deck, mgr.leftCharacterManager);
+            int offline = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCOM || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSPLAYER;
+            int left = log_battle_side("left", (int)SokuLib::leftPlayerInfo.character, SokuLib::leftPlayerInfo.deck, mgr.leftCharacterManager);
+
             log_battle_side("right", (int)SokuLib::rightPlayerInfo.character, SokuLib::rightPlayerInfo.deck, mgr.rightCharacterManager);
+            /* Only VS matches played by a person earn a reward: not practice or replays.
+             * The run deck only reaches the left player for now. */
+            g_match_used_run_deck = left && offline && SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY;
+            g_match_score_left = 0;
+            g_match_score_right = 0;
+            slog("match mode %d submode %d, counts for a reward: %d", (int)SokuLib::mainMode, (int)SokuLib::subMode, g_match_used_run_deck);
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             slog("match: could not read the decks");
         }
     }
     last_tick = now;
+
+    __try {
+        auto &mgr = SokuLib::getBattleMgr();
+        g_match_score_left = mgr.leftCharacterManager.score;
+        g_match_score_right = mgr.rightCharacterManager.score;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
 }
 
 /* ---------- state machine ---------- */
@@ -418,13 +498,110 @@ static void enter_phase(void)
     if (g_run.phase == STS_PHASE_DRAFT) {
         g_state = ST_DRAFT;
     } else {
-        g_state = ST_DECK;
+        g_state = g_run.phase == STS_PHASE_REWARD ? ST_REWARD : ST_DECK;
         g_deck_art_dirty = 1;
         if (activate_run_deck()) {
             _snprintf(g_status, sizeof g_status - 1, "This deck is now %s's Deck %d until the game closes.",
                       sts_character_name(g_run.character), RUN_DECK_SLOT + 1);
             g_status[sizeof g_status - 1] = 0;
         }
+    }
+}
+
+/* Runs on the first title or character select frame after a finished match. */
+static void maybe_start_reward(void)
+{
+    char path[MAX_PATH + 32];
+    sts_reward_outcome outcome = STS_REWARD_NONE;
+    sts_run_status st;
+
+    if (!g_match_reward_due)
+        return;
+    g_match_reward_due = 0;
+    if (!g_active || g_state != ST_CLOSED)
+        return;
+
+    /* g_run may hold another character if the screen was used since this deck became active. */
+    run_path(path, sizeof path, g_active_character);
+    st = sts_run_load(path, &g_run);
+    if (st == STS_RUN_OK)
+        st = sts_run_validate(&g_run, &g_db, &g_settings);
+    if (st != STS_RUN_OK) {
+        slog("reward skipped, the run could not be loaded: %s", sts_run_status_str(st));
+        return;
+    }
+    load_card_text(g_active_character);
+    st = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+    slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(st), (int)outcome);
+    if (st != STS_RUN_OK)
+        return;
+    save_run();
+    if (outcome == STS_REWARD_NONE)
+        return;
+
+    g_error[0] = 0;
+    g_status[0] = 0;
+    g_close_after_deck = 1;
+    enter_phase();
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+}
+
+/* Applies the chosen offer and shows the new deck. */
+static void commit_reward(const sts_replace_choice *choice)
+{
+    sts_run_status st = sts_run_reward_pick(&g_run, &g_db, &g_settings, g_pending_offer, choice);
+
+    if (st != STS_RUN_OK) {
+        set_error("Reward", sts_run_status_str(st));
+        slog("reward pick refused: %s", sts_run_status_str(st));
+        return;
+    }
+    slog("reward taken: card %u", (unsigned)g_run.offers[g_pending_offer].id);
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    g_selected_count = 0;
+    save_run();
+    enter_phase();
+}
+
+static void commit_selected_removals(void)
+{
+    uint16_t ids[MAX_DECK_ART];
+    sts_replace_choice choice;
+    int i, n = 0;
+
+    for (i = 0; i < g_run.deck.count && i < MAX_DECK_ART; i++)
+        if (g_selected[i])
+            ids[n++] = g_run.deck.ids[i];
+    choice.remove_ids = ids;
+    choice.remove_count = n;
+    choice.type = 0;
+    commit_reward(&choice);
+}
+
+/* Moves through the card grid shared by the deck and removal screens. */
+static void move_grid_cursor(screen_event ev)
+{
+    int count = g_run.deck.count < MAX_DECK_ART ? g_run.deck.count : MAX_DECK_ART;
+    int step = ev == EV_RIGHT ? 1 : ev == EV_LEFT ? count - 1
+             : ev == EV_DOWN ? DECK_COLS : count - DECK_COLS % count;
+
+    if (count > 0) {
+        g_cursor = (g_cursor + step) % count;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+    }
+}
+
+static void next_available_type(int direction)
+{
+    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck,
+                                                g_run.offers[g_pending_offer].copies);
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        g_cursor = (g_cursor + direction + 3) % 3;
+        if (mask & STS_TYPE_BIT(g_cursor))
+            break;
     }
 }
 
@@ -568,21 +745,18 @@ static void handle_event(screen_event ev)
         case EV_LEFT:
         case EV_RIGHT:
         case EV_UP:
-        case EV_DOWN: {
-            int count = g_run.deck.count < MAX_DECK_ART ? g_run.deck.count : MAX_DECK_ART;
-            int step = ev == EV_RIGHT ? 1 : ev == EV_LEFT ? count - 1
-                     : ev == EV_DOWN ? DECK_COLS : count - DECK_COLS % count;
-            if (count > 0) {
-                g_cursor = (g_cursor + step) % count;
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-                g_dirty = 1;
-            }
+        case EV_DOWN:
+            move_grid_cursor(ev);
             break;
-        }
         case EV_CONFIRM:
         case EV_CANCEL:
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            go_to_chooser();
+            if (g_close_after_deck) {
+                g_close_after_deck = 0;
+                g_state = ST_CLOSED;
+            } else {
+                go_to_chooser();
+            }
             break;
         case EV_ALT:
             if (alt_twice()) {
@@ -590,6 +764,109 @@ static void handle_event(screen_event ev)
                 g_status[0] = 0;
                 start_new_run(g_run.character);
             }
+            g_dirty = 1;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    /* There is no way out of a reward except taking one: it is saved, so a restart comes
+     * back to the same offers. */
+    case ST_REWARD:
+        switch (ev) {
+        case EV_LEFT:
+        case EV_RIGHT:
+            if (g_run.offer_count > 0) {
+                int step = ev == EV_RIGHT ? 1 : g_run.offer_count - 1;
+                g_cursor = (g_cursor + step) % g_run.offer_count;
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+                g_dirty = 1;
+            }
+            break;
+        case EV_CONFIRM:
+            if (g_cursor >= g_run.offer_count)
+                break;
+            g_pending_offer = g_cursor;
+            g_error[0] = 0;
+            g_dirty = 1;
+            if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_CHOOSE) {
+                memset(g_selected, 0, sizeof g_selected);
+                g_selected_count = 0;
+                g_cursor = 0;
+                g_state = ST_REWARD_REMOVE;
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            } else if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_BY_TYPE) {
+                g_cursor = 2;
+                next_available_type(1);
+                g_state = ST_REWARD_TYPE;
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            } else {
+                commit_reward(NULL);
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case ST_REWARD_TYPE:
+        switch (ev) {
+        case EV_UP:
+        case EV_LEFT:
+            next_available_type(-1);
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+            g_dirty = 1;
+            break;
+        case EV_DOWN:
+        case EV_RIGHT:
+            next_available_type(1);
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+            g_dirty = 1;
+            break;
+        case EV_CONFIRM: {
+            sts_replace_choice choice;
+            choice.remove_ids = NULL;
+            choice.remove_count = 0;
+            choice.type = g_cursor;
+            commit_reward(&choice);
+            break;
+        }
+        case EV_CANCEL:
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            g_cursor = g_pending_offer;
+            g_state = ST_REWARD;
+            g_dirty = 1;
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case ST_REWARD_REMOVE:
+        switch (ev) {
+        case EV_LEFT:
+        case EV_RIGHT:
+        case EV_UP:
+        case EV_DOWN:
+            move_grid_cursor(ev);
+            break;
+        case EV_CONFIRM:
+            if (g_cursor >= MAX_DECK_ART)
+                break;
+            g_selected[g_cursor] = !g_selected[g_cursor];
+            g_selected_count += g_selected[g_cursor] ? 1 : -1;
+            g_dirty = 1;
+            if (g_selected_count >= g_run.offers[g_pending_offer].copies)
+                commit_selected_removals();
+            else
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            break;
+        case EV_CANCEL:
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            g_selected_count = 0;
+            g_cursor = g_pending_offer;
+            g_state = ST_REWARD;
             g_dirty = 1;
             break;
         default:
@@ -825,6 +1102,9 @@ static void rebuild_choose(void)
             if (g_saved_phase[c] == STS_PHASE_DRAFT) {
                 sprintf(line, "Draft %d/%d", g_saved_picks[c], g_settings.draft_picks);
                 color = COLOR_GOLD;
+            } else if (g_saved_phase[c] == STS_PHASE_REWARD) {
+                sprintf(line, "Reward waiting");
+                color = COLOR_GOLD;
             } else {
                 sprintf(line, "Deck ready");
                 color = COLOR_GREEN;
@@ -842,11 +1122,20 @@ static void rebuild_draft(void)
     char line[128], kind[48];
     int i;
 
-    sprintf(line, "%s: pick %d of %d", sts_character_name(g_run.character),
-            g_run.picks_done + 1, g_settings.draft_picks);
-    add_label(line, g_font_big, 20, 16, 400, 30, COLOR_WHITE);
-    sprintf(line, "Deck %d/%d", g_run.deck.count, g_settings.rules.deck_min);
-    add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
+    if (g_state == ST_REWARD) {
+        const char *verb = g_settings.reward.mode == STS_REWARD_ADD ? "add"
+                         : g_settings.reward.mode == STS_REWARD_REMOVE ? "remove" : "swap in";
+        sprintf(line, "%s: choose a card to %s", sts_character_name(g_run.character), verb);
+        add_label(line, g_font_big, 20, 16, 470, 30, COLOR_WHITE);
+        sprintf(line, "Match %d", g_run.matches_played);
+        add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
+    } else {
+        sprintf(line, "%s: pick %d of %d", sts_character_name(g_run.character),
+                g_run.picks_done + 1, g_settings.draft_picks);
+        add_label(line, g_font_big, 20, 16, 400, 30, COLOR_WHITE);
+        sprintf(line, "Deck %d/%d", g_run.deck.count, g_settings.rules.deck_min);
+        add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
+    }
 
     for (i = 0; i < g_run.offer_count && i < STS_OFFER_MAX; i++) {
         const sts_offer *o = &g_run.offers[i];
@@ -869,12 +1158,71 @@ static void rebuild_draft(void)
         if (t)
             add_wrapped(t->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, 36, 0, 6, COLOR_WHITE);
     }
-    add_label("Left/Right: choose   A: take   B: back (progress is saved)", g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    add_label(g_state == ST_REWARD ? "Left/Right: choose   A: take"
+                                   : "Left/Right: choose   A: take   B: back (progress is saved)",
+              g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
+/* Name, type and description of one card, starting at y. */
+static void add_card_details(uint16_t id, int y)
+{
+    char kind[48];
+    const card_text *t = find_text(id);
+    const sts_card *c = sts_card_db_find(&g_db, g_run.character, id);
+
+    add_label(t ? t->name : "?", g_font_big, 24, y, 592, 28, COLOR_WHITE);
+    if (c)
+        add_label(card_label(c, kind), g_font_small, 24, y + 28, 592, 20, COLOR_GOLD);
+    if (t)
+        add_wrapped(t->desc, g_font_small, 24, y + 48, 592, 17, 36, 0, 6, COLOR_WHITE);
+}
+
+static void rebuild_reward_remove(void)
+{
+    char line[192];
+    const sts_offer *o = &g_run.offers[g_pending_offer];
+    const card_text *t = find_text(o->id);
+    int remaining = o->copies - g_selected_count;
+
+    if (g_deck_art_dirty)
+        load_deck_art();
+    add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    if (g_cursor < g_run.deck.count)
+        add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+    sprintf(line, "Replacing with %dx %.90s. Choose %d more.", o->copies, t ? t->name : "?", remaining);
+    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
+    add_label("Arrows: choose   A: select   B: back to the offers", g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
+static void rebuild_reward_type(void)
+{
+    static const char *const names[3] = { "System cards", "Skill cards", "Spell cards" };
+    char line[192];
+    const sts_offer *o = &g_run.offers[g_pending_offer];
+    const card_text *t = find_text(o->id);
+    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, o->copies);
+    int type, i;
+
+    add_label("Choose what type leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    for (type = 0; type < 3; type++) {
+        int count = 0;
+        for (i = 0; i < g_run.deck.count; i++) {
+            const sts_card *c = sts_card_db_find(&g_db, g_run.character, g_run.deck.ids[i]);
+            if (c && c->type == type)
+                count++;
+        }
+        sprintf(line, "%s (%d in deck)", names[type], count);
+        add_label(line, g_font_big, 56, 110 + type * 50, 500, 28,
+                  (mask & STS_TYPE_BIT(type)) ? COLOR_WHITE : COLOR_GREY);
+    }
+    sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.", o->copies, t ? t->name : "?");
+    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
+    add_label("Up/Down: choose   A: confirm   B: back to the offers", g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
 static void rebuild_deck(void)
 {
-    char line[128], kind[48];
+    char line[128];
     int rows = (g_run.deck.count + DECK_COLS - 1) / DECK_COLS;
     int y;
 
@@ -890,17 +1238,8 @@ static void rebuild_deck(void)
     if (rows > 2)
         rows = 2;
     y = DECK_Y + rows * DECK_PITCH_Y + 8;
-    if (g_cursor < g_run.deck.count) {
-        uint16_t id = g_run.deck.ids[g_cursor];
-        const card_text *t = find_text(id);
-        const sts_card *c = sts_card_db_find(&g_db, g_run.character, id);
-
-        add_label(t ? t->name : "?", g_font_big, 24, y, 592, 28, COLOR_WHITE);
-        if (c)
-            add_label(card_label(c, kind), g_font_small, 24, y + 28, 592, 20, COLOR_GOLD);
-        if (t)
-            add_wrapped(t->desc, g_font_small, 24, y + 48, 592, 17, 36, 0, 6, COLOR_WHITE);
-    }
+    if (g_cursor < g_run.deck.count)
+        add_card_details(g_run.deck.ids[g_cursor], y);
     add_label(g_status, g_font_small, 20, 416, 600, 20, COLOR_GREEN);
     add_label(g_alt_armed ? "Press C again to discard this run and start over."
                           : "Arrows: inspect   A or B: back   C twice: start over",
@@ -922,9 +1261,14 @@ static void rebuild(void)
 
     switch (g_state) {
     case ST_CHOOSE: rebuild_choose(); break;
-    case ST_DRAFT:  rebuild_draft(); break;
-    case ST_DECK:   rebuild_deck(); break;
-    case ST_CLOSED: break;
+    case ST_DRAFT:
+    case ST_REWARD:
+        rebuild_draft();
+        break;
+    case ST_DECK:          rebuild_deck(); break;
+    case ST_REWARD_REMOVE: rebuild_reward_remove(); break;
+    case ST_REWARD_TYPE:   rebuild_reward_type(); break;
+    case ST_CLOSED:        break;
     }
     add_label(g_error, g_font_small, 20, 416, 600, 20, COLOR_RED);
     g_dirty = 0;
@@ -939,19 +1283,21 @@ static void draw_box(int x, int y, int w, int h, unsigned fill, unsigned border)
     g_box.draw();
 }
 
-void screen_render(void)
+void screen_render(int opaque)
 {
     int i;
 
     if (g_dirty)
         rebuild();
 
-    draw_box(0, 0, SCREEN_W, SCREEN_H, 0xE0000000u, 0xE0000000u);
+    draw_box(0, 0, SCREEN_W, SCREEN_H, opaque ? 0xFF000000u : 0xE0000000u, opaque ? 0xFF000000u : 0xE0000000u);
     if (g_state == ST_CHOOSE) {
         int x = 24 + (g_cursor % COLS) * 120;
         int y = 80 + (g_cursor / COLS) * 70;
         draw_box(x, y, 116, 60, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_DRAFT) {
+    } else if (g_state == ST_REWARD_TYPE) {
+        draw_box(44, 104 + g_cursor * 50, 552, 38, 0x60FFE080u, 0xFFFFE080u);
+    } else if (g_state == ST_DRAFT || g_state == ST_REWARD) {
         for (i = 0; i < g_run.offer_count && i < STS_OFFER_MAX; i++) {
             int selected = i == g_cursor;
             draw_box(offer_x(i, g_run.offer_count), OFFER_Y, OFFER_W, 226,
@@ -959,7 +1305,7 @@ void screen_render(void)
             if (g_has_art[i])
                 g_art[i].draw();
         }
-    } else if (g_state == ST_DECK) {
+    } else if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE) {
         /* Two rows fit above the card details. A larger deck scrolls with the cursor. */
         int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
 
@@ -967,11 +1313,14 @@ void screen_render(void)
             int x = DECK_X + (i % DECK_COLS) * DECK_PITCH_X;
             int y = DECK_Y + (i / DECK_COLS - top) * DECK_PITCH_Y;
 
-            if (i == g_cursor) {
+            if (i == g_cursor || (g_state == ST_REWARD_REMOVE && g_selected[i])) {
                 /* An even margin around the image, whatever size the game's art is. */
                 SokuLib::Vector2u size = g_has_deck_art[i] ? g_deck_art[i].getSize()
                                                            : SokuLib::Vector2u{DECK_PITCH_X - 8, DECK_PITCH_Y - 8};
-                draw_box(x - 3, y - 3, (int)size.x + 6, (int)size.y + 6, 0x60FFE080u, 0xFFFFE080u);
+                int picked = g_state == ST_REWARD_REMOVE && g_selected[i];
+
+                draw_box(x - 3, y - 3, (int)size.x + 6, (int)size.y + 6,
+                         picked ? 0x80FF6060u : 0x60FFE080u, picked ? 0xFFFF6060u : 0xFFFFE080u);
             }
             if (g_has_deck_art[i]) {
                 g_deck_art[i].setPosition({x, y});

@@ -251,6 +251,20 @@ Netplay is a primary requirement. Each machine simulates both players from share
   written once at the title is NOT enough: `mod/` rewrites the active run deck on every frame of
   offline character select (`VTable_Select.onProcess`), which reached the match after a profile menu
   visit. Netplay select scenes have their own vtables and are not hooked yet.
+- **Input:** menus read the global `inputMgrs.input`, updated outside the scene. Character select
+  reads `Select::leftKeys`/`rightKeys`, updated inside its own `onProcess`, so blanking its input from
+  a hook does not stop it: skip its `onProcess` instead, returning its last value. Keep skipping until
+  the closing button is released, or that press also picks a character.
+- **Scene return values:** a scene's `onProcess` returns the NEXT scene. Returning a stale value from
+  a paused scene really does switch scene (it jumped straight into a match), so only use a value
+  seen on two consecutive frames as "stay".
+- **Match results:** `CharacterManager.score` is rounds won (seen as 2 to 0). After a VS match the
+  game shows a screen listing vanilla card unlocks, then character select. SokuLib's `VTable_Result`
+  is NOT that screen: it is `CMenuResult`, the Result item on the title menu, and hooking it never
+  fired. The post-match screen is `CMenuEnd`, vtable 0x859528, confirmed in game by replacing it
+  (found from RTTI, and the code using `data/menu/result/result.dat` is next to its functions).
+  `mod/` draws the card offer in its place, returning 1 from `onProcess` to keep the menu, and then
+  leaves through the game's own exit path by holding `inputMgrs.input.a` at 1 until it closes.
 - **Card text layout:** descriptions are stored in fixed rows of 36 bytes, padded with spaces and
   sometimes splitting a word. `createFromText` does not wrap, so `mod/` draws each row separately.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
@@ -337,9 +351,10 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    via SWRSToys.
    2b. Early game-side experiment, before any UI: find which memory the `GAME_MATCH` packet's deck is
    built from, and where the game reads decks from the `.pf` and trims them (see open questions).
-3. Draft tool in game (offline): card-offer UI, writes run deck.
-4. Post-match reward screen + **compatible mode** (slot injection, no networking) - first
-   playable release.
+3. (done, offline) Draft tool in game: card-offer UI, writes run deck. Opened with F7 on the main
+   menu, a stand-in for a proper way in.
+4. Post-match reward screen (done, offline: replaces the vanilla unlock list) + **compatible mode**
+   (slot injection, no networking; netplay select scenes not hooked yet) - first playable release.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
 
