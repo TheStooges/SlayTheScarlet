@@ -382,6 +382,24 @@ static int write_active_deck(char *why, size_t why_size)
     return 1;
 }
 
+/* Deck editing mods that cannot run alongside a run deck, or NULL if none is loaded. EasyDecks
+ * reads the deck from profile memory, shows the run deck and saves it over the player's real
+ * deck in their .pf. Nothing goes into memory while one of these is loaded. */
+static const char *blocking_mod(void)
+{
+    static const char *const names[] = { "EasyDecks", "InfiniteDecks" };
+    size_t i;
+
+    for (i = 0; i < sizeof names / sizeof names[0]; i++) {
+        char file[32];
+
+        sprintf(file, "%s.dll", names[i]);
+        if (GetModuleHandleA(file))
+            return names[i];
+    }
+    return NULL;
+}
+
 static void remember_real_deck(void)
 {
     auto &slot = active_slot();
@@ -446,6 +464,10 @@ static int activate_run_deck(void)
     char why[96] = "";
     int fresh = !g_active || g_active_character != g_run.character;
 
+    if (blocking_mod()) {
+        set_error("Cannot use this deck", "another mod is loaded that could overwrite your real deck");
+        return 0;
+    }
     if (g_active && fresh)
         restore_real_deck();
     /* Still on the same run: if the slot no longer holds the old run deck, the game has
@@ -490,6 +512,11 @@ static void resume_active_run(void)
     if (done)
         return;
     done = 1;
+    /* active.txt stays, so the run comes back once the other mod is disabled. */
+    if (blocking_mod()) {
+        slog("%s is loaded, so no run deck will be used", blocking_mod());
+        return;
+    }
     active_file_path(path);
     f = fopen(path, "r");
     if (!f)
@@ -1054,7 +1081,7 @@ static void handle_event(screen_event ev)
         case EV_UP:    g_cursor = (g_cursor + STS_NUM_CHARACTERS - COLS) % STS_NUM_CHARACTERS; break;
         case EV_DOWN:  g_cursor = (g_cursor + COLS) % STS_NUM_CHARACTERS; break;
         case EV_CONFIRM:
-            if (g_data_ok) {
+            if (g_data_ok && !blocking_mod()) {
                 SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
                 open_character(g_cursor);
             }
@@ -1065,7 +1092,7 @@ static void handle_event(screen_event ev)
             g_state = ST_CLOSED;
             return;
         case EV_ALT:
-            if (g_data_ok && alt_twice()) {
+            if (g_data_ok && !blocking_mod() && alt_twice()) {
                 g_character = g_cursor;
                 g_error[0] = 0;
                 g_status[0] = 0;
@@ -1457,8 +1484,9 @@ void screen_render_title_hint(void)
 {
     static Sprite lines[2];
     static int shown_for = -2;
-    int blocked = !g_active && g_rules_changed_character >= 0;
-    int now = blocked ? 100 + g_rules_changed_character : g_active ? g_active_character : -1;
+    const char *mod_in_the_way = blocking_mod();
+    int blocked = mod_in_the_way || (!g_active && g_rules_changed_character >= 0);
+    int now = mod_in_the_way ? 200 : blocked ? 100 + g_rules_changed_character : g_active ? g_active_character : -1;
     int i;
 
     /* The text only needs making again when the run in use changes. */
@@ -1467,7 +1495,9 @@ void screen_render_title_hint(void)
 
         ensure_fonts();
         make_hint_line(&lines[0], "F7: Slay the Scarlet", 422, COLOR_WHITE);
-        if (blocked)
+        if (mod_in_the_way)
+            sprintf(text, "Disable %s to play runs", mod_in_the_way);
+        else if (blocked)
             sprintf(text, "%s: rules changed", sts_character_name(g_rules_changed_character));
         else if (g_active)
             sprintf(text, "In use: %s", sts_character_name(g_active_character));
@@ -1728,6 +1758,12 @@ static void rebuild_choose(void)
     char line[128];
 
     add_label("Slay the Scarlet: choose a character", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    if (blocking_mod()) {
+        sprintf(line, "%s can overwrite your real decks with a run deck, so runs are off.", blocking_mod());
+        add_label(line, g_font_small, 20, 372, 600, 20, COLOR_RED);
+        sprintf(line, "Disable it in SWRSToys.ini and restart the game to play runs.");
+        add_label(line, g_font_small, 20, 392, 600, 20, COLOR_RED);
+    }
     for (c = 0; c < STS_NUM_CHARACTERS; c++) {
         int x = 24 + (c % COLS) * 120;
         int y = 80 + (c / COLS) * 70;
