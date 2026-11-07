@@ -12,6 +12,10 @@ previously run this format manually as an event called "Slay the Scarlet". This 
 - Players then return to character select as normal and continue the set with the modified deck.
 - The card unlock system and `score.dat` are **not** touched. Players are assumed to have the
   community's fully unlocked save. All run state lives in the mod's own files.
+- **Self-contained module, by decision:** the mod must work as a SWRSToys module on a normal install.
+  The original tournament (start from default decks, collect cards through the game's unlock screen,
+  rebuild freely) needed a separately modded install and was hard to get working, so it is background
+  only and not a mode to reproduce. Do not add a card collection or deck-building screen for it.
 - **Later phase:** double-edged items ("relics") that give a buff and a matching debuff, e.g.
   -1000 max HP / +10% card meter gain, or +10% spirit regen delay / +10% spirit regen rate.
 
@@ -82,9 +86,27 @@ mod/     Windows-only DLL glue: SokuLib hooks, UI scenes, netplay, deck injectio
          Built only when MSVC is available.
 ```
 
-`core/` implemented so far: `deck` (model, validation), `pf` (profile read/write), `pool` (card
-table), `rng` (PCG32), `offer` (offer generator). Draft logic, settings parsing and the run save
-format are still to do.
+`core/` modules: `deck` (model, validation), `pf` (profile read/write), `pool` (card table), `rng`
+(PCG32), `offer` (offer generator, applying a taken offer), `settings` (`.ini` parsing, validation,
+compatible-mode override, fingerprint), `run` (draft and reward state machine, save format), `util`.
+`data/settings.ini` documents every setting and states the defaults.
+
+By decision, every card is in the offer pool, including Catfish and the two rarity 0 spells. The game's
+unlock rules (rarity, sequences, story rewards) do not limit the pool, because players use a fully
+unlocked save.
+
+Rule interpretations in `core/` that may need revisiting with the community:
+
+- `who_picks`: a player left out (loser under `winner`, winner under `loser`) keeps their deck
+  unchanged. `nobody` rolls an offer and any removals at random for both players.
+- The draft ends early if the deck fills up. A draft with `copies_min` above 1 must use a fixed copy
+  count, because a varying one could stop just short of `size_min` with no room for another pick.
+- `copy_limit` is refused above 4 until the game's limit is patched (an illegal deck silently means
+  no deck in game).
+- REPLACE counts the copy limit before removing anything, so it stays legal whatever is removed.
+
+Runs save their random state and any offers on screen, so reloading cannot reroll a pick. A run made
+under different settings is detected through the fingerprint; what to do then is up to the mod.
 
 Keep `core/` free of game dependencies so the logic can be developed and tested without the game.
 Use integer maths for anything that could affect a match (determinism across machines).
@@ -187,8 +209,14 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - **Authoritative card data:** the game's own `data/csv/<folder>/spellcard.csv` and
   `data/csv/common/spellcard.csv`, readable through `SokuLib::CSVParser` (the `data` deque holds the
   cells). `SokuLib::getCharName` gives the folder name (e.g. Reisen is `udonge`, Cirno `chirno`,
-  Meiling `meirin`). Columns start: id, name, type, cost-or-slot, description. Under `th123e` the
-  text is English. 21 names have a literal `<a> ` suffix to strip before display.
+  Meiling `meirin`). Under `th123e` the text is English. 21 names have a literal `<a> ` suffix to
+  strip before display. Columns: id, name, type, cost-or-slot, description, an unknown flag, rarity
+  (1-5, higher is rarer; 0 appears to mean it never drops at random, as with Catfish), three pairs
+  of unlock target and its rarity (0,0 when unused), owner index (a system card's value is the
+  character whose defeat awards it; Catfish is 21), display sort order. The flag does NOT mark the
+  initially unlocked cards. In this install all skills are rarity 1, spells 2-5, and system cards 5.
+  `reference/Card Collecting Notes.md` explains the unlock system these drive; the mod does not
+  use it, and `data/cards.csv` does not carry rarity or unlock targets yet.
 - **Text is read at runtime:** `data/cards.csv` holds no names. The mod should read them from the
   game, so players see the language they launched with. `th123e.exe` is an 8 KB launcher for the
   same `th123.exe`, so addresses and the version hash are shared.
@@ -205,8 +233,15 @@ Netplay is a primary requirement. Each machine simulates both players from share
   because it is filled during background loading (not proven). Do not read it until the match has
   started.
 - **`profile1`/`profile2`:** both are filled by the main menu and hold all 80 decks of the selected
-  `.pf` files, matching the files as sets of cards. Whether a match or packet reads from this memory
-  is still unknown.
+  `.pf` files, matching the files as sets of cards.
+- **Writing a deck to memory works offline:** overwriting `profile1.cards[c][s]` in place (same
+  size, 20 cards) at the main menu or at character select changes the deck used by the next VS
+  match, including `cardById` and the in-match `original` deck. Verified with Reimu as P1 in two
+  matches, including a write between matches. The written deck stayed in memory across
+  match -> select and title -> select, and no `.pf` file changed on disk after closing the game.
+  Not yet tested: netplay and the `GAME_MATCH` packet, the deck editor saving a written deck to
+  disk, changing profile, P2, and writes that change the deck size (these must allocate through
+  the game's allocator).
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
 
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
@@ -275,12 +310,16 @@ differs from a real profile in one key binding). Useful as a source of test prof
 produce illegal decks** (a 5-copy deck was observed), so do not trust its output as valid. Back up a
 real profile before loading its output, because it replaces all decks and a key binding.
 
+**Debug keys in this install:** F1 (reduces HP by 1000, resetting at 0 to 10000), F2 (fills the hand
+from the deck) and F3 (empties it) are available offline but not in online play. They are useful for
+in-game testing, because a match starts with an empty hand.
+
 **Privacy:** game logs contain the opponent's IP address and local Windows paths. Never commit
 logs or personal profiles. Keep reference files from the game install in a gitignored folder.
 
 ## Roadmap
 
-1. `core/` on macOS: deck model, validation (size/copy rules from settings), offer generator with
+1. (done) `core/`: deck model, validation (size/copy rules from settings), offer generator with
    pool filter, draft logic, settings, run save format, `.pf` deck reader (real profiles make
    good test data), tests.
 2. Windows setup (done): VS "Desktop development with C++", git, CMake; ModTemplate builds and loads
@@ -298,9 +337,8 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 - Which replacement rule is the default (community decision).
 - Starting card pool and offer pool per character (system vs character cards).
 - What happens if a player picks a different character mid-run (block / end run / plain match).
-- Where the game trims/validates decks (profile read, deck editor, or match load), and whether decks
-  are read from the `.pf` only at startup or from memory at character select. This decides how
-  compatible mode can write a slot.
+- Where the game trims/validates decks (profile read, deck editor, or match load). Offline, a match
+  reads decks from profile memory (see the probe findings); netplay is unconfirmed.
 - Whether the game validates decks received over netplay (copy limit and size).
 - Upper deck-size limits, HUD assumptions about 20 cards, replay/spectator behaviour. The copy
   limit is a separate check from size (answered above); raising it would need its own patch, so

@@ -1,7 +1,7 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "pool.h"
+#include "util.h"
 
 #define MAX_LINE 128
 #define NUM_FIELDS 4
@@ -140,31 +140,15 @@ sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, 
 
 sts_db_status sts_card_db_load(const char *path, sts_card_db *out, int *err_line)
 {
-    FILE *f = fopen(path, "rb");
-    char *buf;
-    long size;
+    size_t size = 0;
+    char *buf = sts_read_file(path, &size);
     sts_db_status st;
 
     if (err_line)
         *err_line = 0;
-    if (!f)
+    if (!buf)
         return STS_DB_IO;
-    if (fseek(f, 0, SEEK_END) != 0 || (size = ftell(f)) < 0 || fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        return STS_DB_IO;
-    }
-    buf = (char *)malloc((size_t)size + 1);
-    if (!buf) {
-        fclose(f);
-        return STS_DB_IO;
-    }
-    if (fread(buf, 1, (size_t)size, f) != (size_t)size) {
-        free(buf);
-        fclose(f);
-        return STS_DB_IO;
-    }
-    fclose(f);
-    st = sts_card_db_parse(buf, (size_t)size, out, err_line);
+    st = sts_card_db_parse(buf, size, out, err_line);
     free(buf);
     return st;
 }
