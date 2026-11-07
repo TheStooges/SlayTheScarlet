@@ -18,6 +18,9 @@ void screen_update(const SokuLib::KeyInput &input);
  * frame; otherwise the game's scene shows faintly behind it. */
 void screen_render(int opaque);
 
+/* The main menu's reminder of the hotkey and which run is in use. */
+void screen_render_title_hint(void);
+
 /* Run deck upkeep, called every frame of the matching scene. The title frame only
  * records changes to the slot: the deck editor must keep seeing the player's real deck.
  * The result, title and select frames also open the reward screen after a finished

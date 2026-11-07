@@ -71,6 +71,8 @@ static int __fastcall on_title_render(SokuLib::Title *This)
 
     if (screen_is_open())
         screen_render(0);
+    else if (SokuLib::menuManager.empty())
+        screen_render_title_hint();
     return result;
 }
 

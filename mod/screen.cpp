@@ -1234,6 +1234,56 @@ static void init_font(SokuLib::SWRFont &font, int height, int weight)
     font.setIndirect(desc);
 }
 
+static void ensure_fonts(void)
+{
+    if (g_fonts_ready)
+        return;
+    init_font(g_font_big, 20, FW_BOLD);
+    init_font(g_font_small, 14, FW_NORMAL);
+    g_fonts_ready = 1;
+}
+
+/* One line of the main menu's hint, with its right edge at HINT_RIGHT. */
+#define HINT_RIGHT 626
+static void make_hint_line(Sprite *s, const char *text, int y, unsigned color)
+{
+    SokuLib::Vector2i real;
+
+    if (!s->texture.createFromText(text, g_font_small, {300, 20}, &real))
+        return;
+    s->setSize(real.to<unsigned>());
+    s->rect.left = 0;
+    s->rect.top = 0;
+    s->rect.width = real.x;
+    s->rect.height = real.y;
+    s->setPosition({HINT_RIGHT - real.x, y});
+    s->tint = color;
+}
+
+void screen_render_title_hint(void)
+{
+    static Sprite lines[2];
+    static int shown_for = -2;
+    int now = g_active ? g_active_character : -1;
+    int i;
+
+    /* The text only needs making again when the run in use changes. */
+    if (now != shown_for) {
+        char text[64];
+
+        ensure_fonts();
+        make_hint_line(&lines[0], "F7: Slay the Scarlet", 422, COLOR_WHITE);
+        if (g_active)
+            sprintf(text, "In use: %s", sts_character_name(g_active_character));
+        else
+            sprintf(text, "No run in use");
+        make_hint_line(&lines[1], text, 438, g_active ? COLOR_GREEN : COLOR_GREY);
+        shown_for = now;
+    }
+    for (i = 0; i < 2; i++)
+        lines[i].draw();
+}
+
 static void add_label(const char *text, SokuLib::SWRFont &font, int x, int y, int w, int h, unsigned color)
 {
     Sprite *s;
@@ -1711,11 +1761,7 @@ static void rebuild(void)
 {
     int i;
 
-    if (!g_fonts_ready) {
-        init_font(g_font_big, 20, FW_BOLD);
-        init_font(g_font_small, 14, FW_NORMAL);
-        g_fonts_ready = 1;
-    }
+    ensure_fonts();
     g_label_count = 0;
     g_input_draw_count = 0;
     for (i = 0; i < STS_OFFER_MAX; i++)
