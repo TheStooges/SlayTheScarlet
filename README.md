@@ -120,6 +120,10 @@ To make a release zip, run `tools\build_release.bat` from the same prompt, then
 covers it. `mod/` is the Windows DLL: hooks, screens and deck handling. `CLAUDE.md` has the design
 notes and reverse-engineering findings.
 
+## Licence
+
+Slay the Scarlet is released under the MIT licence: see `LICENSE`, or `LICENSE.txt` in a release.
+
 ## Credits
 
 This is an unofficial fan mod, and you need your own copy of the game.

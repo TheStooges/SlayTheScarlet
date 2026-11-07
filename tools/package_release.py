@@ -21,8 +21,13 @@ CONTENTS = {
     "cards.csv": os.path.join(ROOT, "data", "cards.csv"),
     "settings.ini": os.path.join(ROOT, "data", "settings.ini"),
     "README.md": os.path.join(ROOT, "README.md"),
+    "LICENSE.txt": os.path.join(ROOT, "LICENSE"),
     "LICENSE-SokuLib.txt": os.path.join(ROOT, "lib", "SokuLib", "LICENSE"),
 }
+
+# The licence names its copyright holder on purpose, which may match the builder's user name. It is
+# still checked for local paths.
+NAMES_ITS_AUTHOR = {"LICENSE.txt"}
 
 # The README's picture of the Deck 1 symbol is left out of the zip, as plain words.
 README_IMAGE = b"(![green Deck 1 symbol](images/deck1.svg))"
@@ -44,10 +49,11 @@ def zip_readme():
     return readme
 
 
-def private_strings():
+def private_strings(inside):
     """What would identify the builder's machine, built from this machine rather than written here."""
     found = [b"Users\\", b"Users/"]
-    for name in ("USERNAME", "USERPROFILE"):
+    names = ("USERPROFILE",) if inside in NAMES_ITS_AUTHOR else ("USERNAME", "USERPROFILE")
+    for name in names:
         value = os.environ.get(name)
         if value:
             found.append(value.encode("ascii", "ignore"))
@@ -106,7 +112,7 @@ def main():
             same = data == expected
             print("  %-36s %8d bytes  %s" % (info.filename, info.file_size, "matches" if same else "DIFFERENT"))
             problems += not same
-            for needle in private_strings():
+            for needle in private_strings(inside):
                 if needle.lower() in data.lower():
                     print("  PRIVATE: %s contains %r" % (info.filename, needle))
                     problems += 1
