@@ -1,7 +1,7 @@
 # Slay the Scarlet
 
 A deck-building run mod for Touhou 12.3 Hisoutensoku, inspired by Slay the Spire and by the OCE
-Hisoutensoku's community's "Slay the Scarlet" wauvent.
+Hisoutensoku community's "Slay the Scarlet" wauvent.
 
 You draft a starting deck for one character, one card at a time. After each match you are offered
 new cards to swap in, so the deck changes as the "run" goes on.
