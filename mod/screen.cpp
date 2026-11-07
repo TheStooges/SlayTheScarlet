@@ -371,6 +371,348 @@ static int alt_twice(void)
     return 1;
 }
 
+/* The draft and the reward screen both move along a row of offers. */
+static void move_offer_cursor(screen_event event)
+{
+    if (g_run.offer_count > 0) {
+        int step = event == EV_RIGHT ? 1 : g_run.offer_count - 1;
+        g_cursor = (g_cursor + step) % g_run.offer_count;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+    }
+}
+
+static void on_choose_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:  g_cursor = (g_cursor + STS_NUM_CHARACTERS - 1) % STS_NUM_CHARACTERS; break;
+    case EV_RIGHT: g_cursor = (g_cursor + 1) % STS_NUM_CHARACTERS; break;
+    case EV_UP:    g_cursor = (g_cursor + STS_NUM_CHARACTERS - COLS) % STS_NUM_CHARACTERS; break;
+    case EV_DOWN:  g_cursor = (g_cursor + COLS) % STS_NUM_CHARACTERS; break;
+    case EV_CONFIRM:
+        if (g_data_ok && !blocking_mod()) {
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            open_character(g_cursor);
+        }
+        g_dirty = 1;
+        return;
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_state = ST_CLOSED;
+        return;
+    case EV_ALT:
+        if (g_data_ok && !blocking_mod() && alt_twice()) {
+            g_character = g_cursor;
+            g_error[0] = 0;
+            g_status[0] = 0;
+            load_card_text(g_cursor);
+            start_new_run(g_cursor);
+        }
+        g_dirty = 1;
+        return;
+    case EV_TOGGLE:
+        return;
+    }
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+    g_error[0] = 0;
+    g_dirty = 1;
+}
+
+static void take_draft_offer(void)
+{
+    sts_run_status status = sts_run_draft_pick(&g_run, &g_db, &g_settings, g_cursor);
+
+    if (status != STS_RUN_OK) {
+        set_error("Draft", sts_run_status_str(status));
+        return;
+    }
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    save_run();
+    /* A finished draft is meant to be played. */
+    if (g_run.phase == STS_PHASE_READY)
+        activate_run_deck();
+    enter_phase();
+}
+
+static void on_draft_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:
+    case EV_RIGHT:
+        move_offer_cursor(event);
+        break;
+    case EV_CONFIRM:
+        take_draft_offer();
+        break;
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        go_to_chooser();
+        break;
+    default:
+        break;
+    }
+}
+
+static void on_deck_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:
+    case EV_RIGHT:
+    case EV_UP:
+    case EV_DOWN:
+        move_grid_cursor(event);
+        break;
+    case EV_TOGGLE:
+        g_error[0] = 0;
+        if (run_deck_in_use())
+            deactivate_run_deck();
+        else
+            activate_run_deck();
+        set_deck_status();
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_dirty = 1;
+        break;
+    case EV_CONFIRM:
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        clear_deck_change();
+        if (g_close_after_deck) {
+            g_close_after_deck = 0;
+            g_state = ST_CLOSED;
+        } else {
+            go_to_chooser();
+        }
+        break;
+    case EV_ALT:
+        if (alt_twice()) {
+            g_error[0] = 0;
+            g_status[0] = 0;
+            start_new_run(g_run.character);
+        }
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
+/* Takes the offer under the cursor, first asking what leaves the deck if the rules want that. */
+static void take_reward_offer(void)
+{
+    if (g_cursor >= g_run.offer_count)
+        return;
+    g_pending_offer = g_cursor;
+    g_error[0] = 0;
+    g_dirty = 1;
+    if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_CHOOSE) {
+        memset(g_selected, 0, sizeof g_selected);
+        g_selected_count = 0;
+        g_cursor = 0;
+        g_state = ST_REWARD_REMOVE;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    } else if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_BY_TYPE) {
+        g_cursor = 2;
+        next_available_type(1);
+        g_state = ST_REWARD_TYPE;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    } else {
+        commit_reward(NULL);
+    }
+}
+
+/* There is no way out of a reward except taking one: it is saved, so a restart comes
+ * back to the same offers. */
+static void on_reward_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:
+    case EV_RIGHT:
+        move_offer_cursor(event);
+        break;
+    case EV_CONFIRM:
+        take_reward_offer();
+        break;
+    default:
+        break;
+    }
+}
+
+static void on_reward_type_event(screen_event event)
+{
+    switch (event) {
+    case EV_UP:
+    case EV_LEFT:
+        next_available_type(-1);
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+        break;
+    case EV_DOWN:
+    case EV_RIGHT:
+        next_available_type(1);
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+        break;
+    case EV_CONFIRM: {
+        sts_replace_choice choice;
+        choice.remove_ids = NULL;
+        choice.remove_count = 0;
+        choice.type = g_cursor;
+        commit_reward(&choice);
+        break;
+    }
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_cursor = g_pending_offer;
+        g_state = ST_REWARD;
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
+/* Marks or unmarks the card under the cursor, and asks for confirmation once enough are marked. */
+static void toggle_removal(void)
+{
+    if (g_cursor >= MAX_DECK_ART)
+        return;
+    /* The card coming in cannot also be what leaves. */
+    if (g_run.deck.ids[g_cursor] == g_run.offers[g_pending_offer].id) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        return;
+    }
+    g_selected[g_cursor] = !g_selected[g_cursor];
+    g_selected_count += g_selected[g_cursor] ? 1 : -1;
+    g_dirty = 1;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    if (g_selected_count >= g_run.offers[g_pending_offer].copies) {
+        g_last_selected = g_cursor;
+        preview_selected_swap();
+        g_state = ST_REWARD_CONFIRM;
+    }
+}
+
+static void on_reward_remove_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:
+    case EV_RIGHT:
+    case EV_UP:
+    case EV_DOWN:
+        move_grid_cursor(event);
+        break;
+    case EV_CONFIRM:
+        toggle_removal();
+        break;
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_selected_count = 0;
+        g_cursor = g_pending_offer;
+        g_state = ST_REWARD;
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
+static void on_reward_confirm_event(screen_event event)
+{
+    switch (event) {
+    case EV_CONFIRM:
+        commit_selected_removals();
+        break;
+    case EV_CANCEL:
+        /* Undoes only the last pick, so the others need not be chosen again. */
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_selected[g_last_selected] = 0;
+        g_selected_count--;
+        clear_deck_change();
+        g_state = ST_REWARD_REMOVE;
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
+static void carry_on_under_new_rules(void)
+{
+    sts_run_status status = sts_run_adopt_rules(&g_run, &g_db, &g_settings);
+
+    if (status != STS_RUN_OK) {
+        set_error("Could not carry on", sts_run_status_str(status));
+        return;
+    }
+    slog("run for character %d now follows the current rules", g_run.character);
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    save_run();
+    /* The run that was in use before the rules changed goes back into use. */
+    if (g_rules_changed_character == g_run.character && g_run.phase != STS_PHASE_DRAFT)
+        activate_run_deck();
+    enter_phase();
+}
+
+static void start_over_from_rules(void)
+{
+    /* A second press is needed, so one slip cannot lose the run. */
+    if (!g_rules_start_over_armed) {
+        g_rules_start_over_armed = 1;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_dirty = 1;
+        return;
+    }
+    g_rules_start_over_armed = 0;
+    g_error[0] = 0;
+    g_status[0] = 0;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    start_new_run(g_run.character);
+}
+
+static void on_rules_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:
+    case EV_RIGHT:
+    case EV_UP:
+    case EV_DOWN: {
+        int count = rules_option_count();
+        int step = (event == EV_DOWN || event == EV_RIGHT) ? 1 : count - 1;
+
+        g_cursor = (g_cursor + step) % count;
+        g_rules_start_over_armed = 0;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+        break;
+    }
+    case EV_CONFIRM:
+        switch (rules_option_at(g_cursor)) {
+        case RULES_CARRY_ON:
+            carry_on_under_new_rules();
+            break;
+        case RULES_BACK:
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            go_to_chooser();
+            break;
+        case RULES_START_OVER:
+            start_over_from_rules();
+            break;
+        }
+        break;
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        if (g_rules_start_over_armed) {
+            g_rules_start_over_armed = 0;
+            g_dirty = 1;
+        } else {
+            go_to_chooser();
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 static void handle_event(screen_event event)
 {
     if (event != EV_ALT && g_alt_armed) {
@@ -378,315 +720,15 @@ static void handle_event(screen_event event)
         g_dirty = 1;
     }
     switch (g_state) {
-    case ST_CHOOSE:
-        switch (event) {
-        case EV_LEFT:  g_cursor = (g_cursor + STS_NUM_CHARACTERS - 1) % STS_NUM_CHARACTERS; break;
-        case EV_RIGHT: g_cursor = (g_cursor + 1) % STS_NUM_CHARACTERS; break;
-        case EV_UP:    g_cursor = (g_cursor + STS_NUM_CHARACTERS - COLS) % STS_NUM_CHARACTERS; break;
-        case EV_DOWN:  g_cursor = (g_cursor + COLS) % STS_NUM_CHARACTERS; break;
-        case EV_CONFIRM:
-            if (g_data_ok && !blocking_mod()) {
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-                open_character(g_cursor);
-            }
-            g_dirty = 1;
-            return;
-        case EV_CANCEL:
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            g_state = ST_CLOSED;
-            return;
-        case EV_ALT:
-            if (g_data_ok && !blocking_mod() && alt_twice()) {
-                g_character = g_cursor;
-                g_error[0] = 0;
-                g_status[0] = 0;
-                load_card_text(g_cursor);
-                start_new_run(g_cursor);
-            }
-            g_dirty = 1;
-            return;
-        case EV_TOGGLE:
-            return;
-        }
-        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-        g_error[0] = 0;
-        g_dirty = 1;
-        break;
-
-    case ST_DRAFT:
-        switch (event) {
-        case EV_LEFT:
-        case EV_RIGHT:
-            if (g_run.offer_count > 0) {
-                int step = event == EV_RIGHT ? 1 : g_run.offer_count - 1;
-                g_cursor = (g_cursor + step) % g_run.offer_count;
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-                g_dirty = 1;
-            }
-            break;
-        case EV_CONFIRM: {
-            sts_run_status status = sts_run_draft_pick(&g_run, &g_db, &g_settings, g_cursor);
-            if (status != STS_RUN_OK) {
-                set_error("Draft", sts_run_status_str(status));
-                break;
-            }
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-            save_run();
-            /* A finished draft is meant to be played. */
-            if (g_run.phase == STS_PHASE_READY)
-                activate_run_deck();
-            enter_phase();
-            break;
-        }
-        case EV_CANCEL:
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            go_to_chooser();
-            break;
-        default:
-            break;
-        }
-        break;
-
-    case ST_DECK:
-        switch (event) {
-        case EV_LEFT:
-        case EV_RIGHT:
-        case EV_UP:
-        case EV_DOWN:
-            move_grid_cursor(event);
-            break;
-        case EV_TOGGLE:
-            g_error[0] = 0;
-            if (run_deck_in_use())
-                deactivate_run_deck();
-            else
-                activate_run_deck();
-            set_deck_status();
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-            g_dirty = 1;
-            break;
-        case EV_CONFIRM:
-        case EV_CANCEL:
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            clear_deck_change();
-            if (g_close_after_deck) {
-                g_close_after_deck = 0;
-                g_state = ST_CLOSED;
-            } else {
-                go_to_chooser();
-            }
-            break;
-        case EV_ALT:
-            if (alt_twice()) {
-                g_error[0] = 0;
-                g_status[0] = 0;
-                start_new_run(g_run.character);
-            }
-            g_dirty = 1;
-            break;
-        default:
-            break;
-        }
-        break;
-
-    /* There is no way out of a reward except taking one: it is saved, so a restart comes
-     * back to the same offers. */
-    case ST_REWARD:
-        switch (event) {
-        case EV_LEFT:
-        case EV_RIGHT:
-            if (g_run.offer_count > 0) {
-                int step = event == EV_RIGHT ? 1 : g_run.offer_count - 1;
-                g_cursor = (g_cursor + step) % g_run.offer_count;
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-                g_dirty = 1;
-            }
-            break;
-        case EV_CONFIRM:
-            if (g_cursor >= g_run.offer_count)
-                break;
-            g_pending_offer = g_cursor;
-            g_error[0] = 0;
-            g_dirty = 1;
-            if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_CHOOSE) {
-                memset(g_selected, 0, sizeof g_selected);
-                g_selected_count = 0;
-                g_cursor = 0;
-                g_state = ST_REWARD_REMOVE;
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-            } else if (g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace == STS_REPLACE_BY_TYPE) {
-                g_cursor = 2;
-                next_available_type(1);
-                g_state = ST_REWARD_TYPE;
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-            } else {
-                commit_reward(NULL);
-            }
-            break;
-        default:
-            break;
-        }
-        break;
-
-    case ST_REWARD_TYPE:
-        switch (event) {
-        case EV_UP:
-        case EV_LEFT:
-            next_available_type(-1);
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-            g_dirty = 1;
-            break;
-        case EV_DOWN:
-        case EV_RIGHT:
-            next_available_type(1);
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-            g_dirty = 1;
-            break;
-        case EV_CONFIRM: {
-            sts_replace_choice choice;
-            choice.remove_ids = NULL;
-            choice.remove_count = 0;
-            choice.type = g_cursor;
-            commit_reward(&choice);
-            break;
-        }
-        case EV_CANCEL:
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            g_cursor = g_pending_offer;
-            g_state = ST_REWARD;
-            g_dirty = 1;
-            break;
-        default:
-            break;
-        }
-        break;
-
-    case ST_REWARD_REMOVE:
-        switch (event) {
-        case EV_LEFT:
-        case EV_RIGHT:
-        case EV_UP:
-        case EV_DOWN:
-            move_grid_cursor(event);
-            break;
-        case EV_CONFIRM:
-            if (g_cursor >= MAX_DECK_ART)
-                break;
-            /* The card coming in cannot also be what leaves. */
-            if (g_run.deck.ids[g_cursor] == g_run.offers[g_pending_offer].id) {
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-                break;
-            }
-            g_selected[g_cursor] = !g_selected[g_cursor];
-            g_selected_count += g_selected[g_cursor] ? 1 : -1;
-            g_dirty = 1;
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-            if (g_selected_count >= g_run.offers[g_pending_offer].copies) {
-                g_last_selected = g_cursor;
-                preview_selected_swap();
-                g_state = ST_REWARD_CONFIRM;
-            }
-            break;
-        case EV_CANCEL:
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            g_selected_count = 0;
-            g_cursor = g_pending_offer;
-            g_state = ST_REWARD;
-            g_dirty = 1;
-            break;
-        default:
-            break;
-        }
-        break;
-
-    case ST_REWARD_CONFIRM:
-        switch (event) {
-        case EV_CONFIRM:
-            commit_selected_removals();
-            break;
-        case EV_CANCEL:
-            /* Undoes only the last pick, so the others need not be chosen again. */
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            g_selected[g_last_selected] = 0;
-            g_selected_count--;
-            clear_deck_change();
-            g_state = ST_REWARD_REMOVE;
-            g_dirty = 1;
-            break;
-        default:
-            break;
-        }
-        break;
-
-    case ST_RULES:
-        switch (event) {
-        case EV_LEFT:
-        case EV_RIGHT:
-        case EV_UP:
-        case EV_DOWN: {
-            int count = rules_option_count();
-            int step = (event == EV_DOWN || event == EV_RIGHT) ? 1 : count - 1;
-
-            g_cursor = (g_cursor + step) % count;
-            g_rules_start_over_armed = 0;
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-            g_dirty = 1;
-            break;
-        }
-        case EV_CONFIRM:
-            switch (rules_option_at(g_cursor)) {
-            case RULES_CARRY_ON: {
-                sts_run_status status = sts_run_adopt_rules(&g_run, &g_db, &g_settings);
-
-                if (status != STS_RUN_OK) {
-                    set_error("Could not carry on", sts_run_status_str(status));
-                    break;
-                }
-                slog("run for character %d now follows the current rules", g_run.character);
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-                save_run();
-                /* The run that was in use before the rules changed goes back into use. */
-                if (g_rules_changed_character == g_run.character && g_run.phase != STS_PHASE_DRAFT)
-                    activate_run_deck();
-                enter_phase();
-                break;
-            }
-            case RULES_BACK:
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-                go_to_chooser();
-                break;
-            case RULES_START_OVER:
-                /* A second press is needed, so one slip cannot lose the run. */
-                if (!g_rules_start_over_armed) {
-                    g_rules_start_over_armed = 1;
-                    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-                    g_dirty = 1;
-                    break;
-                }
-                g_rules_start_over_armed = 0;
-                g_error[0] = 0;
-                g_status[0] = 0;
-                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-                start_new_run(g_run.character);
-                break;
-            }
-            break;
-        case EV_CANCEL:
-            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
-            if (g_rules_start_over_armed) {
-                g_rules_start_over_armed = 0;
-                g_dirty = 1;
-            } else {
-                go_to_chooser();
-            }
-            break;
-        default:
-            break;
-        }
-        break;
-
-    case ST_CLOSED:
-        break;
+    case ST_CHOOSE:         on_choose_event(event); break;
+    case ST_DRAFT:          on_draft_event(event); break;
+    case ST_DECK:           on_deck_event(event); break;
+    case ST_REWARD:         on_reward_event(event); break;
+    case ST_REWARD_TYPE:    on_reward_type_event(event); break;
+    case ST_REWARD_REMOVE:  on_reward_remove_event(event); break;
+    case ST_REWARD_CONFIRM: on_reward_confirm_event(event); break;
+    case ST_RULES:          on_rules_event(event); break;
+    case ST_CLOSED:         break;
     }
 }
 
