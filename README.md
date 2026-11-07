@@ -21,16 +21,18 @@ Giuroll is supported for online play. Other common mods should not need disablin
 
 ## Install
 
-1. Copy the `SlayTheScarlet` folder into the game's `modules` folder.
-2. Add this line to `SWRSToys.ini`, in the game's folder:
+1. Download the zip of the latest release from the
+   [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
+2. Unzip it, and copy the `SlayTheScarlet` folder into the game's `modules` folder.
+3. Add this line to `SWRSToys.ini`, in the game's folder:
 
    ```
    SlayTheScarlet=modules/SlayTheScarlet/SlayTheScarlet.dll
    ```
 
-3. In the same file, put a `;` at the start of the `EasyDecks` and `InfiniteDecks` lines if they are
+4. In the same file, put a `;` at the start of the `EasyDecks` and `InfiniteDecks` lines if they are
    enabled.
-4. Start the game. The main menu should show `F7: Slay the Scarlet` in the bottom right corner.
+5. Start the game. The main menu should show `F7: Slay the Scarlet` in the bottom right corner.
 
 To uninstall, remove the line and delete the folder. The mod never changes your profiles or
 `score123.dat`, so your real decks and your save are untouched.
