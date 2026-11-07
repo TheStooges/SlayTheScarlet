@@ -438,6 +438,16 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    cards are normal cards afterwards (copy limit, can be replaced). A deck that starts small and
    grows needs the deck size patch first. Open: 1 or 2 copies, system cards in the starter, and
    whether the default is `none` until playtesting.
+8. Card sounds on the offer screens (rewards, and the draft for consistency): highlighting an offer
+   plays the sound that card makes in a match, e.g. the sound of the spell itself. Feasible in part:
+   SokuLib exposes the game's sound load/play functions (`ADDR_LOAD_SOUND` 0x401AF0, `ADDR_PLAY_SOUND`
+   0x401D50) and each character's sound table in a match (`CharacterManager.soundTable`, `playSE`).
+   The missing piece is which sound belongs to which card: `spellcard.csv` does not say. It lives in
+   each character's animation (pattern) data, as sound cues on the move's frames. Needs that format
+   reverse-engineered, or a hand-made card-to-sound table (about 480 cards). Investigate feasibility
+   first. Details: play only once the cursor settles, so fast scrolling does not stack sounds; a
+   setting to turn it off, cosmetic so not in the fingerprint (like `show_deck`). Cheaper fallback
+   if it stalls: one shared game sound per card type (e.g. `SFX_SPELL_ACTIVATE` for spells).
 
 ## Open questions
 
