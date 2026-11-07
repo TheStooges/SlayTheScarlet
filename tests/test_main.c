@@ -21,6 +21,7 @@ int main(void)
     test_offer_limits();
     test_offer_fairness();
     test_offer_one_of_each();
+    test_offer_no_self_replace();
     test_offer_runs();
     test_offer_apply();
     test_settings();

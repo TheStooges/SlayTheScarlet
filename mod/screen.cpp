@@ -943,8 +943,8 @@ static void move_grid_cursor(screen_event ev)
 
 static void next_available_type(int direction)
 {
-    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck,
-                                                g_run.offers[g_pending_offer].copies);
+    const sts_offer *o = &g_run.offers[g_pending_offer];
+    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, o->id, o->copies);
     int i;
 
     for (i = 0; i < 3; i++) {
@@ -1268,6 +1268,11 @@ static void handle_event(screen_event ev)
         case EV_CONFIRM:
             if (g_cursor >= MAX_DECK_ART)
                 break;
+            /* The card coming in cannot also be what leaves. */
+            if (g_run.deck.ids[g_cursor] == g_run.offers[g_pending_offer].id) {
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+                break;
+            }
             g_selected[g_cursor] = !g_selected[g_cursor];
             g_selected_count += g_selected[g_cursor] ? 1 : -1;
             g_dirty = 1;
@@ -1928,6 +1933,8 @@ static void rebuild_reward_remove(void)
     add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+    if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == o->id)
+        add_label("This is the card you are taking, so it cannot leave.", g_font_small, 20, 396, 600, 20, COLOR_RED);
     sprintf(line, "Replacing with %dx %.90s. Choose %d more.", o->copies, t ? t->name : "?", remaining);
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
     sprintf(line, "Arrows: choose   %s: select   %s: back to the offers", BUTTON_A, BUTTON_B);
@@ -1978,18 +1985,15 @@ static void rebuild_reward_type(void)
     char line[192];
     const sts_offer *o = &g_run.offers[g_pending_offer];
     const card_text *t = find_text(o->id);
-    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, o->copies);
-    int type, i;
+    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, o->id, o->copies);
+    int type;
 
     add_label("Choose what type leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     for (type = 0; type < 3; type++) {
-        int count = 0;
-        for (i = 0; i < g_run.deck.count; i++) {
-            const sts_card *c = sts_card_db_find(&g_db, g_run.character, g_run.deck.ids[i]);
-            if (c && c->type == type)
-                count++;
-        }
-        sprintf(line, "%s (%d in deck)", names[type], count);
+        /* Copies of the incoming card are not counted, as they cannot leave. */
+        int count = sts_replace_count_of_type(&g_db, g_run.character, &g_run.deck, o->id, type);
+
+        sprintf(line, "%s (%d can leave)", names[type], count);
         add_label(line, g_font_big, 56, 110 + type * 50, 500, 28,
                   (mask & STS_TYPE_BIT(type)) ? COLOR_WHITE : COLOR_GREY);
     }
@@ -2113,6 +2117,11 @@ void screen_render(int opaque)
                          picked ? 0x80FF6060u : 0x60FFE080u, picked ? 0xFFFF6060u : 0xFFFFE080u);
             }
             if (g_has_deck_art[i]) {
+                /* Copies of the incoming card are greyed out on the removal screens. */
+                int blocked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM)
+                    && g_run.deck.ids[i] == g_run.offers[g_pending_offer].id;
+
+                g_deck_art[i].tint = blocked ? 0xFF505050u : COLOR_WHITE;
                 g_deck_art[i].setPosition({x, y});
                 g_deck_art[i].draw();
             }

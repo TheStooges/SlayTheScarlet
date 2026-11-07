@@ -28,16 +28,20 @@ static int count_of_type(const sts_card_db *db, int character, const sts_deck *d
     return n;
 }
 
-/* How many cards a REPLACE can take out of the deck. */
+/* How many cards a REPLACE adding this card can take out of the deck. Its own copies do not
+ * count: swapping a card for itself would waste the reward. */
 static int replace_capacity(const sts_card_db *db, int character, const sts_deck *deck,
-                            const sts_offer_settings *s)
+                            const sts_offer_settings *s, const sts_card *card)
 {
+    int have = sts_deck_count_of(deck, card->id);
     int type, best = 0;
 
     if (s->replace != STS_REPLACE_BY_TYPE)
-        return deck->count;
+        return deck->count - have;
     for (type = STS_CARD_SYSTEM; type <= STS_CARD_SPELL; type++) {
         int n = count_of_type(db, character, deck, type);
+        if (type == card->type)
+            n -= have;
         if (n > best)
             best = n;
     }
@@ -45,8 +49,8 @@ static int replace_capacity(const sts_card_db *db, int character, const sts_deck
 }
 
 /* The most copies of this card that the mode allows, ignoring copies_min. */
-static int max_copies_for(const sts_card *card, const sts_deck *deck, const sts_rules *rules,
-                          const sts_offer_settings *s, int capacity)
+static int max_copies_for(const sts_card_db *db, int character, const sts_card *card, const sts_deck *deck,
+                          const sts_rules *rules, const sts_offer_settings *s)
 {
     int have = sts_deck_count_of(deck, card->id);
     int deck_limit = min_int(rules->deck_max, STS_MAX_DECK);
@@ -58,7 +62,7 @@ static int max_copies_for(const sts_card *card, const sts_deck *deck, const sts_
         return min_int(m, deck_limit - deck->count);
     case STS_REWARD_REPLACE:
         m = min_int(m, rules->copy_limit - have);
-        return min_int(m, capacity);
+        return min_int(m, replace_capacity(db, character, deck, s, card));
     case STS_REWARD_REMOVE:
         m = min_int(m, have);
         return min_int(m, deck->count - rules->deck_min);
@@ -68,8 +72,9 @@ static int max_copies_for(const sts_card *card, const sts_deck *deck, const sts_
     return 0;
 }
 
-static void collect_candidates(const sts_card_list *list, const sts_deck *deck, const sts_rules *rules,
-                               const sts_offer_settings *s, int capacity, candidate_list *by_type)
+static void collect_candidates(const sts_card_db *db, int character, const sts_card_list *list,
+                               const sts_deck *deck, const sts_rules *rules,
+                               const sts_offer_settings *s, candidate_list *by_type)
 {
     int i;
 
@@ -80,7 +85,7 @@ static void collect_candidates(const sts_card_list *list, const sts_deck *deck, 
 
         if (!(s->type_mask & STS_TYPE_BIT(card->type)))
             continue;
-        max_copies = max_copies_for(card, deck, rules, s, capacity);
+        max_copies = max_copies_for(db, character, card, deck, rules, s);
         if (max_copies < s->copies_min)
             continue;
         out->items[out->count].card = card;
@@ -128,7 +133,7 @@ int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *dec
                        sts_rng *rng, sts_offer *out, int max_out)
 {
     candidate_list by_type[3];
-    int want, i, capacity;
+    int want, i;
 
     if (character < 0 || character >= STS_NUM_CHARACTERS)
         return -1;
@@ -139,9 +144,8 @@ int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *dec
 
     for (i = 0; i < 3; i++)
         by_type[i].count = 0;
-    capacity = replace_capacity(db, character, deck, settings);
-    collect_candidates(&db->system, deck, rules, settings, capacity, by_type);
-    collect_candidates(&db->characters[character], deck, rules, settings, capacity, by_type);
+    collect_candidates(db, character, &db->system, deck, rules, settings, by_type);
+    collect_candidates(db, character, &db->characters[character], deck, rules, settings, by_type);
 
     want = min_int(settings->offer_count, max_out);
     for (i = 0; i < want; i++) {
@@ -174,7 +178,7 @@ int sts_offer_is_valid(const sts_card_db *db, int character, const sts_deck *dec
     if (!card || !(settings->type_mask & STS_TYPE_BIT(card->type)))
         return 0;
     return offer->copies >= settings->copies_min
-        && offer->copies <= max_copies_for(card, deck, rules, settings, replace_capacity(db, character, deck, settings));
+        && offer->copies <= max_copies_for(db, character, card, deck, rules, settings);
 }
 
 /* ---------- applying a taken offer ---------- */
@@ -260,7 +264,7 @@ sts_apply_status sts_offer_replace_chosen(sts_deck *deck, const sts_offer *offer
     if (offer->copies < 1 || remove_count != offer->copies)
         return STS_APPLY_BAD_REMOVAL;
     for (i = 0; i < remove_count; i++)
-        if (!remove_one(&result, remove_ids[i]))
+        if (remove_ids[i] == offer->id || !remove_one(&result, remove_ids[i]))
             return STS_APPLY_BAD_REMOVAL;
     if (!add_copies(&result, offer->id, offer->copies))
         return STS_APPLY_ILLEGAL;
@@ -278,7 +282,7 @@ sts_apply_status sts_offer_replace_by_type(sts_deck *deck, const sts_offer *offe
         return STS_APPLY_BAD_REMOVAL;
     for (i = 0; i < result.count; i++) {
         const sts_card *c = sts_card_db_find(db, character, result.ids[i]);
-        if (c && c->type == type)
+        if (c && c->type == type && result.ids[i] != offer->id)
             positions[n++] = i;
     }
     if (n < offer->copies)
@@ -294,25 +298,40 @@ sts_apply_status sts_offer_replace_random(sts_deck *deck, const sts_offer *offer
 {
     sts_deck result = *deck;
     int positions[STS_MAX_DECK];
-    int i;
+    int i, n = 0;
 
-    if (offer->copies < 1 || offer->copies > result.count)
+    if (offer->copies < 1)
         return STS_APPLY_BAD_REMOVAL;
     for (i = 0; i < result.count; i++)
-        positions[i] = i;
-    remove_random_of(&result, positions, result.count, offer->copies, rng);
+        if (result.ids[i] != offer->id)
+            positions[n++] = i;
+    if (n < offer->copies)
+        return STS_APPLY_BAD_REMOVAL;
+    remove_random_of(&result, positions, n, offer->copies, rng);
     if (!add_copies(&result, offer->id, offer->copies))
         return STS_APPLY_ILLEGAL;
     return commit_full(deck, &result, rules);
 }
 
-unsigned sts_replace_types_available(const sts_card_db *db, int character, const sts_deck *deck, int copies)
+int sts_replace_count_of_type(const sts_card_db *db, int character, const sts_deck *deck,
+                              uint16_t offer_id, int type)
+{
+    const sts_card *card = sts_card_db_find(db, character, offer_id);
+    int n = count_of_type(db, character, deck, type);
+
+    if (card && card->type == type)
+        n -= sts_deck_count_of(deck, offer_id);
+    return n;
+}
+
+unsigned sts_replace_types_available(const sts_card_db *db, int character, const sts_deck *deck,
+                                     uint16_t offer_id, int copies)
 {
     unsigned mask = 0;
     int type;
 
     for (type = STS_CARD_SYSTEM; type <= STS_CARD_SPELL; type++)
-        if (count_of_type(db, character, deck, type) >= copies)
+        if (sts_replace_count_of_type(db, character, deck, offer_id, type) >= copies)
             mask |= STS_TYPE_BIT(type);
     return mask;
 }

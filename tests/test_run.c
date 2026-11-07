@@ -130,10 +130,13 @@ void test_run_rewards(void)
     CHECK(sts_run_reward_pick(&run, &g_db, &s, 0, &ch) == STS_RUN_BAD_CHOICE);
     CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == 3 && decks_equal(&run.deck, &before.deck));
 
-    remove[0] = run.deck.ids[0];
     {
         uint16_t taken = run.offers[1].id;
         int had = sts_deck_count_of(&run.deck, taken);
+
+        /* Any card but the one coming in. */
+        for (i = 0; run.deck.ids[i] == taken; i++) {}
+        remove[0] = run.deck.ids[i];
         CHECK(sts_run_reward_pick(&run, &g_db, &s, 1, &ch) == STS_RUN_OK);
         CHECK(run.phase == STS_PHASE_READY && run.offer_count == 0 && run.deck.count == 20);
         CHECK(sts_deck_count_of(&run.deck, taken) >= had);
@@ -499,7 +502,7 @@ void test_run_endurance(void)
                 sts_reward_outcome out;
                 sts_replace_choice ch;
                 uint16_t remove_ids[4];
-                int k;
+                int k, d;
 
                 if (sts_run_begin_reward(&run, &g_db, &s, m & 1, &out) != STS_RUN_OK)
                     violations++;
@@ -516,10 +519,11 @@ void test_run_endurance(void)
                     if (s.reward.replace == STS_REPLACE_CHOOSE) {
                         ch.remove_ids = remove_ids;
                         ch.remove_count = run.offers[idx].copies;
-                        for (k = 0; k < ch.remove_count; k++)
-                            remove_ids[k] = run.deck.ids[k];
+                        for (k = 0, d = 0; k < ch.remove_count; d++)
+                            if (run.deck.ids[d] != run.offers[idx].id)
+                                remove_ids[k++] = run.deck.ids[d];
                     } else if (s.reward.replace == STS_REPLACE_BY_TYPE) {
-                        unsigned mask = sts_replace_types_available(&g_db, c, &run.deck, run.offers[idx].copies);
+                        unsigned mask = sts_replace_types_available(&g_db, c, &run.deck, run.offers[idx].id, run.offers[idx].copies);
                         ch.type = (mask & 1u) ? 0 : (mask & 2u) ? 1 : 2;
                     }
                     if (sts_run_reward_pick(&run, &g_db, &s, idx, &ch) != STS_RUN_OK)

@@ -54,6 +54,7 @@ void test_offer_basics(void);
 void test_offer_limits(void);
 void test_offer_fairness(void);
 void test_offer_one_of_each(void);
+void test_offer_no_self_replace(void);
 void test_offer_runs(void);
 void test_offer_apply(void);
 void test_settings(void);

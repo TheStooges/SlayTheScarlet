@@ -270,6 +270,117 @@ void test_offer_fairness(void)
     CHECK(sts_offer_generate(&g_db, c, &d, &r, &s, &rng, o, 8) == 0);
 }
 
+static sts_offer make_offer(uint16_t id, int copies);
+
+/* Swapping a card for itself would waste the reward, in every replacement mode. */
+void test_offer_no_self_replace(void)
+{
+    sts_rules r = open_rules();
+    sts_offer_settings s = add_settings();
+    sts_offer out[8], o;
+    sts_deck d, before;
+    sts_rng rng;
+    uint16_t ids[2];
+    int i, j, n;
+
+    sts_rng_seed(&rng, 13, 13);
+    sts_deck_clear(&d);
+    add_copies(&d, 100, 2);
+    sts_deck_add(&d, 101);
+    sts_deck_sort(&d);
+    before = d;
+    o = make_offer(100, 1);
+
+    /* Chosen: naming a copy of the incoming card is refused, and changes nothing. */
+    ids[0] = 100;
+    CHECK(sts_offer_replace_chosen(&d, &o, &r, ids, 1) == STS_APPLY_BAD_REMOVAL);
+    CHECK(decks_equal(&d, &before));
+    ids[0] = 101;
+    CHECK(sts_offer_replace_chosen(&d, &o, &r, ids, 1) == STS_APPLY_OK);
+    CHECK(sts_deck_count_of(&d, 100) == 3 && sts_deck_count_of(&d, 101) == 0);
+
+    /* Random: only the other card can ever leave, on every roll. */
+    for (j = 0; j < 100; j++) {
+        d = before;
+        CHECK(sts_offer_replace_random(&d, &o, &r, &rng) == STS_APPLY_OK);
+        CHECK(sts_deck_count_of(&d, 100) == 3 && sts_deck_count_of(&d, 101) == 0);
+    }
+    d = before;
+    o.copies = 2;      /* only one other card exists to give up */
+    CHECK(sts_offer_replace_random(&d, &o, &r, &rng) == STS_APPLY_BAD_REMOVAL);
+    CHECK(decks_equal(&d, &before));
+
+    /* By type: the same, within the type. */
+    o.copies = 1;
+    for (j = 0; j < 100; j++) {
+        d = before;
+        CHECK(sts_offer_replace_by_type(&d, &o, &r, &g_db, 0, STS_CARD_SKILL, &rng) == STS_APPLY_OK);
+        CHECK(sts_deck_count_of(&d, 100) == 3 && sts_deck_count_of(&d, 101) == 0);
+    }
+    d = before;
+    o.copies = 2;
+    CHECK(sts_offer_replace_by_type(&d, &o, &r, &g_db, 0, STS_CARD_SKILL, &rng) == STS_APPLY_BAD_REMOVAL);
+    CHECK(decks_equal(&d, &before));
+
+    /* What a by-type screen shows leaves those copies out. */
+    CHECK(sts_replace_count_of_type(&g_db, 0, &before, 100, STS_CARD_SKILL) == 1);
+    CHECK(sts_replace_count_of_type(&g_db, 0, &before, 101, STS_CARD_SKILL) == 2);
+    CHECK(sts_replace_count_of_type(&g_db, 0, &before, 200, STS_CARD_SKILL) == 3);
+    CHECK(sts_replace_types_available(&g_db, 0, &before, 100, 1) == STS_TYPE_BIT(STS_CARD_SKILL));
+    CHECK(sts_replace_types_available(&g_db, 0, &before, 100, 2) == 0);
+    CHECK(sts_replace_types_available(&g_db, 0, &before, 101, 2) == STS_TYPE_BIT(STS_CARD_SKILL));
+
+    /* The generator never offers a swap that cannot be completed. */
+    s.mode = STS_REWARD_REPLACE;
+    s.replace = STS_REPLACE_CHOOSE;
+    s.type_mask = STS_TYPE_BIT(STS_CARD_SKILL);
+    sts_deck_clear(&d);
+    add_copies(&d, 100, 2);
+    for (j = 0; j < 500; j++) {
+        n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, out, 8);
+        CHECK(n == 3);
+        for (i = 0; i < n; i++)
+            CHECK(out[i].id != 100);
+    }
+
+    /* Copies shrink to what can really leave: 100 has only one other card to swap for, and
+     * under by-type no card of another type. */
+    s.copies_max = 4;
+    s.replace = STS_REPLACE_RANDOM;
+    sts_deck_add(&d, 101);
+    s.type_mask = STS_TYPE_ALL;
+    for (j = 0; j < 500; j++) {
+        n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, out, 8);
+        for (i = 0; i < n; i++) {
+            if (out[i].id == 100)
+                CHECK(out[i].copies == 1);
+            else if (out[i].id == 101)
+                CHECK(out[i].copies <= 2);
+            else
+                CHECK(out[i].copies <= 3);
+        }
+    }
+
+    s.replace = STS_REPLACE_BY_TYPE;
+    s.copies_min = 2;
+    s.copies_max = 2;
+    for (j = 0; j < 500; j++) {
+        n = sts_offer_generate(&g_db, 0, &d, &r, &s, &rng, out, 8);
+        for (i = 0; i < n; i++)
+            CHECK(out[i].id != 100);
+    }
+
+    /* A saved offer is judged by the same rule. */
+    s = add_settings();
+    s.mode = STS_REWARD_REPLACE;
+    sts_deck_clear(&d);
+    add_copies(&d, 100, 2);
+    o = make_offer(100, 1);
+    CHECK(sts_offer_is_valid(&g_db, 0, &d, &r, &s, &o) == 0);
+    sts_deck_add(&d, 101);
+    CHECK(sts_offer_is_valid(&g_db, 0, &d, &r, &s, &o) == 1);
+}
+
 void test_offer_one_of_each(void)
 {
     sts_rules r = open_rules();
@@ -508,10 +619,10 @@ void test_offer_apply(void)
     CHECK(sts_deck_count_of(&d, 0) == 3 && sts_deck_count_of(&d, 200) == 1);
 
     /* The types a BY_TYPE screen can offer. */
-    CHECK(sts_replace_types_available(&g_db, 0, &before, 1) == STS_TYPE_ALL);
-    CHECK(sts_replace_types_available(&g_db, 0, &before, 2)
+    CHECK(sts_replace_types_available(&g_db, 0, &before, 1, 1) == STS_TYPE_ALL);
+    CHECK(sts_replace_types_available(&g_db, 0, &before, 1, 2)
           == (STS_TYPE_BIT(STS_CARD_SYSTEM) | STS_TYPE_BIT(STS_CARD_SKILL)));
-    CHECK(sts_replace_types_available(&g_db, 0, &before, 4) == 0);
+    CHECK(sts_replace_types_available(&g_db, 0, &before, 1, 4) == 0);
 
     /* REPLACE random can land on any card, and never needs more than the deck has. */
     {

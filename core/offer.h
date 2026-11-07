@@ -93,6 +93,8 @@ sts_apply_status sts_offer_apply_add(sts_deck *deck, const sts_offer *offer, con
 
 sts_apply_status sts_offer_apply_remove(sts_deck *deck, const sts_offer *offer, const sts_rules *rules);
 
+/* A replacement never removes copies of the card being added: that would waste the reward. */
+
 /* CHOOSE: remove_ids lists remove_count cards, which must equal offer->copies. */
 sts_apply_status sts_offer_replace_chosen(sts_deck *deck, const sts_offer *offer, const sts_rules *rules,
                                           const uint16_t *remove_ids, int remove_count);
@@ -105,8 +107,13 @@ sts_apply_status sts_offer_replace_by_type(sts_deck *deck, const sts_offer *offe
 sts_apply_status sts_offer_replace_random(sts_deck *deck, const sts_offer *offer, const sts_rules *rules,
                                           sts_rng *rng);
 
-/* Mask of the types holding at least `copies` cards in the deck: what a BY_TYPE
+/* How many cards of a type could leave the deck to make way for this offer. */
+int sts_replace_count_of_type(const sts_card_db *db, int character, const sts_deck *deck,
+                              uint16_t offer_id, int type);
+
+/* Mask of the types that can give up `copies` cards for this offer: what a BY_TYPE
  * screen can let the player choose from. */
-unsigned sts_replace_types_available(const sts_card_db *db, int character, const sts_deck *deck, int copies);
+unsigned sts_replace_types_available(const sts_card_db *db, int character, const sts_deck *deck,
+                                     uint16_t offer_id, int copies);
 
 #endif

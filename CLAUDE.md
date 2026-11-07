@@ -112,6 +112,8 @@ Rule interpretations in `core/` that may need revisiting with the community:
 - `copy_limit` is refused above 4 until the game's limit is patched (an illegal deck silently means
   no deck in game).
 - REPLACE counts the copy limit before removing anything, so it stays legal whatever is removed.
+- REPLACE never removes copies of the card being added, in any replacement mode, as that would waste
+  the reward. The generator allows for this, so an offer that could not be completed is never made.
 
 Runs save their random state and any offers on screen, so reloading cannot reroll a pick. A run made
 under different settings is detected through the fingerprint. By default the player can then only
