@@ -20,20 +20,20 @@ typedef enum {
     STS_DECK_COPY_LIMIT   /* some card appears more than rules.copy_limit times */
 } sts_deck_status;
 
-void sts_deck_clear(sts_deck *d);
+void sts_deck_clear(sts_deck *deck);
 
 /* Appends a card. Returns 0, or -1 if the deck is already at STS_MAX_DECK. */
-int sts_deck_add(sts_deck *d, uint16_t id);
+int sts_deck_add(sts_deck *deck, uint16_t id);
 
-int sts_deck_count_of(const sts_deck *d, uint16_t id);
+int sts_deck_count_of(const sts_deck *deck, uint16_t id);
 
 /* Ascending by ID, as the game itself stores decks. */
-void sts_deck_sort(sts_deck *d);
+void sts_deck_sort(sts_deck *deck);
 
 /* Checks size first, then copies. On STS_DECK_COPY_LIMIT, *bad_id (if non-NULL)
  * receives the offending card ID. */
-sts_deck_status sts_deck_validate(const sts_deck *d, const sts_rules *r, uint16_t *bad_id);
+sts_deck_status sts_deck_validate(const sts_deck *deck, const sts_rules *rules, uint16_t *bad_id);
 
-const char *sts_deck_status_str(sts_deck_status s);
+const char *sts_deck_status_str(sts_deck_status status);
 
 #endif

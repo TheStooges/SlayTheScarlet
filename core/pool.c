@@ -8,20 +8,20 @@
 #define NUM_FIELDS 4
 
 /* Digits only: atoi() would accept "12x" and hide a damaged data file. */
-static int parse_uint(const char *s, int max, int *out)
+static int parse_uint(const char *text, int max, int *out)
 {
-    int v = 0;
+    int value = 0;
 
-    if (!*s)
+    if (!*text)
         return 0;
-    for (; *s; s++) {
-        if (*s < '0' || *s > '9')
+    for (; *text; text++) {
+        if (*text < '0' || *text > '9')
             return 0;
-        v = v * 10 + (*s - '0');
-        if (v > max)
+        value = value * 10 + (*text - '0');
+        if (value > max)
             return 0;
     }
-    *out = v;
+    *out = value;
     return 1;
 }
 
@@ -37,13 +37,13 @@ static sts_card_list *list_for_owner(sts_card_db *db, const char *owner)
     return NULL;
 }
 
-static int parse_type(const char *s, uint8_t *out)
+static int parse_type(const char *text, uint8_t *out)
 {
-    if (strcmp(s, "system") == 0)
+    if (strcmp(text, "system") == 0)
         *out = STS_CARD_SYSTEM;
-    else if (strcmp(s, "skill") == 0)
+    else if (strcmp(text, "skill") == 0)
         *out = STS_CARD_SKILL;
-    else if (strcmp(s, "spell") == 0)
+    else if (strcmp(text, "spell") == 0)
         *out = STS_CARD_SPELL;
     else
         return 0;
@@ -53,18 +53,18 @@ static int parse_type(const char *s, uint8_t *out)
 /* Splits line in place on commas. Returns the number of fields found. */
 static int split_fields(char *line, char *fields[NUM_FIELDS])
 {
-    int n = 0;
-    char *p = line;
+    int count = 0;
+    char *cursor = line;
 
     for (;;) {
-        char *comma = strchr(p, ',');
-        if (n == NUM_FIELDS)
+        char *comma = strchr(cursor, ',');
+        if (count == NUM_FIELDS)
             return NUM_FIELDS + 1;
-        fields[n++] = p;
+        fields[count++] = cursor;
         if (!comma)
-            return n;
+            return count;
         *comma = 0;
-        p = comma + 1;
+        cursor = comma + 1;
     }
 }
 
@@ -104,30 +104,30 @@ sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, 
 
     while (pos < len) {
         char line[MAX_LINE];
-        size_t start = pos, n;
-        sts_db_status st;
+        size_t start = pos, length;
+        sts_db_status status;
 
         while (pos < len && text[pos] != '\n')
             pos++;
-        n = pos - start;
+        length = pos - start;
         pos++;              /* past the newline */
         line_no++;
-        if (n > 0 && text[start + n - 1] == '\r')
-            n--;
-        if (n == 0 || text[start] == '#')
+        if (length > 0 && text[start + length - 1] == '\r')
+            length--;
+        if (length == 0 || text[start] == '#')
             continue;
-        if (n >= MAX_LINE) {
+        if (length >= MAX_LINE) {
             if (err_line)
                 *err_line = line_no;
             return STS_DB_BAD_LINE;
         }
-        memcpy(line, text + start, n);
-        line[n] = 0;
-        st = parse_line(line, out);
-        if (st != STS_DB_OK) {
+        memcpy(line, text + start, length);
+        line[length] = 0;
+        status = parse_line(line, out);
+        if (status != STS_DB_OK) {
             if (err_line)
                 *err_line = line_no;
-            return st;
+            return status;
         }
     }
 
@@ -143,20 +143,20 @@ sts_db_status sts_card_db_load(const char *path, sts_card_db *out, int *err_line
 {
     size_t size = 0;
     char *buf = sts_read_file(path, &size);
-    sts_db_status st;
+    sts_db_status status;
 
     if (err_line)
         *err_line = 0;
     if (!buf)
         return STS_DB_IO;
-    st = sts_card_db_parse(buf, size, out, err_line);
+    status = sts_card_db_parse(buf, size, out, err_line);
     free(buf);
-    return st;
+    return status;
 }
 
-const char *sts_db_status_str(sts_db_status s)
+const char *sts_db_status_str(sts_db_status status)
 {
-    switch (s) {
+    switch (status) {
     case STS_DB_OK:         return "ok";
     case STS_DB_IO:         return "file could not be read";
     case STS_DB_BAD_LINE:   return "bad line";
@@ -179,12 +179,12 @@ static const sts_card *find_in_list(const sts_card_list *list, uint16_t id)
 
 const sts_card *sts_card_db_find(const sts_card_db *db, int character, uint16_t id)
 {
-    const sts_card *c;
+    const sts_card *card;
 
     if (character < 0 || character >= STS_NUM_CHARACTERS)
         return NULL;
-    c = find_in_list(&db->system, id);
-    return c ? c : find_in_list(&db->characters[character], id);
+    card = find_in_list(&db->system, id);
+    return card ? card : find_in_list(&db->characters[character], id);
 }
 
 int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out)
@@ -212,14 +212,14 @@ int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out
     return 1;
 }
 
-int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *d, uint16_t *bad_id)
+int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *deck, uint16_t *bad_id)
 {
     int i;
 
-    for (i = 0; i < d->count; i++) {
-        if (!sts_card_db_find(db, character, d->ids[i])) {
+    for (i = 0; i < deck->count; i++) {
+        if (!sts_card_db_find(db, character, deck->ids[i])) {
             if (bad_id)
-                *bad_id = d->ids[i];
+                *bad_id = deck->ids[i];
             return 0;
         }
     }

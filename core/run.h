@@ -47,7 +47,7 @@ typedef enum {
     STS_RUN_ILLEGAL            /* intact, but its deck or offers break the rules */
 } sts_run_status;
 
-const char *sts_run_status_str(sts_run_status s);
+const char *sts_run_status_str(sts_run_status status);
 
 /* ---------- draft ---------- */
 

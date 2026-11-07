@@ -11,11 +11,11 @@ typedef struct {
 /* Vanilla rules: exactly 20 cards, at most 4 copies. */
 static inline sts_rules sts_rules_vanilla(void)
 {
-    sts_rules r;
-    r.deck_min = 20;
-    r.deck_max = 20;
-    r.copy_limit = 4;
-    return r;
+    sts_rules rules;
+    rules.deck_min = 20;
+    rules.deck_max = 20;
+    rules.copy_limit = 4;
+    return rules;
 }
 
 #endif

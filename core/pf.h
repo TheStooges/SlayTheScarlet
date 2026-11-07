@@ -31,14 +31,14 @@ typedef enum {
 sts_pf_status sts_pf_parse(const uint8_t *data, size_t len, sts_profile *out, size_t *consumed);
 
 /* Exact serialized size of a profile. */
-size_t sts_pf_size(const sts_profile *p);
+size_t sts_pf_size(const sts_profile *profile);
 
 /* Writes the profile with every deck sorted ascending (as the game writes them).
  * Returns bytes written, or 0 if cap is too small. */
-size_t sts_pf_serialize(const sts_profile *p, uint8_t *buf, size_t cap);
+size_t sts_pf_serialize(const sts_profile *profile, uint8_t *buf, size_t cap);
 
 sts_pf_status sts_pf_load(const char *path, sts_profile *out, size_t *consumed);
-sts_pf_status sts_pf_save(const char *path, const sts_profile *p);
+sts_pf_status sts_pf_save(const char *path, const sts_profile *profile);
 
 /* "Reimu" ... "Suwako", or "?" for an out-of-range index. */
 const char *sts_character_name(int index);

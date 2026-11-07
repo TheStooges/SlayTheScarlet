@@ -55,7 +55,7 @@ typedef enum {
     STS_SETTINGS_BAD_VALUE
 } sts_settings_status;
 
-void sts_settings_defaults(sts_settings *s);
+void sts_settings_defaults(sts_settings *settings);
 
 /* Starts from the defaults, so a file only has to list what it changes. Stops at the
  * first error and sets *err_line (if non-NULL) to its 1-based line number. '#' and ';'
@@ -65,18 +65,18 @@ sts_settings_status sts_settings_parse(const char *text, size_t len, sts_setting
 
 sts_settings_status sts_settings_load(const char *path, sts_settings *out, int *err_line);
 
-const char *sts_settings_status_str(sts_settings_status s);
+const char *sts_settings_status_str(sts_settings_status status);
 
 /* Returns NULL if the settings can work, or a message saying why they cannot. */
-const char *sts_settings_validate(const sts_settings *s);
+const char *sts_settings_validate(const sts_settings *settings);
 
 /* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, and no rule that needs
  * another deck size. The result always passes sts_settings_validate. Visibility settings are
  * left alone: they need messages this mode never sends, so they have no effect here, and
  * rules already compatible keep their fingerprint. */
-void sts_settings_force_compatible(sts_settings *s);
+void sts_settings_force_compatible(sts_settings *settings);
 
 /* Fingerprint of every rule, stable across machines. Differs if any setting differs. */
-uint32_t sts_settings_hash(const sts_settings *s);
+uint32_t sts_settings_hash(const sts_settings *settings);
 
 #endif

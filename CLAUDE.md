@@ -48,6 +48,8 @@ the copy limit or deck bounds), rather than rerolling on failure.
   required to call game functions. Build from the "x86 Native Tools Command Prompt".
 - Build system: CMake. Project is based on SokuDev/ModTemplate, with SokuLib as a git submodule.
 - The developer is comfortable in C; prefer C-style code. C++ only where SokuLib requires it.
+- **Readable names:** no one-letter names or cryptic abbreviations for variables, parameters or struct
+  fields. `i`, `j` and `k` are fine as loop indexes, and `id`, `db` and `ok` are fine as words.
 - **ASCII only** in every file (source, comments, docs, ini, CMake): no em dashes, curly quotes, arrows
   or math symbols. The developer's Japanese-locale Windows misreads UTF-8 as Shift-JIS and shows
   garbled text, and MSVC reads source files in the system code page.

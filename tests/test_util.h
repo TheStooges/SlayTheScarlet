@@ -33,11 +33,11 @@ extern int g_run, g_fail;
 /* The real card table. test_card_db_file loads it, so it must run before anything using this. */
 extern sts_card_db g_db;
 
-void fill_legal_deck(sts_deck *d, int base);
-void add_copies(sts_deck *d, uint16_t id, int n);
-int decks_equal(const sts_deck *a, const sts_deck *b);
-int count_type_in_deck(const sts_deck *d, int character, int type);
-sts_settings_status parse_ini(const char *text, sts_settings *s, int *line);
+void fill_legal_deck(sts_deck *deck, int base);
+void add_copies(sts_deck *deck, uint16_t id, int count);
+int decks_equal(const sts_deck *first, const sts_deck *second);
+int count_type_in_deck(const sts_deck *deck, int character, int type);
+sts_settings_status parse_ini(const char *text, sts_settings *settings, int *line);
 sts_offer_settings add_settings(void);
 sts_rules open_rules(void);
 

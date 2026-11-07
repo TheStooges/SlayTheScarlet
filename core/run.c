@@ -8,9 +8,9 @@
 #define CHECK_LINE_SIZE 15   /* "check " + 8 hex digits + newline */
 #define MAX_TOKEN 24
 
-const char *sts_run_status_str(sts_run_status s)
+const char *sts_run_status_str(sts_run_status status)
 {
-    switch (s) {
+    switch (status) {
     case STS_RUN_OK:               return "ok";
     case STS_RUN_WRONG_PHASE:      return "not available in this phase";
     case STS_RUN_BAD_INDEX:        return "no such offer";
@@ -28,22 +28,22 @@ const char *sts_run_status_str(sts_run_status s)
 
 static void roll_offers(sts_run *run, const sts_card_db *db, const sts_rules *rules, const sts_offer_settings *cfg)
 {
-    int n = sts_offer_generate(db, run->character, &run->deck, rules, cfg, &run->rng, run->offers, STS_OFFER_MAX);
+    int count = sts_offer_generate(db, run->character, &run->deck, rules, cfg, &run->rng, run->offers, STS_OFFER_MAX);
 
-    run->offer_count = n > 0 ? n : 0;
+    run->offer_count = count > 0 ? count : 0;
 }
 
 /* Rolls the next draft offers or finishes the draft. A full deck ends it early, because
  * the generator then finds nothing eligible. */
-static sts_run_status advance_draft(sts_run *run, const sts_card_db *db, const sts_settings *s)
+static sts_run_status advance_draft(sts_run *run, const sts_card_db *db, const sts_settings *settings)
 {
-    if (run->picks_done < s->draft_picks) {
-        roll_offers(run, db, &s->rules, &s->draft);
+    if (run->picks_done < settings->draft_picks) {
+        roll_offers(run, db, &settings->rules, &settings->draft);
         if (run->offer_count > 0)
             return STS_RUN_OK;
     }
     run->offer_count = 0;
-    if (sts_deck_validate(&run->deck, &s->rules, NULL) != STS_DECK_OK)
+    if (sts_deck_validate(&run->deck, &settings->rules, NULL) != STS_DECK_OK)
         return STS_RUN_STUCK;
     run->phase = STS_PHASE_READY;
     return STS_RUN_OK;
@@ -75,27 +75,27 @@ sts_run_status sts_run_draft_pick(sts_run *run, const sts_card_db *db, const sts
     return advance_draft(run, db, settings);
 }
 
-static sts_apply_status apply_reward(sts_run *run, const sts_card_db *db, const sts_settings *s,
+static sts_apply_status apply_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                      const sts_offer *offer, sts_replace_control replace,
                                      const sts_replace_choice *choice)
 {
-    switch (s->reward.mode) {
+    switch (settings->reward.mode) {
     case STS_REWARD_ADD:
-        return sts_offer_apply_add(&run->deck, offer, &s->rules);
+        return sts_offer_apply_add(&run->deck, offer, &settings->rules);
     case STS_REWARD_REMOVE:
-        return sts_offer_apply_remove(&run->deck, offer, &s->rules);
+        return sts_offer_apply_remove(&run->deck, offer, &settings->rules);
     case STS_REWARD_REPLACE:
         switch (replace) {
         case STS_REPLACE_CHOOSE:
             if (!choice || !choice->remove_ids)
                 return STS_APPLY_BAD_REMOVAL;
-            return sts_offer_replace_chosen(&run->deck, offer, &s->rules, choice->remove_ids, choice->remove_count);
+            return sts_offer_replace_chosen(&run->deck, offer, &settings->rules, choice->remove_ids, choice->remove_count);
         case STS_REPLACE_BY_TYPE:
             if (!choice)
                 return STS_APPLY_BAD_REMOVAL;
-            return sts_offer_replace_by_type(&run->deck, offer, &s->rules, db, run->character, choice->type, &run->rng);
+            return sts_offer_replace_by_type(&run->deck, offer, &settings->rules, db, run->character, choice->type, &run->rng);
         case STS_REPLACE_RANDOM:
-            return sts_offer_replace_random(&run->deck, offer, &s->rules, &run->rng);
+            return sts_offer_replace_random(&run->deck, offer, &settings->rules, &run->rng);
         }
         break;
     case STS_REWARD_SKIP:
@@ -165,9 +165,9 @@ sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const st
 
 /* ---------- save format ---------- */
 
-static const char *phase_name(sts_run_phase p)
+static const char *phase_name(sts_run_phase phase)
 {
-    switch (p) {
+    switch (phase) {
     case STS_PHASE_DRAFT:  return "draft";
     case STS_PHASE_READY:  return "ready";
     case STS_PHASE_REWARD: return "reward";
@@ -177,14 +177,14 @@ static const char *phase_name(sts_run_phase p)
 
 size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
 {
-    size_t o = 0;
+    size_t offset = 0;
     uint32_t check;
     int i;
 
 #define PUT(...) do { \
-        int w_ = snprintf(buf + o, cap - o, __VA_ARGS__); \
-        if (w_ < 0 || (size_t)w_ >= cap - o) return 0; \
-        o += (size_t)w_; \
+        int written = snprintf(buf + offset, cap - offset, __VA_ARGS__); \
+        if (written < 0 || (size_t)written >= cap - offset) return 0; \
+        offset += (size_t)written; \
     } while (0)
 
     if (cap == 0)
@@ -206,76 +206,76 @@ size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
     for (i = 0; i < run->offer_count; i++)
         PUT(" %u %u %d", (unsigned)run->offers[i].id, (unsigned)run->offers[i].type, run->offers[i].copies);
     PUT("\n");
-    check = sts_fnv1a(STS_FNV_START, buf, o);
+    check = sts_fnv1a(STS_FNV_START, buf, offset);
     PUT("check %08x\n", (unsigned)check);
 #undef PUT
-    return o;
+    return offset;
 }
 
 /* A cursor over whitespace-separated tokens. */
 typedef struct {
-    const char *p;
+    const char *cursor;
     const char *end;
 } reader;
 
-static int next_token(reader *r, char *out)
+static int next_token(reader *stream, char *out)
 {
-    size_t n = 0;
+    size_t length = 0;
 
-    while (r->p < r->end && (*r->p == ' ' || *r->p == '\n'))
-        r->p++;
-    while (r->p < r->end && *r->p != ' ' && *r->p != '\n') {
-        if (n + 1 >= MAX_TOKEN)
+    while (stream->cursor < stream->end && (*stream->cursor == ' ' || *stream->cursor == '\n'))
+        stream->cursor++;
+    while (stream->cursor < stream->end && *stream->cursor != ' ' && *stream->cursor != '\n') {
+        if (length + 1 >= MAX_TOKEN)
             return 0;
-        out[n++] = *r->p++;
+        out[length++] = *stream->cursor++;
     }
-    out[n] = 0;
-    return n > 0;
+    out[length] = 0;
+    return length > 0;
 }
 
-static int expect(reader *r, const char *word)
+static int expect(reader *stream, const char *word)
 {
-    char t[MAX_TOKEN];
-    return next_token(r, t) && strcmp(t, word) == 0;
+    char token[MAX_TOKEN];
+    return next_token(stream, token) && strcmp(token, word) == 0;
 }
 
-static int read_int(reader *r, int max, int *out)
+static int read_int(reader *stream, int max, int *out)
 {
-    char t[MAX_TOKEN];
+    char token[MAX_TOKEN];
     char *stop;
-    unsigned long v;
+    unsigned long value;
 
-    if (!next_token(r, t) || t[0] < '0' || t[0] > '9')
+    if (!next_token(stream, token) || token[0] < '0' || token[0] > '9')
         return 0;
-    v = strtoul(t, &stop, 10);
-    if (*stop || v > (unsigned long)max)
+    value = strtoul(token, &stop, 10);
+    if (*stop || value > (unsigned long)max)
         return 0;
-    *out = (int)v;
+    *out = (int)value;
     return 1;
 }
 
-static int read_hex32(reader *r, uint32_t *out)
+static int read_hex32(reader *stream, uint32_t *out)
 {
-    char t[MAX_TOKEN];
+    char token[MAX_TOKEN];
     char *stop;
 
-    if (!next_token(r, t) || strlen(t) != 8)
+    if (!next_token(stream, token) || strlen(token) != 8)
         return 0;
-    *out = (uint32_t)strtoul(t, &stop, 16);
+    *out = (uint32_t)strtoul(token, &stop, 16);
     return *stop == 0;
 }
 
-static int read_phase(reader *r, sts_run_phase *out)
+static int read_phase(reader *stream, sts_run_phase *out)
 {
-    char t[MAX_TOKEN];
+    char token[MAX_TOKEN];
 
-    if (!next_token(r, t))
+    if (!next_token(stream, token))
         return 0;
-    if (strcmp(t, "draft") == 0)
+    if (strcmp(token, "draft") == 0)
         *out = STS_PHASE_DRAFT;
-    else if (strcmp(t, "ready") == 0)
+    else if (strcmp(token, "ready") == 0)
         *out = STS_PHASE_READY;
-    else if (strcmp(t, "reward") == 0)
+    else if (strcmp(token, "reward") == 0)
         *out = STS_PHASE_REWARD;
     else
         return 0;
@@ -285,9 +285,9 @@ static int read_phase(reader *r, sts_run_phase *out)
 sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
 {
     char line[CHECK_LINE_SIZE + 1];
-    reader r;
-    uint32_t stored, a, b, c, d;
-    int version, count, i, v;
+    reader stream;
+    uint32_t stored, state_high, state_low, inc_high, inc_low;
+    int version, count, i, value;
     size_t body;
 
     /* The checksum goes first: nothing below can then be trusted to be merely damaged. */
@@ -296,49 +296,49 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
     body = len - CHECK_LINE_SIZE;
     memcpy(line, text + body, CHECK_LINE_SIZE);
     line[CHECK_LINE_SIZE] = 0;
-    r.p = line;
-    r.end = line + CHECK_LINE_SIZE;
-    if (line[CHECK_LINE_SIZE - 1] != '\n' || !expect(&r, "check") || !read_hex32(&r, &stored))
+    stream.cursor = line;
+    stream.end = line + CHECK_LINE_SIZE;
+    if (line[CHECK_LINE_SIZE - 1] != '\n' || !expect(&stream, "check") || !read_hex32(&stream, &stored))
         return STS_RUN_DAMAGED;
     if (stored != sts_fnv1a(STS_FNV_START, text, body))
         return STS_RUN_DAMAGED;
 
     memset(out, 0, sizeof *out);
-    r.p = text;
-    r.end = text + body;
-    if (!expect(&r, "sts_run") || !read_int(&r, 1000000, &version))
+    stream.cursor = text;
+    stream.end = text + body;
+    if (!expect(&stream, "sts_run") || !read_int(&stream, 1000000, &version))
         return STS_RUN_DAMAGED;
     if (version != RUN_FORMAT_VERSION)
         return STS_RUN_BAD_VERSION;
 
-    if (!expect(&r, "settings") || !read_hex32(&r, &out->settings_hash)
-        || !expect(&r, "character") || !read_int(&r, 1000, &out->character)
-        || !expect(&r, "phase") || !read_phase(&r, &out->phase)
-        || !expect(&r, "picks") || !read_int(&r, 1000000, &out->picks_done)
-        || !expect(&r, "matches") || !read_int(&r, 1000000000, &out->matches_played)
-        || !expect(&r, "rng") || !read_hex32(&r, &a) || !read_hex32(&r, &b)
-        || !read_hex32(&r, &c) || !read_hex32(&r, &d))
+    if (!expect(&stream, "settings") || !read_hex32(&stream, &out->settings_hash)
+        || !expect(&stream, "character") || !read_int(&stream, 1000, &out->character)
+        || !expect(&stream, "phase") || !read_phase(&stream, &out->phase)
+        || !expect(&stream, "picks") || !read_int(&stream, 1000000, &out->picks_done)
+        || !expect(&stream, "matches") || !read_int(&stream, 1000000000, &out->matches_played)
+        || !expect(&stream, "rng") || !read_hex32(&stream, &state_high) || !read_hex32(&stream, &state_low)
+        || !read_hex32(&stream, &inc_high) || !read_hex32(&stream, &inc_low))
         return STS_RUN_DAMAGED;
-    out->rng.state = ((uint64_t)a << 32) | b;
-    out->rng.inc = ((uint64_t)c << 32) | d;
+    out->rng.state = ((uint64_t)state_high << 32) | state_low;
+    out->rng.inc = ((uint64_t)inc_high << 32) | inc_low;
 
-    if (!expect(&r, "deck") || !read_int(&r, STS_MAX_DECK, &count))
+    if (!expect(&stream, "deck") || !read_int(&stream, STS_MAX_DECK, &count))
         return STS_RUN_DAMAGED;
     for (i = 0; i < count; i++) {
-        if (!read_int(&r, 0xFFFF, &v))
+        if (!read_int(&stream, 0xFFFF, &value))
             return STS_RUN_DAMAGED;
-        out->deck.ids[i] = (uint16_t)v;
+        out->deck.ids[i] = (uint16_t)value;
     }
     out->deck.count = count;
 
-    if (!expect(&r, "offers") || !read_int(&r, STS_OFFER_MAX, &count))
+    if (!expect(&stream, "offers") || !read_int(&stream, STS_OFFER_MAX, &count))
         return STS_RUN_DAMAGED;
     for (i = 0; i < count; i++) {
         int type;
-        if (!read_int(&r, 0xFFFF, &v) || !read_int(&r, STS_CARD_SPELL, &type)
-            || !read_int(&r, STS_MAX_DECK, &out->offers[i].copies))
+        if (!read_int(&stream, 0xFFFF, &value) || !read_int(&stream, STS_CARD_SPELL, &type)
+            || !read_int(&stream, STS_MAX_DECK, &out->offers[i].copies))
             return STS_RUN_DAMAGED;
-        out->offers[i].id = (uint16_t)v;
+        out->offers[i].id = (uint16_t)value;
         out->offers[i].type = (uint8_t)type;
     }
     out->offer_count = count;
@@ -349,19 +349,19 @@ sts_run_status sts_run_save(const char *path, const sts_run *run)
 {
     char text[STS_RUN_TEXT_MAX];
     char tmp[1024];
-    size_t n = sts_run_serialize(run, text, sizeof text);
-    FILE *f;
+    size_t count = sts_run_serialize(run, text, sizeof text);
+    FILE *file;
     int ok;
 
-    if (n == 0 || strlen(path) + 5 > sizeof tmp)
+    if (count == 0 || strlen(path) + 5 > sizeof tmp)
         return STS_RUN_IO;
     sprintf(tmp, "%s.tmp", path);
-    f = fopen(tmp, "wb");
-    if (!f)
+    file = fopen(tmp, "wb");
+    if (!file)
         return STS_RUN_IO;
-    ok = fwrite(text, 1, n, f) == n;
-    ok = fflush(f) == 0 && ok;
-    ok = fclose(f) == 0 && ok;
+    ok = fwrite(text, 1, count, file) == count;
+    ok = fflush(file) == 0 && ok;
+    ok = fclose(file) == 0 && ok;
     if (!ok) {
         remove(tmp);
         return STS_RUN_IO;
@@ -380,13 +380,13 @@ static sts_run_status load_one(const char *path, sts_run *out)
 {
     size_t len = 0;
     char *text = sts_read_file(path, &len);
-    sts_run_status st;
+    sts_run_status status;
 
     if (!text)
         return STS_RUN_IO;
-    st = sts_run_parse(text, len, out);
+    status = sts_run_parse(text, len, out);
     free(text);
-    return st;
+    return status;
 }
 
 sts_run_status sts_run_load(const char *path, sts_run *out)
@@ -427,8 +427,8 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
     if (run->phase != STS_PHASE_READY && run->offer_count == 0)
         return STS_RUN_ILLEGAL;
     for (i = 0; i < run->offer_count; i++) {
-        const sts_card *c = sts_card_db_find(db, run->character, run->offers[i].id);
-        if (!c || c->type != run->offers[i].type || run->offers[i].copies < 1)
+        const sts_card *card = sts_card_db_find(db, run->character, run->offers[i].id);
+        if (!card || card->type != run->offers[i].type || run->offers[i].copies < 1)
             return STS_RUN_ILLEGAL;
     }
     return STS_RUN_OK;
@@ -438,13 +438,13 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
 {
     const sts_offer_settings *cfg = run->phase == STS_PHASE_DRAFT ? &settings->draft : &settings->reward;
     sts_run updated = *run;
-    sts_run_status st;
+    sts_run_status status;
     int i, offers_valid = 1;
 
     updated.settings_hash = sts_settings_hash(settings);
-    st = sts_run_validate(&updated, db, settings);
-    if (st != STS_RUN_OK)
-        return st;
+    status = sts_run_validate(&updated, db, settings);
+    if (status != STS_RUN_OK)
+        return status;
 
     for (i = 0; i < updated.offer_count; i++)
         if (!sts_offer_is_valid(db, updated.character, &updated.deck, &settings->rules, cfg, &updated.offers[i]))
@@ -452,9 +452,9 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
 
     if (!offers_valid) {
         if (updated.phase == STS_PHASE_DRAFT) {
-            st = advance_draft(&updated, db, settings);
-            if (st != STS_RUN_OK)
-                return st;
+            status = advance_draft(&updated, db, settings);
+            if (status != STS_RUN_OK)
+                return status;
         } else {
             roll_offers(&updated, db, &settings->rules, cfg);
             if (updated.offer_count == 0)

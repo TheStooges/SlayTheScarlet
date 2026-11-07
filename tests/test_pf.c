@@ -7,13 +7,13 @@ static uint8_t g_buf[64 * 1024];
 void test_pf_synthetic_roundtrip(void)
 {
     size_t consumed = 0, size, written;
-    int c, s, i;
+    int character, slot, i;
 
     memset(&g_a, 0, sizeof g_a);
     for (i = 0; i < STS_PF_HEADER_SIZE; i++) g_a.header[i] = (uint8_t)(i * 3);
-    for (c = 0; c < STS_NUM_CHARACTERS; c++)
-        for (s = 0; s < STS_NUM_SLOTS; s++)
-            fill_legal_deck(&g_a.decks[c][s], 100 + c);
+    for (character = 0; character < STS_NUM_CHARACTERS; character++)
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++)
+            fill_legal_deck(&g_a.decks[character][slot], 100 + character);
     /* one unsorted deck of a non-standard size, with an ID above 255 to exercise the high byte */
     sts_deck_clear(&g_a.decks[3][2]);
     sts_deck_add(&g_a.decks[3][2], 219);
@@ -50,25 +50,25 @@ void test_pf_synthetic_roundtrip(void)
 
 static uint8_t *read_all(const char *path, size_t *len)
 {
-    FILE *f = fopen(path, "rb");
-    uint8_t *b;
-    long n;
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET);
-    b = (uint8_t *)malloc((size_t)n);
-    if (b && fread(b, 1, (size_t)n, f) != (size_t)n) { free(b); b = NULL; }
-    fclose(f);
-    *len = b ? (size_t)n : 0;
-    return b;
+    FILE *file = fopen(path, "rb");
+    uint8_t *buffer;
+    long count;
+    if (!file) return NULL;
+    fseek(file, 0, SEEK_END); count = ftell(file); fseek(file, 0, SEEK_SET);
+    buffer = (uint8_t *)malloc((size_t)count);
+    if (buffer && fread(buffer, 1, (size_t)count, file) != (size_t)count) { free(buffer); buffer = NULL; }
+    fclose(file);
+    *len = buffer ? (size_t)count : 0;
+    return buffer;
 }
 
 void test_real_profile(void)
 {
     const char *path = getenv("STS_TEST_PF");
-    sts_rules r = sts_rules_vanilla();
+    sts_rules rules = sts_rules_vanilla();
     size_t len = 0, consumed = 0, written;
     uint8_t *orig;
-    int c, s, bad = 0;
+    int character, slot, bad = 0;
 
     if (!path) { printf("SKIP real profile (set STS_TEST_PF)\n"); return; }
     orig = read_all(path, &len);
@@ -77,9 +77,9 @@ void test_real_profile(void)
 
     CHECK(sts_pf_parse(orig, len, &g_a, &consumed) == STS_PF_OK);
     CHECK(consumed == len);
-    for (c = 0; c < STS_NUM_CHARACTERS; c++)
-        for (s = 0; s < STS_NUM_SLOTS; s++)
-            if (sts_deck_validate(&g_a.decks[c][s], &r, NULL) != STS_DECK_OK) bad++;
+    for (character = 0; character < STS_NUM_CHARACTERS; character++)
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++)
+            if (sts_deck_validate(&g_a.decks[character][slot], &rules, NULL) != STS_DECK_OK) bad++;
     CHECK(bad == 0);
     written = sts_pf_serialize(&g_a, g_buf, sizeof g_buf);
     CHECK(written == len && memcmp(g_buf, orig, len) == 0);   /* byte-identical round trip */
@@ -91,35 +91,35 @@ void test_real_profile(void)
 void test_real_profile_cards(void)
 {
     const char *path = getenv("STS_TEST_PF");
-    int c, s, bad = 0;
+    int character, slot, bad = 0;
 
     if (!path) { printf("SKIP real profile cards (set STS_TEST_PF)\n"); return; }
     CHECK(sts_pf_load(path, &g_a, NULL) == STS_PF_OK);
-    for (c = 0; c < STS_NUM_CHARACTERS; c++)
-        for (s = 0; s < STS_NUM_SLOTS; s++)
-            if (!sts_deck_cards_legal(&g_db, c, &g_a.decks[c][s], NULL)) bad++;
+    for (character = 0; character < STS_NUM_CHARACTERS; character++)
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++)
+            if (!sts_deck_cards_legal(&g_db, character, &g_a.decks[character][slot], NULL)) bad++;
     CHECK(bad == 0);
 }
 
 void test_randomizer_output(void)
 {
     const char *path = getenv("STS_TEST_RANDOM_PF");
-    sts_rules r = sts_rules_vanilla();
+    sts_rules rules = sts_rules_vanilla();
     size_t consumed = 0;
-    int c, s, violations = 0;
+    int character, slot, violations = 0;
 
     if (!path) { printf("SKIP randomizer output (set STS_TEST_RANDOM_PF)\n"); return; }
     CHECK(sts_pf_load(path, &g_a, &consumed) == STS_PF_OK);
-    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
-        for (s = 0; s < STS_NUM_SLOTS; s++) {
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++) {
             uint16_t bad = 0;
-            sts_deck_status st = sts_deck_validate(&g_a.decks[c][s], &r, &bad);
-            CHECK(g_a.decks[c][s].count == 20);
-            CHECK(st == STS_DECK_OK || st == STS_DECK_COPY_LIMIT);
-            if (st != STS_DECK_OK) {
+            sts_deck_status status = sts_deck_validate(&g_a.decks[character][slot], &rules, &bad);
+            CHECK(g_a.decks[character][slot].count == 20);
+            CHECK(status == STS_DECK_OK || status == STS_DECK_COPY_LIMIT);
+            if (status != STS_DECK_OK) {
                 violations++;
-                printf("  illegal: %s slot %d (%s, card %u x%d)\n", sts_character_name(c), s + 1,
-                       sts_deck_status_str(st), bad, sts_deck_count_of(&g_a.decks[c][s], bad));
+                printf("  illegal: %s slot %d (%s, card %u x%d)\n", sts_character_name(character), slot + 1,
+                       sts_deck_status_str(status), bad, sts_deck_count_of(&g_a.decks[character][slot], bad));
             }
         }
     }

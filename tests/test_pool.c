@@ -7,31 +7,31 @@ static char g_text[8 * 1024];
 /* Writes the smallest complete table: one system card and one spell per character. */
 static size_t minimal_db_text(char *out)
 {
-    size_t n = 0;
-    int c;
-    n += (size_t)sprintf(out + n, "system,0,system,1\n");
-    for (c = 0; c < STS_NUM_CHARACTERS; c++)
-        n += (size_t)sprintf(out + n, "%s,200,spell,3\n", sts_character_name(c));
-    return n;
+    size_t count = 0;
+    int character;
+    count += (size_t)sprintf(out + count, "system,0,system,1\n");
+    for (character = 0; character < STS_NUM_CHARACTERS; character++)
+        count += (size_t)sprintf(out + count, "%s,200,spell,3\n", sts_character_name(character));
+    return count;
 }
 
 /* Parses the minimal table plus one extra line. Returns the status. */
 static sts_db_status parse_with_extra(const char *extra, int *err_line)
 {
-    size_t n = minimal_db_text(g_text);
-    n += (size_t)sprintf(g_text + n, "%s", extra);
-    return sts_card_db_parse(g_text, n, &g_db2, err_line);
+    size_t count = minimal_db_text(g_text);
+    count += (size_t)sprintf(g_text + count, "%s", extra);
+    return sts_card_db_parse(g_text, count, &g_db2, err_line);
 }
 
 void test_card_db_parse(void)
 {
     int err = 0, i;
-    size_t n;
+    size_t count;
 
     /* Comments, blank lines, CRLF endings and a missing final newline are all fine. */
-    n = minimal_db_text(g_text);
-    n += (size_t)sprintf(g_text + n, "# comment\n\r\n\nReimu,100,skill,2\r\nCirno,213,spell,5");
-    CHECK(sts_card_db_parse(g_text, n, &g_db2, &err) == STS_DB_OK);
+    count = minimal_db_text(g_text);
+    count += (size_t)sprintf(g_text + count, "# comment\n\r\n\nReimu,100,skill,2\r\nCirno,213,spell,5");
+    CHECK(sts_card_db_parse(g_text, count, &g_db2, &err) == STS_DB_OK);
     CHECK(g_db2.system.count == 1 && g_db2.characters[0].count == 2 && g_db2.characters[16].count == 2);
     CHECK(sts_card_db_find(&g_db2, 0, 100) != NULL && sts_card_db_find(&g_db2, 0, 100)->cost_or_slot == 2);
     CHECK(sts_card_db_find(&g_db2, 0, 100)->type == STS_CARD_SKILL);
@@ -56,50 +56,50 @@ void test_card_db_parse(void)
     CHECK(sts_card_db_parse(g_text, 301, &g_db2, &err) == STS_DB_BAD_LINE && err == 1);
 
     /* Too many cards for one owner. */
-    n = minimal_db_text(g_text);
+    count = minimal_db_text(g_text);
     for (i = 0; i < STS_POOL_MAX_CARDS; i++)
-        n += (size_t)sprintf(g_text + n, "Reimu,%d,spell,1\n", 300 + i);
-    CHECK(sts_card_db_parse(g_text, n, &g_db2, &err) == STS_DB_OVERFLOW);
+        count += (size_t)sprintf(g_text + count, "Reimu,%d,spell,1\n", 300 + i);
+    CHECK(sts_card_db_parse(g_text, count, &g_db2, &err) == STS_DB_OVERFLOW);
 
     /* A table missing a character or the system list is rejected. */
-    n = (size_t)sprintf(g_text, "system,0,system,1\nReimu,100,skill,0\n");
-    CHECK(sts_card_db_parse(g_text, n, &g_db2, &err) == STS_DB_INCOMPLETE);
+    count = (size_t)sprintf(g_text, "system,0,system,1\nReimu,100,skill,0\n");
+    CHECK(sts_card_db_parse(g_text, count, &g_db2, &err) == STS_DB_INCOMPLETE);
     CHECK(sts_card_db_parse("", 0, &g_db2, &err) == STS_DB_INCOMPLETE);
 
     CHECK(sts_card_db_load("no/such/file.csv", &g_db2, &err) == STS_DB_IO);
     CHECK(strcmp(sts_db_status_str(STS_DB_DUPLICATE), "duplicate card") == 0);
 }
 
-static int count_type(const sts_card_list *l, int type)
+static int count_type(const sts_card_list *list, int type)
 {
-    int i, n = 0;
-    for (i = 0; i < l->count; i++)
-        if (l->cards[i].type == type) n++;
-    return n;
+    int i, count = 0;
+    for (i = 0; i < list->count; i++)
+        if (list->cards[i].type == type) count++;
+    return count;
 }
 
 /* Checks data/cards.csv against what was read from the game. */
 void test_card_db_file(void)
 {
-    int err = 0, c, total = 0;
-    sts_db_status st = sts_card_db_load(STS_CARDS_PATH, &g_db, &err);
-    sts_deck d;
+    int err = 0, character, total = 0;
+    sts_db_status status = sts_card_db_load(STS_CARDS_PATH, &g_db, &err);
+    sts_deck deck;
     uint16_t bad = 0;
 
-    if (st != STS_DB_OK)
-        printf("cards file: %s (line %d)\n", sts_db_status_str(st), err);
-    CHECK(st == STS_DB_OK);
-    if (st != STS_DB_OK) return;
+    if (status != STS_DB_OK)
+        printf("cards file: %s (line %d)\n", sts_db_status_str(status), err);
+    CHECK(status == STS_DB_OK);
+    if (status != STS_DB_OK) return;
 
     CHECK(g_db.system.count == 21);
     CHECK(count_type(&g_db.system, STS_CARD_SYSTEM) == 21);
     total = g_db.system.count;
-    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
-        const sts_card_list *l = &g_db.characters[c];
-        total += l->count;
-        CHECK(count_type(l, STS_CARD_SYSTEM) == 0);
-        CHECK(count_type(l, STS_CARD_SKILL) == (c == 4 ? 15 : 12));  /* Patchouli has 15 */
-        CHECK(count_type(l, STS_CARD_SPELL) >= 9 && count_type(l, STS_CARD_SPELL) <= 14);
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        const sts_card_list *list = &g_db.characters[character];
+        total += list->count;
+        CHECK(count_type(list, STS_CARD_SYSTEM) == 0);
+        CHECK(count_type(list, STS_CARD_SKILL) == (character == 4 ? 15 : 12));  /* Patchouli has 15 */
+        CHECK(count_type(list, STS_CARD_SPELL) >= 9 && count_type(list, STS_CARD_SPELL) <= 14);
     }
     CHECK(total == 482);
 
@@ -135,16 +135,16 @@ void test_card_db_file(void)
 
         /* Every skill has a label. Each character has one default per input, and as many
          * alternates per default as the game gives (two). */
-        for (c = 0; c < STS_NUM_CHARACTERS; c++) {
-            const sts_card_list *l = &g_db.characters[c];
+        for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+            const sts_card_list *list = &g_db.characters[character];
             int defaults = 0, alternates = 0;
-            for (i = 0; i < l->count; i++) {
-                if (l->cards[i].type != STS_CARD_SKILL) continue;
-                CHECK(sts_skill_label(&g_db, c, l->cards[i].id, label) == 1);
+            for (i = 0; i < list->count; i++) {
+                if (list->cards[i].type != STS_CARD_SKILL) continue;
+                CHECK(sts_skill_label(&g_db, character, list->cards[i].id, label) == 1);
                 if (label[0] == 'd') defaults++;
                 if (label[0] == 'a') alternates++;
             }
-            CHECK(defaults == (c == 4 ? 5 : 4));
+            CHECK(defaults == (character == 4 ? 5 : 4));
             CHECK(alternates == defaults * 2);
         }
 
@@ -159,10 +159,10 @@ void test_card_db_file(void)
     CHECK(sts_card_db_find(&g_db, 1, 100)->cost_or_slot == sts_card_db_find(&g_db, 1, 104)->cost_or_slot);
     CHECK(sts_card_db_find(&g_db, 1, 100)->cost_or_slot == sts_card_db_find(&g_db, 1, 108)->cost_or_slot);
 
-    sts_deck_clear(&d);
-    sts_deck_add(&d, 0);
-    sts_deck_add(&d, 100);
-    sts_deck_add(&d, 213);
-    CHECK(sts_deck_cards_legal(&g_db, 4, &d, &bad));
-    CHECK(!sts_deck_cards_legal(&g_db, 0, &d, &bad) && bad == 213);
+    sts_deck_clear(&deck);
+    sts_deck_add(&deck, 0);
+    sts_deck_add(&deck, 100);
+    sts_deck_add(&deck, 213);
+    CHECK(sts_deck_cards_legal(&g_db, 4, &deck, &bad));
+    CHECK(!sts_deck_cards_legal(&g_db, 0, &deck, &bad) && bad == 213);
 }

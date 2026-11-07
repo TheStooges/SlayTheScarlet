@@ -166,7 +166,7 @@ static int load_data(void)
     char path[MAX_PATH + 32];
     int line = 0;
     sts_db_status db;
-    sts_settings_status st;
+    sts_settings_status status;
     const char *bad;
 
     if (g_data_ok)
@@ -178,11 +178,11 @@ static int load_data(void)
         return 0;
     }
     sprintf(path, "%ssettings.ini", g_dir);
-    st = sts_settings_load(path, &g_settings, &line);
-    if (st != STS_SETTINGS_OK && st != STS_SETTINGS_IO) {   /* no file just means defaults */
+    status = sts_settings_load(path, &g_settings, &line);
+    if (status != STS_SETTINGS_OK && status != STS_SETTINGS_IO) {   /* no file just means defaults */
         char where[64];
         sprintf(where, "settings.ini line %d", line);
-        set_error(where, sts_settings_status_str(st));
+        set_error(where, sts_settings_status_str(status));
         return 0;
     }
     bad = sts_settings_validate(&g_settings);
@@ -204,17 +204,17 @@ static int load_data(void)
 
 static void scan_saves(void)
 {
-    int c;
+    int character;
 
-    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         char path[MAX_PATH + 32];
         static sts_run tmp;
 
-        run_path(path, sizeof path, c);
-        g_has_save[c] = sts_run_load(path, &tmp) == STS_RUN_OK;
-        g_saved_phase[c] = tmp.phase;
-        g_saved_picks[c] = tmp.picks_done;
-        g_saved_rules_changed[c] = g_has_save[c] && tmp.settings_hash != sts_settings_hash(&g_settings);
+        run_path(path, sizeof path, character);
+        g_has_save[character] = sts_run_load(path, &tmp) == STS_RUN_OK;
+        g_saved_phase[character] = tmp.phase;
+        g_saved_picks[character] = tmp.picks_done;
+        g_saved_rules_changed[character] = g_has_save[character] && tmp.settings_hash != sts_settings_hash(&g_settings);
     }
 }
 
@@ -222,13 +222,13 @@ static void scan_saves(void)
 static void clean_name(char *name)
 {
     char *tag = strchr(name, '<');
-    size_t n;
+    size_t length;
 
     if (tag)
         *tag = 0;
-    n = strlen(name);
-    while (n > 0 && name[n - 1] == ' ')
-        name[--n] = 0;
+    length = strlen(name);
+    while (length > 0 && name[length - 1] == ' ')
+        name[--length] = 0;
 }
 
 static void load_text_file(const char *path)
@@ -236,24 +236,24 @@ static void load_text_file(const char *path)
     SokuLib::CSVParser parser(path);
 
     for (auto &line : parser.data) {
-        card_text *t;
+        card_text *entry;
         int i = 0;
 
         if (g_text_count >= MAX_CARD_TEXT)
             return;
-        t = &g_texts[g_text_count];
-        memset(t, 0, sizeof *t);
+        entry = &g_texts[g_text_count];
+        memset(entry, 0, sizeof *entry);
         for (auto &cell : line) {
-            const char *s = (const char *)cell;
+            const char *cell_text = (const char *)cell;
             if (i == 0)
-                t->id = (uint16_t)atoi(s);
+                entry->id = (uint16_t)atoi(cell_text);
             else if (i == 1)
-                strncpy(t->name, s, NAME_SIZE - 1);
+                strncpy(entry->name, cell_text, NAME_SIZE - 1);
             else if (i == 4)
-                strncpy(t->desc, s, DESC_SIZE - 1);
+                strncpy(entry->desc, cell_text, DESC_SIZE - 1);
             i++;
         }
-        clean_name(t->name);
+        clean_name(entry->name);
         g_text_count++;
     }
 }
@@ -283,34 +283,34 @@ static const card_text *find_text(uint16_t id)
 /* sts.log next to the DLL, restarted each launch. Holds no IPs or player names. */
 void slog(const char *fmt, ...)
 {
-    static FILE *f = NULL;
-    va_list ap;
+    static FILE *file = NULL;
+    va_list args;
 
     EnterCriticalSection(&g_log_lock);
-    if (!f) {
+    if (!file) {
         char path[MAX_PATH + 32];
         sprintf(path, "%ssts.log", g_dir);
-        f = fopen(path, "w");
+        file = fopen(path, "w");
     }
-    if (f) {
-        fprintf(f, "[%lu] ", (unsigned long)GetTickCount());
-        va_start(ap, fmt);
-        vfprintf(f, fmt, ap);
-        va_end(ap);
-        fputc('\n', f);
-        fflush(f);
+    if (file) {
+        fprintf(file, "[%lu] ", (unsigned long)GetTickCount());
+        va_start(args, fmt);
+        vfprintf(file, fmt, args);
+        va_end(args);
+        fputc('\n', file);
+        fflush(file);
     }
     LeaveCriticalSection(&g_log_lock);
 }
 
-static void ids_text(char *out, size_t size, SokuLib::Dequeue<unsigned short> &dq)
+static void ids_text(char *out, size_t size, SokuLib::Dequeue<unsigned short> &deque)
 {
-    size_t o = 0;
+    size_t offset = 0;
     int i;
 
     out[0] = 0;
-    for (i = 0; i < dq.size && i < 256 && o + 8 < size; i++)
-        o += (size_t)sprintf(out + o, "%u ", (unsigned)dq[i]);
+    for (i = 0; i < deque.size && i < 256 && offset + 8 < size; i++)
+        offset += (size_t)sprintf(out + offset, "%u ", (unsigned)deque[i]);
 }
 
 /* ---------- the run deck in the game ---------- */
@@ -437,10 +437,10 @@ static void save_active_file(void)
 
     active_file_path(path);
     if (g_active) {
-        FILE *f = fopen(path, "w");
-        if (f) {
-            fprintf(f, "%d\n", g_active_character);
-            fclose(f);
+        FILE *file = fopen(path, "w");
+        if (file) {
+            fprintf(file, "%d\n", g_active_character);
+            fclose(file);
         }
     } else {
         remove(path);
@@ -507,7 +507,7 @@ static void resume_active_run(void)
     static int done = 0;
     char path[MAX_PATH + 32];
     int character = -1;
-    FILE *f;
+    FILE *file;
 
     if (done)
         return;
@@ -518,15 +518,15 @@ static void resume_active_run(void)
         return;
     }
     active_file_path(path);
-    f = fopen(path, "r");
-    if (!f)
+    file = fopen(path, "r");
+    if (!file)
         return;
-    if (fscanf(f, "%d", &character) != 1)
+    if (fscanf(file, "%d", &character) != 1)
         character = -1;
-    fclose(f);
+    fclose(file);
 
     if (character >= 0 && character < STS_NUM_CHARACTERS) {
-        sts_run_status st;
+        sts_run_status status;
 
         /* A typo in settings.ini is no reason to forget which run was in use. */
         if (!load_data()) {
@@ -534,22 +534,22 @@ static void resume_active_run(void)
             return;
         }
         run_path(path, sizeof path, character);
-        st = sts_run_load(path, &g_run);
-        if (st == STS_RUN_OK)
-            st = sts_run_validate(&g_run, &g_db, &g_settings);
-        if (st == STS_RUN_SETTINGS_CHANGED) {
+        status = sts_run_load(path, &g_run);
+        if (status == STS_RUN_OK)
+            status = sts_run_validate(&g_run, &g_db, &g_settings);
+        if (status == STS_RUN_SETTINGS_CHANGED) {
             g_rules_changed_character = character;
             slog("the rules changed since the run for character %d was saved", character);
             return;
         }
-        if (st == STS_RUN_OK && g_run.phase != STS_PHASE_DRAFT) {
+        if (status == STS_RUN_OK && g_run.phase != STS_PHASE_DRAFT) {
             activate_run_deck();
             /* An offer left on screen when the game closed comes straight back. */
             if (g_active && g_run.phase == STS_PHASE_REWARD)
                 g_match_reward_due = 1;
             return;
         }
-        slog("could not resume the run for character %d: %s", character, sts_run_status_str(st));
+        slog("could not resume the run for character %d: %s", character, sts_run_status_str(status));
     }
     /* Whatever active.txt named cannot be used, so stop asking for it. */
     active_file_path(path);
@@ -743,12 +743,12 @@ void deck_on_battle_frame(void)
 static void save_run(void)
 {
     char path[MAX_PATH + 32];
-    sts_run_status st;
+    sts_run_status status;
 
     run_path(path, sizeof path, g_run.character);
-    st = sts_run_save(path, &g_run);
-    if (st != STS_RUN_OK)
-        set_error("Could not save the run", sts_run_status_str(st));
+    status = sts_run_save(path, &g_run);
+    if (status != STS_RUN_OK)
+        set_error("Could not save the run", sts_run_status_str(status));
 }
 
 static void set_deck_status(void)
@@ -784,7 +784,7 @@ static void maybe_start_reward(void)
 {
     char path[MAX_PATH + 32];
     sts_reward_outcome outcome = STS_REWARD_NONE;
-    sts_run_status st;
+    sts_run_status status;
 
     if (!g_match_reward_due)
         return;
@@ -794,11 +794,11 @@ static void maybe_start_reward(void)
 
     /* g_run may hold another character if the screen was used since this deck became active. */
     run_path(path, sizeof path, g_active_character);
-    st = sts_run_load(path, &g_run);
-    if (st == STS_RUN_OK)
-        st = sts_run_validate(&g_run, &g_db, &g_settings);
-    if (st != STS_RUN_OK) {
-        slog("reward skipped, the run could not be loaded: %s", sts_run_status_str(st));
+    status = sts_run_load(path, &g_run);
+    if (status == STS_RUN_OK)
+        status = sts_run_validate(&g_run, &g_db, &g_settings);
+    if (status != STS_RUN_OK) {
+        slog("reward skipped, the run could not be loaded: %s", sts_run_status_str(status));
         return;
     }
     load_card_text(g_active_character);
@@ -806,11 +806,11 @@ static void maybe_start_reward(void)
     if (g_run.phase != STS_PHASE_REWARD) {
         sts_deck before = g_run.deck;
 
-        st = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+        status = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
         if (outcome == STS_REWARD_AUTO)
             describe_deck_change(&before);
-        slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(st), (int)outcome);
-        if (st != STS_RUN_OK)
+        slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(status), (int)outcome);
+        if (status != STS_RUN_OK)
             return;
         save_run();
         if (outcome == STS_REWARD_NONE) {
@@ -832,22 +832,22 @@ static void maybe_start_reward(void)
 static void describe_deck_change(const sts_deck *before)
 {
     const sts_deck *decks[2];
-    int d, i;
+    int which, i;
 
     clear_deck_change();
     decks[0] = before;
     decks[1] = &g_run.deck;
-    for (d = 0; d < 2; d++) {
-        for (i = 0; i < decks[d]->count; i++) {
-            uint16_t id = decks[d]->ids[i];
+    for (which = 0; which < 2; which++) {
+        for (i = 0; i < decks[which]->count; i++) {
+            uint16_t id = decks[which]->ids[i];
             int difference = sts_deck_count_of(&g_run.deck, id) - sts_deck_count_of(before, id);
-            deck_change *list = d == 0 ? g_changes_removed : g_changes_added;
-            int *count = d == 0 ? &g_changes_removed_count : &g_changes_added_count;
+            deck_change *list = which == 0 ? g_changes_removed : g_changes_added;
+            int *count = which == 0 ? &g_changes_removed_count : &g_changes_added_count;
 
             /* Each distinct card once: at its first position in the deck being scanned. */
-            if (i > 0 && decks[d]->ids[i - 1] == id)
+            if (i > 0 && decks[which]->ids[i - 1] == id)
                 continue;
-            if (d == 0)
+            if (which == 0)
                 difference = -difference;
             if (difference > 0 && *count < MAX_CHANGE_LINES) {
                 list[*count].id = id;
@@ -868,11 +868,11 @@ static void clear_deck_change(void)
 static void commit_reward(const sts_replace_choice *choice)
 {
     sts_deck before = g_run.deck;
-    sts_run_status st = sts_run_reward_pick(&g_run, &g_db, &g_settings, g_pending_offer, choice);
+    sts_run_status status = sts_run_reward_pick(&g_run, &g_db, &g_settings, g_pending_offer, choice);
 
-    if (st != STS_RUN_OK) {
-        set_error("Reward", sts_run_status_str(st));
-        slog("reward pick refused: %s", sts_run_status_str(st));
+    if (status != STS_RUN_OK) {
+        set_error("Reward", sts_run_status_str(status));
+        slog("reward pick refused: %s", sts_run_status_str(status));
         return;
     }
     slog("reward taken: card %u", (unsigned)g_run.offers[g_pending_offer].id);
@@ -887,13 +887,13 @@ static void commit_selected_removals(void)
 {
     uint16_t ids[MAX_DECK_ART];
     sts_replace_choice choice;
-    int i, n = 0;
+    int i, count = 0;
 
     for (i = 0; i < g_run.deck.count && i < MAX_DECK_ART; i++)
         if (g_selected[i])
-            ids[n++] = g_run.deck.ids[i];
+            ids[count++] = g_run.deck.ids[i];
     choice.remove_ids = ids;
-    choice.remove_count = n;
+    choice.remove_count = count;
     choice.type = 0;
     commit_reward(&choice);
 }
@@ -901,38 +901,38 @@ static void commit_selected_removals(void)
 /* Fills the change list with what the chosen swap would do, for the confirm screen. */
 static void preview_selected_swap(void)
 {
-    const sts_offer *o = &g_run.offers[g_pending_offer];
+    const sts_offer *offer = &g_run.offers[g_pending_offer];
     int i;
 
     clear_deck_change();
     for (i = 0; i < g_run.deck.count && i < MAX_DECK_ART; i++) {
         uint16_t id;
-        int n;
+        int count;
 
         if (!g_selected[i])
             continue;
         id = g_run.deck.ids[i];
         /* The deck is sorted, so copies of a card are together. */
-        n = g_changes_removed_count - 1;
-        if (n >= 0 && g_changes_removed[n].id == id) {
-            g_changes_removed[n].copies++;
+        count = g_changes_removed_count - 1;
+        if (count >= 0 && g_changes_removed[count].id == id) {
+            g_changes_removed[count].copies++;
         } else if (g_changes_removed_count < MAX_CHANGE_LINES) {
             g_changes_removed[g_changes_removed_count].id = id;
             g_changes_removed[g_changes_removed_count].copies = 1;
             g_changes_removed_count++;
         }
     }
-    g_changes_added[0].id = o->id;
-    g_changes_added[0].copies = o->copies;
+    g_changes_added[0].id = offer->id;
+    g_changes_added[0].copies = offer->copies;
     g_changes_added_count = 1;
 }
 
 /* Moves through the card grid shared by the deck and removal screens. */
-static void move_grid_cursor(screen_event ev)
+static void move_grid_cursor(screen_event event)
 {
     int count = g_run.deck.count < MAX_DECK_ART ? g_run.deck.count : MAX_DECK_ART;
-    int step = ev == EV_RIGHT ? 1 : ev == EV_LEFT ? count - 1
-             : ev == EV_DOWN ? DECK_COLS : count - DECK_COLS % count;
+    int step = event == EV_RIGHT ? 1 : event == EV_LEFT ? count - 1
+             : event == EV_DOWN ? DECK_COLS : count - DECK_COLS % count;
 
     if (count > 0) {
         g_cursor = (g_cursor + step) % count;
@@ -943,8 +943,8 @@ static void move_grid_cursor(screen_event ev)
 
 static void next_available_type(int direction)
 {
-    const sts_offer *o = &g_run.offers[g_pending_offer];
-    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, o->id, o->copies);
+    const sts_offer *offer = &g_run.offers[g_pending_offer];
+    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, offer->id, offer->copies);
     int i;
 
     for (i = 0; i < 3; i++) {
@@ -956,14 +956,14 @@ static void next_available_type(int direction)
 
 static void start_new_run(int character)
 {
-    LARGE_INTEGER t;
-    sts_run_status st;
+    LARGE_INTEGER ticks;
+    sts_run_status status;
 
     /* Offers are only seen by this player, so a local seed is fine. */
-    QueryPerformanceCounter(&t);
-    st = sts_run_start(&g_run, &g_db, &g_settings, character, (uint64_t)t.QuadPart);
-    if (st != STS_RUN_OK) {
-        set_error("Could not start a run", sts_run_status_str(st));
+    QueryPerformanceCounter(&ticks);
+    status = sts_run_start(&g_run, &g_db, &g_settings, character, (uint64_t)ticks.QuadPart);
+    if (status != STS_RUN_OK) {
+        set_error("Could not start a run", sts_run_status_str(status));
         return;
     }
     /* That character's old run deck is finished with. */
@@ -996,7 +996,7 @@ static rules_option rules_option_at(int index)
 static void enter_rules_screen(void)
 {
     static sts_run trial;
-    sts_run_status st;
+    sts_run_status status;
 
     g_state = ST_RULES;
     g_cursor = 0;
@@ -1005,15 +1005,15 @@ static void enter_rules_screen(void)
     g_dirty = 1;
 
     trial = g_run;
-    st = sts_run_adopt_rules(&trial, &g_db, &g_settings);
-    g_rules_can_continue = g_settings.allow_rule_changes && st == STS_RUN_OK;
+    status = sts_run_adopt_rules(&trial, &g_db, &g_settings);
+    g_rules_can_continue = g_settings.allow_rule_changes && status == STS_RUN_OK;
     if (!g_settings.allow_rule_changes) {
         sprintf(g_rules_problem, "The current settings do not allow a run to carry on under new rules.");
-    } else if (st != STS_RUN_OK) {
+    } else if (status != STS_RUN_OK) {
         sts_deck_status deck = sts_deck_validate(&g_run.deck, &g_settings.rules, NULL);
 
         _snprintf(g_rules_problem, sizeof g_rules_problem - 1, "It cannot carry on under them: %s.",
-                  deck != STS_DECK_OK ? sts_deck_status_str(deck) : sts_run_status_str(st));
+                  deck != STS_DECK_OK ? sts_deck_status_str(deck) : sts_run_status_str(status));
         g_rules_problem[sizeof g_rules_problem - 1] = 0;
     }
 }
@@ -1021,26 +1021,26 @@ static void enter_rules_screen(void)
 static void open_character(int character)
 {
     char path[MAX_PATH + 32];
-    sts_run_status st;
+    sts_run_status status;
 
     g_character = character;
     g_error[0] = 0;
     g_status[0] = 0;
     load_card_text(character);
     run_path(path, sizeof path, character);
-    st = sts_run_load(path, &g_run);
-    if (st == STS_RUN_IO) {
+    status = sts_run_load(path, &g_run);
+    if (status == STS_RUN_IO) {
         start_new_run(character);
         return;
     }
-    if (st == STS_RUN_OK)
-        st = sts_run_validate(&g_run, &g_db, &g_settings);
-    if (st == STS_RUN_SETTINGS_CHANGED) {
+    if (status == STS_RUN_OK)
+        status = sts_run_validate(&g_run, &g_db, &g_settings);
+    if (status == STS_RUN_SETTINGS_CHANGED) {
         enter_rules_screen();
         return;
     }
-    if (st != STS_RUN_OK) {
-        set_error(sts_character_name(character), sts_run_status_str(st));
+    if (status != STS_RUN_OK) {
+        set_error(sts_character_name(character), sts_run_status_str(status));
         return;
     }
     enter_phase();
@@ -1067,15 +1067,15 @@ static int alt_twice(void)
     return 1;
 }
 
-static void handle_event(screen_event ev)
+static void handle_event(screen_event event)
 {
-    if (ev != EV_ALT && g_alt_armed) {
+    if (event != EV_ALT && g_alt_armed) {
         g_alt_armed = 0;
         g_dirty = 1;
     }
     switch (g_state) {
     case ST_CHOOSE:
-        switch (ev) {
+        switch (event) {
         case EV_LEFT:  g_cursor = (g_cursor + STS_NUM_CHARACTERS - 1) % STS_NUM_CHARACTERS; break;
         case EV_RIGHT: g_cursor = (g_cursor + 1) % STS_NUM_CHARACTERS; break;
         case EV_UP:    g_cursor = (g_cursor + STS_NUM_CHARACTERS - COLS) % STS_NUM_CHARACTERS; break;
@@ -1110,20 +1110,20 @@ static void handle_event(screen_event ev)
         break;
 
     case ST_DRAFT:
-        switch (ev) {
+        switch (event) {
         case EV_LEFT:
         case EV_RIGHT:
             if (g_run.offer_count > 0) {
-                int step = ev == EV_RIGHT ? 1 : g_run.offer_count - 1;
+                int step = event == EV_RIGHT ? 1 : g_run.offer_count - 1;
                 g_cursor = (g_cursor + step) % g_run.offer_count;
                 SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
                 g_dirty = 1;
             }
             break;
         case EV_CONFIRM: {
-            sts_run_status st = sts_run_draft_pick(&g_run, &g_db, &g_settings, g_cursor);
-            if (st != STS_RUN_OK) {
-                set_error("Draft", sts_run_status_str(st));
+            sts_run_status status = sts_run_draft_pick(&g_run, &g_db, &g_settings, g_cursor);
+            if (status != STS_RUN_OK) {
+                set_error("Draft", sts_run_status_str(status));
                 break;
             }
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
@@ -1144,12 +1144,12 @@ static void handle_event(screen_event ev)
         break;
 
     case ST_DECK:
-        switch (ev) {
+        switch (event) {
         case EV_LEFT:
         case EV_RIGHT:
         case EV_UP:
         case EV_DOWN:
-            move_grid_cursor(ev);
+            move_grid_cursor(event);
             break;
         case EV_TOGGLE:
             g_error[0] = 0;
@@ -1188,11 +1188,11 @@ static void handle_event(screen_event ev)
     /* There is no way out of a reward except taking one: it is saved, so a restart comes
      * back to the same offers. */
     case ST_REWARD:
-        switch (ev) {
+        switch (event) {
         case EV_LEFT:
         case EV_RIGHT:
             if (g_run.offer_count > 0) {
-                int step = ev == EV_RIGHT ? 1 : g_run.offer_count - 1;
+                int step = event == EV_RIGHT ? 1 : g_run.offer_count - 1;
                 g_cursor = (g_cursor + step) % g_run.offer_count;
                 SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
                 g_dirty = 1;
@@ -1225,7 +1225,7 @@ static void handle_event(screen_event ev)
         break;
 
     case ST_REWARD_TYPE:
-        switch (ev) {
+        switch (event) {
         case EV_UP:
         case EV_LEFT:
             next_available_type(-1);
@@ -1258,12 +1258,12 @@ static void handle_event(screen_event ev)
         break;
 
     case ST_REWARD_REMOVE:
-        switch (ev) {
+        switch (event) {
         case EV_LEFT:
         case EV_RIGHT:
         case EV_UP:
         case EV_DOWN:
-            move_grid_cursor(ev);
+            move_grid_cursor(event);
             break;
         case EV_CONFIRM:
             if (g_cursor >= MAX_DECK_ART)
@@ -1296,7 +1296,7 @@ static void handle_event(screen_event ev)
         break;
 
     case ST_REWARD_CONFIRM:
-        switch (ev) {
+        switch (event) {
         case EV_CONFIRM:
             commit_selected_removals();
             break;
@@ -1315,13 +1315,13 @@ static void handle_event(screen_event ev)
         break;
 
     case ST_RULES:
-        switch (ev) {
+        switch (event) {
         case EV_LEFT:
         case EV_RIGHT:
         case EV_UP:
         case EV_DOWN: {
             int count = rules_option_count();
-            int step = (ev == EV_DOWN || ev == EV_RIGHT) ? 1 : count - 1;
+            int step = (event == EV_DOWN || event == EV_RIGHT) ? 1 : count - 1;
 
             g_cursor = (g_cursor + step) % count;
             g_rules_start_over_armed = 0;
@@ -1332,10 +1332,10 @@ static void handle_event(screen_event ev)
         case EV_CONFIRM:
             switch (rules_option_at(g_cursor)) {
             case RULES_CARRY_ON: {
-                sts_run_status st = sts_run_adopt_rules(&g_run, &g_db, &g_settings);
+                sts_run_status status = sts_run_adopt_rules(&g_run, &g_db, &g_settings);
 
-                if (st != STS_RUN_OK) {
-                    set_error("Could not carry on", sts_run_status_str(st));
+                if (status != STS_RUN_OK) {
+                    set_error("Could not carry on", sts_run_status_str(status));
                     break;
                 }
                 slog("run for character %d now follows the current rules", g_run.character);
@@ -1395,9 +1395,9 @@ void screen_open(void)
 {
     {
         /* For checking the hints against the key config screen. */
-        const SokuLib::KeyBindings &k = SokuLib::profile1.keyboardBindings;
-        const SokuLib::KeyBindings &p = SokuLib::profile1.controllerBindings;
-        slog("bindings: keyboard a=%d b=%d c=%d d=%d, pad a=%d b=%d c=%d d=%d", k.a, k.b, k.c, k.d, p.a, p.b, p.c, p.d);
+        const SokuLib::KeyBindings &keyboard = SokuLib::profile1.keyboardBindings;
+        const SokuLib::KeyBindings &pad = SokuLib::profile1.controllerBindings;
+        slog("bindings: keyboard a=%d b=%d c=%d d=%d, pad a=%d b=%d c=%d d=%d", keyboard.a, keyboard.b, keyboard.c, keyboard.d, pad.a, pad.b, pad.c, pad.d);
     }
     g_error[0] = 0;
     g_status[0] = 0;
@@ -1470,19 +1470,19 @@ static void ensure_fonts(void)
 
 /* One line of the main menu's hint, with its right edge at HINT_RIGHT. */
 #define HINT_RIGHT 626
-static void make_hint_line(Sprite *s, const char *text, int y, unsigned color)
+static void make_hint_line(Sprite *sprite, const char *text, int pos_y, unsigned color)
 {
     SokuLib::Vector2i real;
 
-    if (!s->texture.createFromText(text, g_font_small, {300, 20}, &real))
+    if (!sprite->texture.createFromText(text, g_font_small, {300, 20}, &real))
         return;
-    s->setSize(real.to<unsigned>());
-    s->rect.left = 0;
-    s->rect.top = 0;
-    s->rect.width = real.x;
-    s->rect.height = real.y;
-    s->setPosition({HINT_RIGHT - real.x, y});
-    s->tint = color;
+    sprite->setSize(real.to<unsigned>());
+    sprite->rect.left = 0;
+    sprite->rect.top = 0;
+    sprite->rect.width = real.x;
+    sprite->rect.height = real.y;
+    sprite->setPosition({HINT_RIGHT - real.x, pos_y});
+    sprite->tint = color;
 }
 
 void screen_render_title_hint(void)
@@ -1515,24 +1515,24 @@ void screen_render_title_hint(void)
         lines[i].draw();
 }
 
-static void add_label(const char *text, SokuLib::SWRFont &font, int x, int y, int w, int h, unsigned color)
+static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int pos_y, int width, int height, unsigned color)
 {
-    Sprite *s;
+    Sprite *sprite;
     SokuLib::Vector2i real;
 
     if (!text || !*text || g_label_count >= MAX_TEXTS)
         return;
-    s = &g_labels[g_label_count];
-    if (!s->texture.createFromText(text, font, {(unsigned)w, (unsigned)h}, &real))
+    sprite = &g_labels[g_label_count];
+    if (!sprite->texture.createFromText(text, font, {(unsigned)width, (unsigned)height}, &real))
         return;
-    s->setSize(real.to<unsigned>());
-    s->rect.left = 0;
-    s->rect.top = 0;
-    s->rect.width = real.x;
-    s->rect.height = real.y;
-    s->setRotation(0.0f);
-    s->setPosition({x, y});
-    s->tint = color;
+    sprite->setSize(real.to<unsigned>());
+    sprite->rect.left = 0;
+    sprite->rect.top = 0;
+    sprite->rect.width = real.x;
+    sprite->rect.height = real.y;
+    sprite->setRotation(0.0f);
+    sprite->setPosition({pos_x, pos_y});
+    sprite->tint = color;
     g_label_count++;
 }
 
@@ -1578,7 +1578,7 @@ static const int g_input_width[SKILL_INPUT_IMAGES] = { 31, 31, 31, 31, 18 };
 
 typedef struct {
     int image;
-    int x, y;
+    int pos_x, pos_y;
 } input_draw;
 
 static Sprite g_input_sprites[SKILL_INPUT_IMAGES];
@@ -1596,63 +1596,63 @@ static void load_skill_input_images(void)
     g_inputs_ready = 1;
     for (i = 0; i < SKILL_INPUT_IMAGES; i++) {
         char path[64];
-        Sprite *s = &g_input_sprites[i];
+        Sprite *sprite = &g_input_sprites[i];
 
         sprintf(path, "data/profile/deck2/022_SkillCard%03dCost.bmp", i);
-        g_input_loaded[i] = s->texture.loadFromGame(path);
+        g_input_loaded[i] = sprite->texture.loadFromGame(path);
         if (!g_input_loaded[i]) {
             slog("could not load %s", path);
             continue;
         }
-        s->setSize({(unsigned)g_input_width[i], SKILL_INPUT_H});
-        s->rect.left = g_input_left[i];
-        s->rect.top = SKILL_INPUT_TOP;
-        s->rect.width = g_input_width[i];
-        s->rect.height = SKILL_INPUT_H;
-        s->tint = COLOR_GOLD;
+        sprite->setSize({(unsigned)g_input_width[i], SKILL_INPUT_H});
+        sprite->rect.left = g_input_left[i];
+        sprite->rect.top = SKILL_INPUT_TOP;
+        sprite->rect.width = g_input_width[i];
+        sprite->rect.height = SKILL_INPUT_H;
+        sprite->tint = COLOR_GOLD;
     }
 }
 
 /* Queues a skill's input image for drawing. */
-static void add_skill_input(int slot, int x, int y)
+static void add_skill_input(int slot, int pos_x, int pos_y)
 {
     load_skill_input_images();
     if (slot >= 0 && slot < SKILL_INPUT_IMAGES && g_input_loaded[slot]
         && g_input_draw_count < (int)(sizeof g_input_draws / sizeof g_input_draws[0])) {
-        input_draw *d = &g_input_draws[g_input_draw_count++];
-        d->image = slot;
-        d->x = x;
-        d->y = y;
+        input_draw *draw = &g_input_draws[g_input_draw_count++];
+        draw->image = slot;
+        draw->pos_x = pos_x;
+        draw->pos_y = pos_y;
     }
 }
 
 /* Copies up to cols bytes of s into out, never splitting a two-byte Shift-JIS character.
  * With at_spaces set, a line that does not reach the end of s breaks at its last space.
  * Returns how many bytes of s were used. */
-static size_t take_line(const char *s, int cols, int at_spaces, char *out)
+static size_t take_line(const char *text, int cols, int at_spaces, char *out)
 {
-    size_t n = 0, space = 0;
+    size_t length = 0, space = 0;
     size_t len;
 
-    while (s[n] && n < (size_t)cols) {
-        size_t step = IsDBCSLeadByteEx(932, (BYTE)s[n]) && s[n + 1] ? 2 : 1;
-        if (n + step > (size_t)cols)
+    while (text[length] && length < (size_t)cols) {
+        size_t step = IsDBCSLeadByteEx(932, (BYTE)text[length]) && text[length + 1] ? 2 : 1;
+        if (length + step > (size_t)cols)
             break;
-        if (s[n] == ' ')
-            space = n;
-        n += step;
+        if (text[length] == ' ')
+            space = length;
+        length += step;
     }
-    if (at_spaces && s[n] && s[n] != ' ' && space > 0)
-        n = space;
-    memcpy(out, s, n);
-    len = n;
+    if (at_spaces && text[length] && text[length] != ' ' && space > 0)
+        length = space;
+    memcpy(out, text, length);
+    len = length;
     while (len > 0 && out[len - 1] == ' ')
         len--;
     out[len] = 0;
-    return n;
+    return length;
 }
 
-static void add_wrapped(const char *text, SokuLib::SWRFont &font, int x, int y, int w, int line_h,
+static void add_wrapped(const char *text, SokuLib::SWRFont &font, int pos_x, int pos_y, int width, int line_h,
                         int cols, int at_spaces, int max_lines, unsigned color)
 {
     char line[DESC_SIZE];
@@ -1664,11 +1664,11 @@ static void add_wrapped(const char *text, SokuLib::SWRFont &font, int x, int y, 
         text += take_line(text, cols, at_spaces, line);
         while (at_spaces && *text == ' ')
             text++;
-        add_label(line, font, x, y + row * line_h, w, line_h + 4, color);
+        add_label(line, font, pos_x, pos_y + row * line_h, width, line_h + 4, color);
     }
 }
 
-static int load_card_sprite(Sprite *s, uint16_t id, int x, int y, unsigned scale)
+static int load_card_sprite(Sprite *sprite, uint16_t id, int pos_x, int pos_y, unsigned scale)
 {
     char path[128];
     SokuLib::Vector2u size;
@@ -1677,21 +1677,21 @@ static int load_card_sprite(Sprite *s, uint16_t id, int x, int y, unsigned scale
         sprintf(path, "data/card/common/card%03u.bmp", (unsigned)id);
     else
         sprintf(path, "data/card/%.64s/card%03u.bmp", SokuLib::getCharName((unsigned)g_run.character), (unsigned)id);
-    if (!s->texture.loadFromGame(path))
+    if (!sprite->texture.loadFromGame(path))
         return 0;
-    size = s->texture.getSize();
-    s->setSize({size.x * scale, size.y * scale});
-    s->rect.left = 0;
-    s->rect.top = 0;
-    s->rect.width = (int)size.x;
-    s->rect.height = (int)size.y;
-    s->setPosition({x, y});
+    size = sprite->texture.getSize();
+    sprite->setSize({size.x * scale, size.y * scale});
+    sprite->rect.left = 0;
+    sprite->rect.top = 0;
+    sprite->rect.width = (int)size.x;
+    sprite->rect.height = (int)size.y;
+    sprite->setPosition({pos_x, pos_y});
     return 1;
 }
 
-static void load_art(int index, uint16_t id, int x, int y)
+static void load_art(int index, uint16_t id, int pos_x, int pos_y)
 {
-    g_has_art[index] = load_card_sprite(&g_art[index], id, x, y, 2);
+    g_has_art[index] = load_card_sprite(&g_art[index], id, pos_x, pos_y, 2);
 }
 
 /* Reading card files takes a moment, so the deck images load once per deck rather than
@@ -1708,33 +1708,33 @@ static void load_deck_art(void)
 }
 
 /* The card's type line. Skills also show their input and button, as the game's deck screen does. */
-static void add_card_kind(const sts_card *c, int x, int y, int w)
+static void add_card_kind(const sts_card *card, int pos_x, int pos_y, int width)
 {
     char text[48], skill[STS_SKILL_LABEL_SIZE];
 
-    switch (c->type) {
+    switch (card->type) {
     case STS_CARD_SYSTEM:
-        sprintf(text, "System, cost %d", c->cost_or_slot);
+        sprintf(text, "System, cost %d", card->cost_or_slot);
         break;
     case STS_CARD_SPELL:
-        sprintf(text, "Spell, cost %d", c->cost_or_slot);
+        sprintf(text, "Spell, cost %d", card->cost_or_slot);
         break;
     case STS_CARD_SKILL:
-        if (sts_skill_label(&g_db, g_run.character, c->id, skill)) {
-            int start = x, before = g_label_count, number_w = 0, slot = c->cost_or_slot;
+        if (sts_skill_label(&g_db, g_run.character, card->id, skill)) {
+            int start = pos_x, before = g_label_count, number_w = 0, slot = card->cost_or_slot;
 
             /* "Skill, a" and "214" are separate so the arrows can centre over the digits. */
             sprintf(text, "Skill, %c", skill[0]);
-            add_label(text, g_font_small, x, y, w, 20, COLOR_GOLD);
+            add_label(text, g_font_small, pos_x, pos_y, width, 20, COLOR_GOLD);
             if (g_label_count > before)
-                x += (int)g_labels[before].getSize().x;
+                pos_x += (int)g_labels[before].getSize().x;
             before = g_label_count;
-            add_label(skill + 1, g_font_small, x, y, 40, 20, COLOR_GOLD);
+            add_label(skill + 1, g_font_small, pos_x, pos_y, 40, 20, COLOR_GOLD);
             if (g_label_count > before)
                 number_w = (int)g_labels[before].getSize().x;
             if (slot < SKILL_INPUT_IMAGES) {
-                int arrows_x = x + (number_w - g_input_width[slot]) / 2;
-                add_skill_input(slot, arrows_x > start ? arrows_x : start, y - SKILL_INPUT_H);
+                int arrows_x = pos_x + (number_w - g_input_width[slot]) / 2;
+                add_skill_input(slot, arrows_x > start ? arrows_x : start, pos_y - SKILL_INPUT_H);
             }
             return;
         }
@@ -1744,7 +1744,7 @@ static void add_card_kind(const sts_card *c, int x, int y, int w)
         text[0] = 0;
         break;
     }
-    add_label(text, g_font_small, x, y, w, 20, COLOR_GOLD);
+    add_label(text, g_font_small, pos_x, pos_y, width, 20, COLOR_GOLD);
 }
 
 #define OFFER_W 180
@@ -1759,7 +1759,7 @@ static int offer_x(int i, int count)
 
 static void rebuild_choose(void)
 {
-    int c;
+    int character;
     char line[128];
 
     add_label("Slay the Scarlet: choose a character", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
@@ -1769,24 +1769,24 @@ static void rebuild_choose(void)
         sprintf(line, "Disable it in SWRSToys.ini and restart the game to play runs.");
         add_label(line, g_font_small, 20, 392, 600, 20, COLOR_RED);
     }
-    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
-        int x = 24 + (c % COLS) * 120;
-        int y = 80 + (c / COLS) * 70;
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        int pos_x = 24 + (character % COLS) * 120;
+        int pos_y = 80 + (character / COLS) * 70;
         unsigned color = COLOR_WHITE;
 
-        add_label(sts_character_name(c), g_font_big, x + 6, y + 6, 110, 26, COLOR_WHITE);
+        add_label(sts_character_name(character), g_font_big, pos_x + 6, pos_y + 6, 110, 26, COLOR_WHITE);
         line[0] = 0;
-        if (g_has_save[c]) {
-            if (g_saved_rules_changed[c]) {
+        if (g_has_save[character]) {
+            if (g_saved_rules_changed[character]) {
                 sprintf(line, "Rules changed");
                 color = COLOR_RED;
-            } else if (g_saved_phase[c] == STS_PHASE_DRAFT) {
-                sprintf(line, "Draft %d/%d", g_saved_picks[c], g_settings.draft_picks);
+            } else if (g_saved_phase[character] == STS_PHASE_DRAFT) {
+                sprintf(line, "Draft %d/%d", g_saved_picks[character], g_settings.draft_picks);
                 color = COLOR_GOLD;
-            } else if (g_saved_phase[c] == STS_PHASE_REWARD) {
+            } else if (g_saved_phase[character] == STS_PHASE_REWARD) {
                 sprintf(line, "Reward waiting");
                 color = COLOR_GOLD;
-            } else if (g_active && g_active_character == c) {
+            } else if (g_active && g_active_character == character) {
                 sprintf(line, "In use");
                 color = COLOR_GREEN;
             } else {
@@ -1794,7 +1794,7 @@ static void rebuild_choose(void)
                 color = COLOR_GREY;
             }
         }
-        add_label(line, g_font_small, x + 6, y + 32, 110, 20, color);
+        add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, color);
     }
     if (g_alt_armed)
         sprintf(line, "Press %s again to discard this character's run and start over.", BUTTON_C);
@@ -1824,25 +1824,25 @@ static void rebuild_draft(void)
     }
 
     for (i = 0; i < g_run.offer_count && i < STS_OFFER_MAX; i++) {
-        const sts_offer *o = &g_run.offers[i];
-        const card_text *t = find_text(o->id);
-        const sts_card *c = sts_card_db_find(&g_db, g_run.character, o->id);
-        int x = offer_x(i, g_run.offer_count);
+        const sts_offer *offer = &g_run.offers[i];
+        const card_text *entry = find_text(offer->id);
+        const sts_card *card = sts_card_db_find(&g_db, g_run.character, offer->id);
+        int pos_x = offer_x(i, g_run.offer_count);
 
-        load_art(i, o->id, x + 8, OFFER_Y + 8);
-        add_wrapped(t ? t->name : "?", g_font_small, x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3, COLOR_WHITE);
-        if (c)
-            add_card_kind(c, x + 8, OFFER_Y + 202, OFFER_W - 16);
-        if (o->copies > 1) {
-            sprintf(line, "x%d", o->copies);
-            add_label(line, g_font_big, x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
+        load_art(i, offer->id, pos_x + 8, OFFER_Y + 8);
+        add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3, COLOR_WHITE);
+        if (card)
+            add_card_kind(card, pos_x + 8, OFFER_Y + 202, OFFER_W - 16);
+        if (offer->copies > 1) {
+            sprintf(line, "x%d", offer->copies);
+            add_label(line, g_font_big, pos_x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
         }
     }
     if (g_cursor < g_run.offer_count) {
-        const card_text *t = find_text(g_run.offers[g_cursor].id);
+        const card_text *entry = find_text(g_run.offers[g_cursor].id);
         /* The game's own descriptions are laid out in rows of exactly this many bytes. */
-        if (t)
-            add_wrapped(t->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, 36, 0, 6, COLOR_WHITE);
+        if (entry)
+            add_wrapped(entry->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, 36, 0, 6, COLOR_WHITE);
     }
     if (g_state == ST_REWARD)
         sprintf(line, "Left/Right: choose   %s: take", BUTTON_A);
@@ -1852,71 +1852,71 @@ static void rebuild_draft(void)
 }
 
 /* Name, type and description of one card, starting at y. */
-static void add_card_details(uint16_t id, int y)
+static void add_card_details(uint16_t id, int pos_y)
 {
-    const card_text *t = find_text(id);
-    const sts_card *c = sts_card_db_find(&g_db, g_run.character, id);
+    const card_text *entry = find_text(id);
+    const sts_card *card = sts_card_db_find(&g_db, g_run.character, id);
 
     /* A skill's arrows sit above its type line, so they need room under the name. */
-    int kind_y = y + (c && c->type == STS_CARD_SKILL ? 46 : 28);
+    int kind_y = pos_y + (card && card->type == STS_CARD_SKILL ? 46 : 28);
 
-    add_label(t ? t->name : "?", g_font_big, 24, y, 592, 28, COLOR_WHITE);
-    if (c)
-        add_card_kind(c, 24, kind_y, 592);
-    if (t)
-        add_wrapped(t->desc, g_font_small, 24, kind_y + 20, 592, 17, 36, 0, 6, COLOR_WHITE);
+    add_label(entry ? entry->name : "?", g_font_big, 24, pos_y, 592, 28, COLOR_WHITE);
+    if (card)
+        add_card_kind(card, 24, kind_y, 592);
+    if (entry)
+        add_wrapped(entry->desc, g_font_small, 24, kind_y + 20, 592, 17, 36, 0, 6, COLOR_WHITE);
 }
 
 /* One heading and its cards. Returns the y position after them. */
-static int add_change_section(const char *heading, const deck_change *list, int count, int y, unsigned color)
+static int add_change_section(const char *heading, const deck_change *list, int count, int pos_y, unsigned color)
 {
-    const int x = 288;
+    const int pos_x = 288;
     int i;
 
     if (count == 0)
-        return y;
-    add_label(heading, g_font_small, x, y, 340, 20, color);
-    y += 18;
+        return pos_y;
+    add_label(heading, g_font_small, pos_x, pos_y, 340, 20, color);
+    pos_y += 18;
     for (i = 0; i < count; i++) {
-        const card_text *t = find_text(list[i].id);
-        const sts_card *c = sts_card_db_find(&g_db, g_run.character, list[i].id);
+        const card_text *entry = find_text(list[i].id);
+        const sts_card *card = sts_card_db_find(&g_db, g_run.character, list[i].id);
         char prefix[STS_SKILL_LABEL_SIZE + 8] = "";
         char text[NAME_SIZE + 32];
 
         /* "a22 Taste of Death", "4-cost Death Sign ...": what matters most about each type. */
-        if (c && c->type == STS_CARD_SKILL) {
+        if (card && card->type == STS_CARD_SKILL) {
             char skill[STS_SKILL_LABEL_SIZE];
-            if (sts_skill_label(&g_db, g_run.character, c->id, skill))
+            if (sts_skill_label(&g_db, g_run.character, card->id, skill))
                 sprintf(prefix, "%s ", skill);
-        } else if (c && c->type == STS_CARD_SPELL) {
-            sprintf(prefix, "%d-cost ", c->cost_or_slot);
+        } else if (card && card->type == STS_CARD_SPELL) {
+            sprintf(prefix, "%d-cost ", card->cost_or_slot);
         }
         if (list[i].copies > 1)
-            _snprintf(text, sizeof text - 1, "%s%s x%d", prefix, t ? t->name : "?", list[i].copies);
+            _snprintf(text, sizeof text - 1, "%s%s x%d", prefix, entry ? entry->name : "?", list[i].copies);
         else
-            _snprintf(text, sizeof text - 1, "%s%s", prefix, t ? t->name : "?");
+            _snprintf(text, sizeof text - 1, "%s%s", prefix, entry ? entry->name : "?");
         text[sizeof text - 1] = 0;
-        add_label(text, g_font_small, x + 8, y, 340, 20, COLOR_WHITE);
-        y += 17;
+        add_label(text, g_font_small, pos_x + 8, pos_y, 340, 20, COLOR_WHITE);
+        pos_y += 17;
     }
-    return y + 6;
+    return pos_y + 6;
 }
 
 /* What a reward changed, or is about to, in the space beside the card details. y is the top of
  * those details; the list starts below their first line, which a long card name fills. */
-static void add_change_list(int y, const char *removed_heading, const char *added_heading)
+static void add_change_list(int pos_y, const char *removed_heading, const char *added_heading)
 {
-    y += 30;
-    y = add_change_section(removed_heading, g_changes_removed, g_changes_removed_count, y, COLOR_RED);
-    add_change_section(added_heading, g_changes_added, g_changes_added_count, y, COLOR_GREEN);
+    pos_y += 30;
+    pos_y = add_change_section(removed_heading, g_changes_removed, g_changes_removed_count, pos_y, COLOR_RED);
+    add_change_section(added_heading, g_changes_added, g_changes_added_count, pos_y, COLOR_GREEN);
 }
 
 static void rebuild_reward_remove(void)
 {
     char line[192];
-    const sts_offer *o = &g_run.offers[g_pending_offer];
-    const card_text *t = find_text(o->id);
-    int remaining = o->copies - g_selected_count;
+    const sts_offer *offer = &g_run.offers[g_pending_offer];
+    const card_text *entry = find_text(offer->id);
+    int remaining = offer->copies - g_selected_count;
 
     if (g_deck_art_dirty)
         load_deck_art();
@@ -1933,9 +1933,9 @@ static void rebuild_reward_remove(void)
     add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
-    if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == o->id)
+    if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == offer->id)
         add_label("This is the card you are taking, so it cannot leave.", g_font_small, 20, 396, 600, 20, COLOR_RED);
-    sprintf(line, "Replacing with %dx %.90s. Choose %d more.", o->copies, t ? t->name : "?", remaining);
+    sprintf(line, "Replacing with %dx %.90s. Choose %d more.", offer->copies, entry ? entry->name : "?", remaining);
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
     sprintf(line, "Arrows: choose   %s: select   %s: back to the offers", BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
@@ -1953,24 +1953,24 @@ static void rebuild_rules(void)
     add_label(g_rules_problem, g_font_small, 40, 106, 580, 20, COLOR_RED);
 
     for (i = 0; i < rules_option_count(); i++) {
-        int y = RULES_ROW_Y + i * RULES_ROW_PITCH;
+        int pos_y = RULES_ROW_Y + i * RULES_ROW_PITCH;
         const char *note = NULL;
 
         switch (rules_option_at(i)) {
         case RULES_CARRY_ON:
-            add_label("Carry on under the current rules", g_font_big, 56, y, 500, 28, COLOR_WHITE);
+            add_label("Carry on under the current rules", g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
             note = "Your deck and progress stay as they are.";
             break;
         case RULES_BACK:
-            add_label("Back", g_font_big, 56, y, 500, 28, COLOR_WHITE);
+            add_label("Back", g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
             note = "Leaves the run as it is.";
             break;
         case RULES_START_OVER:
-            add_label("Start over", g_font_big, 56, y, 500, 28, g_rules_start_over_armed ? COLOR_RED : COLOR_WHITE);
+            add_label("Start over", g_font_big, 56, pos_y, 500, 28, g_rules_start_over_armed ? COLOR_RED : COLOR_WHITE);
             note = "Discards this run's deck and progress.";
             break;
         }
-        add_label(note, g_font_small, 72, y + 26, 500, 20, COLOR_GREY);
+        add_label(note, g_font_small, 72, pos_y + 26, 500, 20, COLOR_GREY);
     }
     if (g_rules_start_over_armed)
         sprintf(line, "Press %s again to discard this run.   %s: cancel", BUTTON_A, BUTTON_B);
@@ -1983,21 +1983,21 @@ static void rebuild_reward_type(void)
 {
     static const char *const names[3] = { "System cards", "Skill cards", "Spell cards" };
     char line[192];
-    const sts_offer *o = &g_run.offers[g_pending_offer];
-    const card_text *t = find_text(o->id);
-    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, o->id, o->copies);
+    const sts_offer *offer = &g_run.offers[g_pending_offer];
+    const card_text *entry = find_text(offer->id);
+    unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, offer->id, offer->copies);
     int type;
 
     add_label("Choose what type leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     for (type = 0; type < 3; type++) {
         /* Copies of the incoming card are not counted, as they cannot leave. */
-        int count = sts_replace_count_of_type(&g_db, g_run.character, &g_run.deck, o->id, type);
+        int count = sts_replace_count_of_type(&g_db, g_run.character, &g_run.deck, offer->id, type);
 
         sprintf(line, "%s (%d can leave)", names[type], count);
         add_label(line, g_font_big, 56, 110 + type * 50, 500, 28,
                   (mask & STS_TYPE_BIT(type)) ? COLOR_WHITE : COLOR_GREY);
     }
-    sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.", o->copies, t ? t->name : "?");
+    sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.", offer->copies, entry ? entry->name : "?");
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
     sprintf(line, "Up/Down: choose   %s: confirm   %s: back to the offers", BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
@@ -2007,7 +2007,7 @@ static void rebuild_deck(void)
 {
     char line[192];
     int rows = (g_run.deck.count + DECK_COLS - 1) / DECK_COLS;
-    int y;
+    int pos_y;
 
     if (g_deck_art_dirty)
         load_deck_art();
@@ -2020,10 +2020,10 @@ static void rebuild_deck(void)
     /* Details of the card under the cursor, below however many rows the deck needs. */
     if (rows > 2)
         rows = 2;
-    y = DECK_Y + rows * DECK_PITCH_Y + 8;
+    pos_y = DECK_Y + rows * DECK_PITCH_Y + 8;
     if (g_cursor < g_run.deck.count)
-        add_card_details(g_run.deck.ids[g_cursor], y);
-    add_change_list(y, "Removed", "Added");
+        add_card_details(g_run.deck.ids[g_cursor], pos_y);
+    add_change_list(pos_y, "Removed", "Added");
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
     sprintf(line, "%s: %s", BUTTON_D, run_deck_in_use() ? "stop using this run" : "use this run");
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_WHITE);
@@ -2063,10 +2063,10 @@ static void rebuild(void)
     g_dirty = 0;
 }
 
-static void draw_box(int x, int y, int w, int h, unsigned fill, unsigned border)
+static void draw_box(int pos_x, int pos_y, int width, int height, unsigned fill, unsigned border)
 {
-    g_box.setPosition({x, y});
-    g_box.setSize({(unsigned)w, (unsigned)h});
+    g_box.setPosition({pos_x, pos_y});
+    g_box.setSize({(unsigned)width, (unsigned)height});
     g_box.setFillColor(fill);
     g_box.setBorderColor(border);
     g_box.draw();
@@ -2081,9 +2081,9 @@ void screen_render(int opaque)
 
     draw_box(0, 0, SCREEN_W, SCREEN_H, opaque ? 0xFF000000u : 0xE0000000u, opaque ? 0xFF000000u : 0xE0000000u);
     if (g_state == ST_CHOOSE) {
-        int x = 24 + (g_cursor % COLS) * 120;
-        int y = 80 + (g_cursor / COLS) * 70;
-        draw_box(x, y, 116, 60, 0x60FFE080u, 0xFFFFE080u);
+        int pos_x = 24 + (g_cursor % COLS) * 120;
+        int pos_y = 80 + (g_cursor / COLS) * 70;
+        draw_box(pos_x, pos_y, 116, 60, 0x60FFE080u, 0xFFFFE080u);
     } else if (g_state == ST_REWARD_TYPE) {
         draw_box(44, 104 + g_cursor * 50, 552, 38, 0x60FFE080u, 0xFFFFE080u);
     } else if (g_state == ST_RULES) {
@@ -2103,8 +2103,8 @@ void screen_render(int opaque)
         int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
 
         for (i = top * DECK_COLS; i < g_run.deck.count && i < MAX_DECK_ART && i < (top + 2) * DECK_COLS; i++) {
-            int x = DECK_X + (i % DECK_COLS) * DECK_PITCH_X;
-            int y = DECK_Y + (i / DECK_COLS - top) * DECK_PITCH_Y;
+            int pos_x = DECK_X + (i % DECK_COLS) * DECK_PITCH_X;
+            int pos_y = DECK_Y + (i / DECK_COLS - top) * DECK_PITCH_Y;
 
             int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) && g_selected[i];
 
@@ -2113,7 +2113,7 @@ void screen_render(int opaque)
                 SokuLib::Vector2u size = g_has_deck_art[i] ? g_deck_art[i].getSize()
                                                            : SokuLib::Vector2u{DECK_PITCH_X - 8, DECK_PITCH_Y - 8};
 
-                draw_box(x - 3, y - 3, (int)size.x + 6, (int)size.y + 6,
+                draw_box(pos_x - 3, pos_y - 3, (int)size.x + 6, (int)size.y + 6,
                          picked ? 0x80FF6060u : 0x60FFE080u, picked ? 0xFFFF6060u : 0xFFFFE080u);
             }
             if (g_has_deck_art[i]) {
@@ -2122,7 +2122,7 @@ void screen_render(int opaque)
                     && g_run.deck.ids[i] == g_run.offers[g_pending_offer].id;
 
                 g_deck_art[i].tint = blocked ? 0xFF505050u : COLOR_WHITE;
-                g_deck_art[i].setPosition({x, y});
+                g_deck_art[i].setPosition({pos_x, pos_y});
                 g_deck_art[i].draw();
             }
         }
@@ -2130,9 +2130,9 @@ void screen_render(int opaque)
     for (i = 0; i < g_label_count; i++)
         g_labels[i].draw();
     for (i = 0; i < g_input_draw_count; i++) {
-        Sprite *s = &g_input_sprites[g_input_draws[i].image];
+        Sprite *sprite = &g_input_sprites[g_input_draws[i].image];
 
-        s->setPosition({g_input_draws[i].x, g_input_draws[i].y});
-        s->draw();
+        sprite->setPosition({g_input_draws[i].pos_x, g_input_draws[i].pos_y});
+        sprite->draw();
     }
 }

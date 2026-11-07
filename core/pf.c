@@ -19,24 +19,24 @@ const char *sts_character_name(int index)
 sts_pf_status sts_pf_parse(const uint8_t *data, size_t len, sts_profile *out, size_t *consumed)
 {
     size_t pos = STS_PF_HEADER_SIZE;
-    int c, s, i;
+    int character, slot, i;
 
     if (len < STS_PF_HEADER_SIZE)
         return STS_PF_TRUNCATED;
     memcpy(out->header, data, STS_PF_HEADER_SIZE);
 
-    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
-        for (s = 0; s < STS_NUM_SLOTS; s++) {
-            sts_deck *d = &out->decks[c][s];
-            int n;
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++) {
+            sts_deck *deck = &out->decks[character][slot];
+            int count;
             if (pos >= len)
                 return STS_PF_TRUNCATED;
-            n = data[pos++];
-            if (len - pos < (size_t)n * 2)
+            count = data[pos++];
+            if (len - pos < (size_t)count * 2)
                 return STS_PF_TRUNCATED;
-            d->count = n;
-            for (i = 0; i < n; i++) {
-                d->ids[i] = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+            deck->count = count;
+            for (i = 0; i < count; i++) {
+                deck->ids[i] = (uint16_t)(data[pos] | (data[pos + 1] << 8));
                 pos += 2;
             }
         }
@@ -46,28 +46,28 @@ sts_pf_status sts_pf_parse(const uint8_t *data, size_t len, sts_profile *out, si
     return STS_PF_OK;
 }
 
-size_t sts_pf_size(const sts_profile *p)
+size_t sts_pf_size(const sts_profile *profile)
 {
-    size_t n = STS_PF_HEADER_SIZE;
-    int c, s;
-    for (c = 0; c < STS_NUM_CHARACTERS; c++)
-        for (s = 0; s < STS_NUM_SLOTS; s++)
-            n += 1 + (size_t)p->decks[c][s].count * 2;
-    return n;
+    size_t count = STS_PF_HEADER_SIZE;
+    int character, slot;
+    for (character = 0; character < STS_NUM_CHARACTERS; character++)
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++)
+            count += 1 + (size_t)profile->decks[character][slot].count * 2;
+    return count;
 }
 
-size_t sts_pf_serialize(const sts_profile *p, uint8_t *buf, size_t cap)
+size_t sts_pf_serialize(const sts_profile *profile, uint8_t *buf, size_t cap)
 {
     size_t pos = STS_PF_HEADER_SIZE;
-    int c, s, i;
+    int character, slot, i;
 
-    if (cap < sts_pf_size(p))
+    if (cap < sts_pf_size(profile))
         return 0;
-    memcpy(buf, p->header, STS_PF_HEADER_SIZE);
+    memcpy(buf, profile->header, STS_PF_HEADER_SIZE);
 
-    for (c = 0; c < STS_NUM_CHARACTERS; c++) {
-        for (s = 0; s < STS_NUM_SLOTS; s++) {
-            sts_deck tmp = p->decks[c][s];
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        for (slot = 0; slot < STS_NUM_SLOTS; slot++) {
+            sts_deck tmp = profile->decks[character][slot];
             sts_deck_sort(&tmp);
             buf[pos++] = (uint8_t)tmp.count;
             for (i = 0; i < tmp.count; i++) {
@@ -81,51 +81,51 @@ size_t sts_pf_serialize(const sts_profile *p, uint8_t *buf, size_t cap)
 
 sts_pf_status sts_pf_load(const char *path, sts_profile *out, size_t *consumed)
 {
-    FILE *f = fopen(path, "rb");
+    FILE *file = fopen(path, "rb");
     uint8_t *buf;
     long size;
-    sts_pf_status st;
+    sts_pf_status status;
 
-    if (!f)
+    if (!file)
         return STS_PF_IO;
-    if (fseek(f, 0, SEEK_END) != 0 || (size = ftell(f)) < 0 || fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
+    if (fseek(file, 0, SEEK_END) != 0 || (size = ftell(file)) < 0 || fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
         return STS_PF_IO;
     }
     buf = (uint8_t *)malloc((size_t)size + 1);
     if (!buf) {
-        fclose(f);
+        fclose(file);
         return STS_PF_IO;
     }
-    if (fread(buf, 1, (size_t)size, f) != (size_t)size) {
+    if (fread(buf, 1, (size_t)size, file) != (size_t)size) {
         free(buf);
-        fclose(f);
+        fclose(file);
         return STS_PF_IO;
     }
-    fclose(f);
-    st = sts_pf_parse(buf, (size_t)size, out, consumed);
+    fclose(file);
+    status = sts_pf_parse(buf, (size_t)size, out, consumed);
     free(buf);
-    return st;
+    return status;
 }
 
-sts_pf_status sts_pf_save(const char *path, const sts_profile *p)
+sts_pf_status sts_pf_save(const char *path, const sts_profile *profile)
 {
-    size_t n = sts_pf_size(p);
-    uint8_t *buf = (uint8_t *)malloc(n);
-    FILE *f;
-    sts_pf_status st = STS_PF_OK;
+    size_t count = sts_pf_size(profile);
+    uint8_t *buf = (uint8_t *)malloc(count);
+    FILE *file;
+    sts_pf_status status = STS_PF_OK;
 
     if (!buf)
         return STS_PF_IO;
-    if (sts_pf_serialize(p, buf, n) != n) {
+    if (sts_pf_serialize(profile, buf, count) != count) {
         free(buf);
         return STS_PF_IO;
     }
-    f = fopen(path, "wb");
-    if (!f || fwrite(buf, 1, n, f) != n)
-        st = STS_PF_IO;
-    if (f)
-        fclose(f);
+    file = fopen(path, "wb");
+    if (!file || fwrite(buf, 1, count, file) != count)
+        status = STS_PF_IO;
+    if (file)
+        fclose(file);
     free(buf);
-    return st;
+    return status;
 }

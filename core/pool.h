@@ -51,7 +51,7 @@ sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, 
 
 sts_db_status sts_card_db_load(const char *path, sts_card_db *out, int *err_line);
 
-const char *sts_db_status_str(sts_db_status s);
+const char *sts_db_status_str(sts_db_status status);
 
 /* Looks a card up for a character (system cards included), or NULL if that
  * character cannot use it. */
@@ -66,6 +66,6 @@ int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out
 
 /* Returns 1 if the character can use every card in the deck. Otherwise returns 0
  * and sets *bad_id (if non-NULL) to the first card it cannot use. */
-int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *d, uint16_t *bad_id);
+int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *deck, uint16_t *bad_id);
 
 #endif

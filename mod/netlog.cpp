@@ -20,9 +20,9 @@ static recvfrom_fn g_og_recvfrom = NULL;
 /* Packets are handled on more than one thread. */
 static CRITICAL_SECTION g_lock;
 
-static int compare_ids(const void *a, const void *b)
+static int compare_ids(const void *first, const void *second)
 {
-    return (int)*(const unsigned short *)a - (int)*(const unsigned short *)b;
+    return (int)*(const unsigned short *)first - (int)*(const unsigned short *)second;
 }
 
 /* Same cards, in any order? Reads game memory, so a bad read counts as no. */
@@ -36,12 +36,12 @@ static int profile_slot_matches(int profile, int character, int slot, const unsi
     memcpy(sorted, ids, (size_t)count * 2);
     qsort(sorted, (size_t)count, 2, compare_ids);
     __try {
-        auto &dq = (profile == 1 ? SokuLib::profile1 : SokuLib::profile2).cards[character][slot];
+        auto &deque = (profile == 1 ? SokuLib::profile1 : SokuLib::profile2).cards[character][slot];
 
-        if (dq.size != count)
+        if (deque.size != count)
             return 0;
         for (i = 0; i < count; i++)
-            other[i] = dq[i];
+            other[i] = deque[i];
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         return 0;
@@ -51,25 +51,25 @@ static int profile_slot_matches(int profile, int character, int slot, const unsi
 }
 
 /* Logs one player's part of GAME_MATCH. Returns the offset after it, or -1 if it does not fit. */
-static int log_match_player(const char *dir, const char *who, const unsigned char *p, int len, int o)
+static int log_match_player(const char *dir, const char *who, const unsigned char *packet, int len, int offset)
 {
     unsigned short ids[256];
     char text[1100];
     size_t used = 0;
     int character, skin, slot, count, i;
 
-    if (o + 4 > len)
+    if (offset + 4 > len)
         return -1;
-    character = p[o];
-    skin = p[o + 1];
-    slot = p[o + 2];
-    count = p[o + 3];
-    o += 4;
-    if (o + count * 2 + 1 > len)
+    character = packet[offset];
+    skin = packet[offset + 1];
+    slot = packet[offset + 2];
+    count = packet[offset + 3];
+    offset += 4;
+    if (offset + count * 2 + 1 > len)
         return -1;
     text[0] = 0;
     for (i = 0; i < count; i++) {
-        ids[i] = (unsigned short)(p[o + i * 2] | (p[o + i * 2 + 1] << 8));
+        ids[i] = (unsigned short)(packet[offset + i * 2] | (packet[offset + i * 2 + 1] << 8));
         used += (size_t)sprintf(text + used, "%u ", (unsigned)ids[i]);
     }
     slog("%s GAME_MATCH %s: character %d skin %d deck %d, %d cards: %s", dir, who, character, skin, slot, count, text);
@@ -77,22 +77,22 @@ static int log_match_player(const char *dir, const char *who, const unsigned cha
          profile_slot_matches(1, character, slot, ids, count) ? "yes" : "no",
          profile_slot_matches(2, character, slot, ids, count) ? "yes" : "no",
          deck_matches_active(character, ids, count) ? "yes" : "no");
-    return o + count * 2 + 1;
+    return offset + count * 2 + 1;
 }
 
-static uint32_t hash_bytes(const unsigned char *p, int len)
+static uint32_t hash_bytes(const unsigned char *bytes, int len)
 {
-    uint32_t h = 2166136261u;
+    uint32_t hash = 2166136261u;
     int i;
 
     for (i = 0; i < len; i++) {
-        h ^= p[i];
-        h *= 16777619u;
+        hash ^= bytes[i];
+        hash *= 16777619u;
     }
-    return h;
+    return hash;
 }
 
-static void analyze(const char *dir, const unsigned char *p, int len)
+static void analyze(const char *dir, const unsigned char *packet, int len)
 {
     static unsigned seen[128];
     static int seen_count = 0;
@@ -103,9 +103,9 @@ static void analyze(const char *dir, const unsigned char *p, int len)
 
     if (len < 1)
         return;
-    type = p[0];
+    type = packet[0];
     if ((type == SokuLib::HOST_GAME || type == SokuLib::CLIENT_GAME) && len >= 2)
-        inner = p[1];
+        inner = packet[1];
 
     EnterCriticalSection(&g_lock);
 
@@ -122,25 +122,25 @@ static void analyze(const char *dir, const unsigned char *p, int len)
 
     /* GAME_MATCH is resent until acknowledged, so only log it when it changes. */
     if (inner == SokuLib::GAME_MATCH) {
-        uint32_t h = hash_bytes(p, len);
+        uint32_t hash = hash_bytes(packet, len);
 
-        if (h != last_match[sending]) {
-            int o = 2;
+        if (hash != last_match[sending]) {
+            int offset = 2;
 
-            last_match[sending] = h;
-            o = log_match_player(dir, "host", p, len, o);
-            if (o >= 0)
-                o = log_match_player(dir, "client", p, len, o);
-            if (o >= 0 && o + 7 <= len)
-                slog("   stage %d, music %d, match %d", p[o], p[o + 1], p[o + 6]);
-            else if (o < 0)
+            last_match[sending] = hash;
+            offset = log_match_player(dir, "host", packet, len, offset);
+            if (offset >= 0)
+                offset = log_match_player(dir, "client", packet, len, offset);
+            if (offset >= 0 && offset + 7 <= len)
+                slog("   stage %d, music %d, match %d", packet[offset], packet[offset + 1], packet[offset + 6]);
+            else if (offset < 0)
                 slog("   did not fit the expected layout, length %d", len);
         }
     }
     LeaveCriticalSection(&g_lock);
 }
 
-static int __stdcall hook_sendto(UINT_PTR s, const char *buf, int len, int flags, const void *to, int tolen)
+static int __stdcall hook_sendto(UINT_PTR socket_handle, const char *buf, int len, int flags, const void *to, int tolen)
 {
     __try {
         if (buf && len > 0)
@@ -148,20 +148,20 @@ static int __stdcall hook_sendto(UINT_PTR s, const char *buf, int len, int flags
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
     }
-    return g_og_sendto(s, buf, len, flags, to, tolen);
+    return g_og_sendto(socket_handle, buf, len, flags, to, tolen);
 }
 
-static int __stdcall hook_recvfrom(UINT_PTR s, char *buf, int len, int flags, void *from, int *fromlen)
+static int __stdcall hook_recvfrom(UINT_PTR socket_handle, char *buf, int len, int flags, void *from, int *fromlen)
 {
-    int r = g_og_recvfrom(s, buf, len, flags, from, fromlen);
+    int received = g_og_recvfrom(socket_handle, buf, len, flags, from, fromlen);
 
     __try {
-        if (r > 0 && buf)
-            analyze("RECV", (const unsigned char *)buf, r);
+        if (received > 0 && buf)
+            analyze("RECV", (const unsigned char *)buf, received);
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
     }
-    return r;
+    return received;
 }
 
 void netlog_install(void)

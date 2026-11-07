@@ -12,11 +12,11 @@ typedef struct {
 } sts_rng;
 
 /* seq selects an independent stream; streams with different seq do not overlap. */
-void sts_rng_seed(sts_rng *r, uint64_t seed, uint64_t seq);
+void sts_rng_seed(sts_rng *rng, uint64_t seed, uint64_t seq);
 
-uint32_t sts_rng_next(sts_rng *r);
+uint32_t sts_rng_next(sts_rng *rng);
 
 /* Uniform value in [0, bound), without modulo bias. bound must be at least 1. */
-uint32_t sts_rng_below(sts_rng *r, uint32_t bound);
+uint32_t sts_rng_below(sts_rng *rng, uint32_t bound);
 
 #endif
