@@ -265,6 +265,12 @@ Netplay is a primary requirement. Each machine simulates both players from share
   (found from RTTI, and the code using `data/menu/result/result.dat` is next to its functions).
   `mod/` draws the card offer in its place, returning 1 from `onProcess` to keep the menu, and then
   leaves through the game's own exit path by holding `inputMgrs.input.a` at 1 until it closes.
+- **Skill input images:** `data/profile/deck2/022_SkillCard000Cost.bmp` to `004` (64x32) are the deck
+  screen's images, one per skill input, in `cost_or_slot` order. The top half says "Skill Card", the
+  bottom half has the arrows and button name. Paths load as `.bmp` though the archive holds `.cv2`.
+- **Button names:** `profile1.keyboardBindings` holds DirectInput scan codes (name them with
+  `GetKeyNameText`), and `controllerBindings` pad buttons counted from 0, while the key config screen
+  counts from 1.
 - **Card text layout:** descriptions are stored in fixed rows of 36 bytes, padded with spaces and
   sometimes splitting a word. `createFromText` does not wrap, so `mod/` draws each row separately.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).

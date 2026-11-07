@@ -28,7 +28,13 @@ using SokuLib::DrawUtils::Sprite;
 #define SCREEN_H 480
 #define COLS 5
 #define ROWS 4
-#define MAX_TEXTS 64
+#define COLOR_WHITE  0xFFFFFFFFu
+#define COLOR_GREY   0xFFB0B0B0u
+#define COLOR_GOLD   0xFFFFE080u
+#define COLOR_GREEN  0xFF90FF90u
+#define COLOR_RED    0xFFFF9090u
+
+#define MAX_TEXTS 96
 #define NAME_SIZE 96
 #define DESC_SIZE 512
 #define MAX_CARD_TEXT (STS_POOL_MAX_CARDS * 2)
@@ -1042,6 +1048,12 @@ int screen_is_open(void)
 
 void screen_open(void)
 {
+    {
+        /* For checking the hints against the key config screen. */
+        const SokuLib::KeyBindings &k = SokuLib::profile1.keyboardBindings;
+        const SokuLib::KeyBindings &p = SokuLib::profile1.controllerBindings;
+        slog("bindings: keyboard a=%d b=%d c=%d d=%d, pad a=%d b=%d c=%d d=%d", k.a, k.b, k.c, k.d, p.a, p.b, p.c, p.d);
+    }
     g_error[0] = 0;
     g_status[0] = 0;
     load_data();
@@ -1117,9 +1129,100 @@ static void add_label(const char *text, SokuLib::SWRFont &font, int x, int y, in
     s->rect.top = 0;
     s->rect.width = real.x;
     s->rect.height = real.y;
+    s->setRotation(0.0f);
     s->setPosition({x, y});
     s->tint = color;
     g_label_count++;
+}
+
+/* The player's real button, as the game's key config shows it: "Z or Pad2". Takes one of the
+ * fields of KeyBindings. Keeps a few buffers so one line of text can name several buttons. */
+static const char *button_name(int SokuLib::KeyBindings::*field)
+{
+    static char buffers[4][48];
+    static int next = 0;
+    char *out = buffers[next];
+    char key[32] = "";
+    int dik = SokuLib::profile1.keyboardBindings.*field;
+    int pad = SokuLib::profile1.controllerBindings.*field;
+    /* The scan code goes in bits 16-23, with bit 24 marking DirectInput's extended keys. */
+    LONG param = (LONG)((dik & 0x7F) << 16) | ((dik & 0x80) ? (1L << 24) : 0);
+
+    next = (next + 1) % 4;
+    if (!GetKeyNameTextA(param, key, sizeof key))
+        sprintf(key, "Key%d", dik);
+    /* The key config screen counts pad buttons from 1. */
+    if (pad >= 0)
+        _snprintf(out, 47, "%s or Pad%d", key, pad + 1);
+    else
+        _snprintf(out, 47, "%s", key);
+    out[47] = 0;
+    return out;
+}
+
+#define BUTTON_A button_name(&SokuLib::KeyBindings::a)
+#define BUTTON_B button_name(&SokuLib::KeyBindings::b)
+#define BUTTON_C button_name(&SokuLib::KeyBindings::c)
+#define BUTTON_D button_name(&SokuLib::KeyBindings::d)
+
+/* Skill inputs use the game's own deck screen images, one per input, in the skill's
+ * cost_or_slot order. Each has "Skill Card" on its top half and the arrows and button name
+ * on its bottom half; only the arrows are drawn. The positions were measured from the images:
+ * three arrows for most inputs, two for 22. */
+#define SKILL_INPUT_IMAGES 5
+#define SKILL_INPUT_TOP 16
+#define SKILL_INPUT_H 14
+static const int g_input_left[SKILL_INPUT_IMAGES] = { 5, 5, 5, 5, 6 };
+static const int g_input_width[SKILL_INPUT_IMAGES] = { 31, 31, 31, 31, 18 };
+
+typedef struct {
+    int image;
+    int x, y;
+} input_draw;
+
+static Sprite g_input_sprites[SKILL_INPUT_IMAGES];
+static int g_input_loaded[SKILL_INPUT_IMAGES];
+static int g_inputs_ready = 0;
+static input_draw g_input_draws[STS_OFFER_MAX + 1];
+static int g_input_draw_count = 0;
+
+static void load_skill_input_images(void)
+{
+    int i;
+
+    if (g_inputs_ready)
+        return;
+    g_inputs_ready = 1;
+    for (i = 0; i < SKILL_INPUT_IMAGES; i++) {
+        char path[64];
+        Sprite *s = &g_input_sprites[i];
+
+        sprintf(path, "data/profile/deck2/022_SkillCard%03dCost.bmp", i);
+        g_input_loaded[i] = s->texture.loadFromGame(path);
+        if (!g_input_loaded[i]) {
+            slog("could not load %s", path);
+            continue;
+        }
+        s->setSize({(unsigned)g_input_width[i], SKILL_INPUT_H});
+        s->rect.left = g_input_left[i];
+        s->rect.top = SKILL_INPUT_TOP;
+        s->rect.width = g_input_width[i];
+        s->rect.height = SKILL_INPUT_H;
+        s->tint = COLOR_GOLD;
+    }
+}
+
+/* Queues a skill's input image for drawing. */
+static void add_skill_input(int slot, int x, int y)
+{
+    load_skill_input_images();
+    if (slot >= 0 && slot < SKILL_INPUT_IMAGES && g_input_loaded[slot]
+        && g_input_draw_count < (int)(sizeof g_input_draws / sizeof g_input_draws[0])) {
+        input_draw *d = &g_input_draws[g_input_draw_count++];
+        d->image = slot;
+        d->x = x;
+        d->y = y;
+    }
 }
 
 /* Copies up to cols bytes of s into out, never splitting a two-byte Shift-JIS character.
@@ -1203,35 +1306,45 @@ static void load_deck_art(void)
     g_deck_art_dirty = 0;
 }
 
-static const char *card_label(const sts_card *c, char *buf)
+/* The card's type line. Skills also show their input and button, as the game's deck screen does. */
+static void add_card_kind(const sts_card *c, int x, int y, int w)
 {
-    char skill[STS_SKILL_LABEL_SIZE];
+    char text[48], skill[STS_SKILL_LABEL_SIZE];
 
     switch (c->type) {
     case STS_CARD_SYSTEM:
-        sprintf(buf, "System, cost %d", c->cost_or_slot);
-        break;
-    case STS_CARD_SKILL:
-        if (sts_skill_label(&g_db, g_run.character, c->id, skill))
-            sprintf(buf, "Skill, %s", skill);
-        else
-            sprintf(buf, "Skill");
+        sprintf(text, "System, cost %d", c->cost_or_slot);
         break;
     case STS_CARD_SPELL:
-        sprintf(buf, "Spell, cost %d", c->cost_or_slot);
+        sprintf(text, "Spell, cost %d", c->cost_or_slot);
+        break;
+    case STS_CARD_SKILL:
+        if (sts_skill_label(&g_db, g_run.character, c->id, skill)) {
+            int start = x, before = g_label_count, number_w = 0, slot = c->cost_or_slot;
+
+            /* "Skill, a" and "214" are separate so the arrows can centre over the digits. */
+            sprintf(text, "Skill, %c", skill[0]);
+            add_label(text, g_font_small, x, y, w, 20, COLOR_GOLD);
+            if (g_label_count > before)
+                x += (int)g_labels[before].getSize().x;
+            before = g_label_count;
+            add_label(skill + 1, g_font_small, x, y, 40, 20, COLOR_GOLD);
+            if (g_label_count > before)
+                number_w = (int)g_labels[before].getSize().x;
+            if (slot < SKILL_INPUT_IMAGES) {
+                int arrows_x = x + (number_w - g_input_width[slot]) / 2;
+                add_skill_input(slot, arrows_x > start ? arrows_x : start, y - SKILL_INPUT_H);
+            }
+            return;
+        }
+        sprintf(text, "Skill");
         break;
     default:
-        buf[0] = 0;
+        text[0] = 0;
         break;
     }
-    return buf;
+    add_label(text, g_font_small, x, y, w, 20, COLOR_GOLD);
 }
-
-#define COLOR_WHITE  0xFFFFFFFFu
-#define COLOR_GREY   0xFFB0B0B0u
-#define COLOR_GOLD   0xFFFFE080u
-#define COLOR_GREEN  0xFF90FF90u
-#define COLOR_RED    0xFFFF9090u
 
 #define OFFER_W 180
 #define OFFER_GAP 16
@@ -1273,14 +1386,16 @@ static void rebuild_choose(void)
         }
         add_label(line, g_font_small, x + 6, y + 32, 110, 20, color);
     }
-    add_label(g_alt_armed ? "Press C again to discard this character's run and start over."
-                          : "A: open   B: close   C twice: start over",
-              g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
+    if (g_alt_armed)
+        sprintf(line, "Press %s again to discard this character's run and start over.", BUTTON_C);
+    else
+        sprintf(line, "%s: open   %s: close   %s twice: start over", BUTTON_A, BUTTON_B, BUTTON_C);
+    add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
 static void rebuild_draft(void)
 {
-    char line[128], kind[48];
+    char line[192];
     int i;
 
     if (g_state == ST_REWARD) {
@@ -1307,7 +1422,7 @@ static void rebuild_draft(void)
         load_art(i, o->id, x + 8, OFFER_Y + 8);
         add_wrapped(t ? t->name : "?", g_font_small, x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3, COLOR_WHITE);
         if (c)
-            add_label(card_label(c, kind), g_font_small, x + 8, OFFER_Y + 202, OFFER_W - 16, 20, COLOR_GOLD);
+            add_card_kind(c, x + 8, OFFER_Y + 202, OFFER_W - 16);
         if (o->copies > 1) {
             sprintf(line, "x%d", o->copies);
             add_label(line, g_font_big, x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
@@ -1319,23 +1434,27 @@ static void rebuild_draft(void)
         if (t)
             add_wrapped(t->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, 36, 0, 6, COLOR_WHITE);
     }
-    add_label(g_state == ST_REWARD ? "Left/Right: choose   A: take"
-                                   : "Left/Right: choose   A: take   B: back (progress is saved)",
-              g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    if (g_state == ST_REWARD)
+        sprintf(line, "Left/Right: choose   %s: take", BUTTON_A);
+    else
+        sprintf(line, "Left/Right: choose   %s: take   %s: back (progress is saved)", BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
 /* Name, type and description of one card, starting at y. */
 static void add_card_details(uint16_t id, int y)
 {
-    char kind[48];
     const card_text *t = find_text(id);
     const sts_card *c = sts_card_db_find(&g_db, g_run.character, id);
 
+    /* A skill's arrows sit above its type line, so they need room under the name. */
+    int kind_y = y + (c && c->type == STS_CARD_SKILL ? 42 : 28);
+
     add_label(t ? t->name : "?", g_font_big, 24, y, 592, 28, COLOR_WHITE);
     if (c)
-        add_label(card_label(c, kind), g_font_small, 24, y + 28, 592, 20, COLOR_GOLD);
+        add_card_kind(c, 24, kind_y, 592);
     if (t)
-        add_wrapped(t->desc, g_font_small, 24, y + 48, 592, 17, 36, 0, 6, COLOR_WHITE);
+        add_wrapped(t->desc, g_font_small, 24, kind_y + 20, 592, 17, 36, 0, 6, COLOR_WHITE);
 }
 
 static void rebuild_reward_remove(void)
@@ -1352,7 +1471,8 @@ static void rebuild_reward_remove(void)
         add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
     sprintf(line, "Replacing with %dx %.90s. Choose %d more.", o->copies, t ? t->name : "?", remaining);
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
-    add_label("Arrows: choose   A: select   B: back to the offers", g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, "Arrows: choose   %s: select   %s: back to the offers", BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
 static void rebuild_reward_type(void)
@@ -1378,12 +1498,13 @@ static void rebuild_reward_type(void)
     }
     sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.", o->copies, t ? t->name : "?");
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
-    add_label("Up/Down: choose   A: confirm   B: back to the offers", g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, "Up/Down: choose   %s: confirm   %s: back to the offers", BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
 static void rebuild_deck(void)
 {
-    char line[128];
+    char line[192];
     int rows = (g_run.deck.count + DECK_COLS - 1) / DECK_COLS;
     int y;
 
@@ -1402,11 +1523,13 @@ static void rebuild_deck(void)
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], y);
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
-    add_label(run_deck_in_use() ? "D: stop using this run" : "D: use this run",
-              g_font_small, 20, 416, 600, 20, COLOR_WHITE);
-    add_label(g_alt_armed ? "Press C again to discard this run and start over."
-                          : "Arrows: inspect   A or B: back   C twice: start over",
-              g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
+    sprintf(line, "%s: %s", BUTTON_D, run_deck_in_use() ? "stop using this run" : "use this run");
+    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_WHITE);
+    if (g_alt_armed)
+        sprintf(line, "Press %s again to discard this run and start over.", BUTTON_C);
+    else
+        sprintf(line, "Arrows: inspect   %s: back   %s twice: start over", BUTTON_B, BUTTON_C);
+    add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
 static void rebuild(void)
@@ -1419,6 +1542,7 @@ static void rebuild(void)
         g_fonts_ready = 1;
     }
     g_label_count = 0;
+    g_input_draw_count = 0;
     for (i = 0; i < STS_OFFER_MAX; i++)
         g_has_art[i] = 0;
 
@@ -1493,4 +1617,10 @@ void screen_render(int opaque)
     }
     for (i = 0; i < g_label_count; i++)
         g_labels[i].draw();
+    for (i = 0; i < g_input_draw_count; i++) {
+        Sprite *s = &g_input_sprites[g_input_draws[i].image];
+
+        s->setPosition({g_input_draws[i].x, g_input_draws[i].y});
+        s->draw();
+    }
 }
