@@ -138,8 +138,12 @@ static int load_data(void);
 
 /* ---------- data ---------- */
 
+/* The log is also written from the threads that handle packets. */
+static CRITICAL_SECTION g_log_lock;
+
 void screen_set_dir(const char *dir)
 {
+    InitializeCriticalSection(&g_log_lock);
     strncpy(g_dir, dir, sizeof g_dir - 1);
 }
 
@@ -268,24 +272,26 @@ static const card_text *find_text(uint16_t id)
 /* ---------- log ---------- */
 
 /* sts.log next to the DLL, restarted each launch. Holds no IPs or player names. */
-static void slog(const char *fmt, ...)
+void slog(const char *fmt, ...)
 {
     static FILE *f = NULL;
     va_list ap;
 
+    EnterCriticalSection(&g_log_lock);
     if (!f) {
         char path[MAX_PATH + 32];
         sprintf(path, "%ssts.log", g_dir);
         f = fopen(path, "w");
-        if (!f)
-            return;
     }
-    fprintf(f, "[%lu] ", (unsigned long)GetTickCount());
-    va_start(ap, fmt);
-    vfprintf(f, fmt, ap);
-    va_end(ap);
-    fputc('\n', f);
-    fflush(f);
+    if (f) {
+        fprintf(f, "[%lu] ", (unsigned long)GetTickCount());
+        va_start(ap, fmt);
+        vfprintf(f, fmt, ap);
+        va_end(ap);
+        fputc('\n', f);
+        fflush(f);
+    }
+    LeaveCriticalSection(&g_log_lock);
 }
 
 static void ids_text(char *out, size_t size, SokuLib::Dequeue<unsigned short> &dq)
@@ -314,6 +320,22 @@ static int g_have_real_deck = 0;
 static SokuLib::Dequeue<unsigned short> &active_slot(void)
 {
     return SokuLib::profile1.cards[g_active_character][RUN_DECK_SLOT];
+}
+
+int deck_matches_active(int character, const unsigned short *ids, int count)
+{
+    static sts_deck given, expected;
+    int i;
+
+    if (!g_active || character != g_active_character || count != g_active_deck.count)
+        return 0;
+    sts_deck_clear(&given);
+    for (i = 0; i < count; i++)
+        sts_deck_add(&given, ids[i]);
+    sts_deck_sort(&given);
+    expected = g_active_deck;
+    sts_deck_sort(&expected);
+    return memcmp(given.ids, expected.ids, (size_t)count * 2) == 0;
 }
 
 static int slot_holds_active_deck(void)

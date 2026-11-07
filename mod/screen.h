@@ -8,6 +8,12 @@
 /* Sets the folder holding cards.csv, settings.ini and run saves. Ends in a backslash. */
 void screen_set_dir(const char *dir);
 
+/* Adds a line to sts.log. Safe from any thread. */
+void slog(const char *fmt, ...);
+
+/* Is this the run deck in use, for that character? Cards in any order. */
+int deck_matches_active(int character, const unsigned short *ids, int count);
+
 int screen_is_open(void);
 void screen_open(void);
 

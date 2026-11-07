@@ -3,7 +3,32 @@
 #include <windows.h>
 #include <shlwapi.h>
 #include <string.h>
+#include "netlog.h"
 #include "screen.h"
+
+/* Netplay scenes: logged for now, with no change to how they run. */
+#define NET_SCENE_HOOK(Type, name) \
+    static int (SokuLib::Type::*g_og_##Type)(); \
+    static int __fastcall on_##Type(SokuLib::Type *This) \
+    { \
+        netlog_scene(name); \
+        return (This->*g_og_##Type)(); \
+    }
+#define NET_BATTLE_HOOK(Type, name) \
+    static int (SokuLib::Type::*g_og_##Type)(); \
+    static int __fastcall on_##Type(SokuLib::Type *This) \
+    { \
+        netlog_scene(name); \
+        deck_on_battle_frame(); \
+        return (This->*g_og_##Type)(); \
+    }
+
+NET_SCENE_HOOK(SelectServer, "character select, as host")
+NET_SCENE_HOOK(SelectClient, "character select, as client")
+NET_SCENE_HOOK(LoadingServer, "loading, as host")
+NET_SCENE_HOOK(LoadingClient, "loading, as client")
+NET_BATTLE_HOOK(BattleServer, "battle, as host")
+NET_BATTLE_HOOK(BattleClient, "battle, as client")
 
 static int (SokuLib::Title::*g_og_title_process)();
 static int (SokuLib::Title::*g_og_title_render)();
@@ -125,6 +150,7 @@ static int __fastcall on_battle_process(SokuLib::Battle *This)
  * takes its place. */
 static int __fastcall on_result_process(SokuLib::MenuResult *This)
 {
+    netlog_scene("the screen after a match");
     if (!g_result_closing) {
         deck_on_result_frame();
         if (deck_take_result_skip()) {
@@ -174,6 +200,8 @@ extern "C" __declspec(dllexport) bool CheckVersion(const BYTE hash[16])
 extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
 {
     char dir[MAX_PATH];
+    char observer_path[MAX_PATH + 16];
+    int observer;
     DWORD old;
 
     (void)parent;
@@ -182,14 +210,30 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     PathAddBackslashA(dir);
     screen_set_dir(dir);
 
+    /* Development aid: with observer.txt beside the DLL, only netplay is logged. No screens, no
+     * deck writes, so an install can stand in for a vanilla opponent and still show its side. */
+    strcpy(observer_path, dir);
+    strcat(observer_path, "observer.txt");
+    observer = PathFileExistsA(observer_path);
+    slog("started%s", observer ? " as a log-only observer" : "");
+
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
-    g_og_title_process = SokuLib::TamperDword(&SokuLib::VTable_Title.onProcess, on_title_process);
-    g_og_title_render = SokuLib::TamperDword(&SokuLib::VTable_Title.onRender, on_title_render);
-    g_og_select_process = SokuLib::TamperDword(&SokuLib::VTable_Select.onProcess, on_select_process);
-    g_og_select_render = SokuLib::TamperDword(&SokuLib::VTable_Select.onRender, on_select_render);
-    g_og_battle_process = SokuLib::TamperDword(&SokuLib::VTable_Battle.onProcess, on_battle_process);
-    g_og_result_process = SokuLib::TamperDword(&g_vtable_match_end.onProcess, on_result_process);
-    g_og_result_render = SokuLib::TamperDword(&g_vtable_match_end.onRender, on_result_render);
+    if (!observer) {
+        g_og_title_process = SokuLib::TamperDword(&SokuLib::VTable_Title.onProcess, on_title_process);
+        g_og_title_render = SokuLib::TamperDword(&SokuLib::VTable_Title.onRender, on_title_render);
+        g_og_select_process = SokuLib::TamperDword(&SokuLib::VTable_Select.onProcess, on_select_process);
+        g_og_select_render = SokuLib::TamperDword(&SokuLib::VTable_Select.onRender, on_select_render);
+        g_og_battle_process = SokuLib::TamperDword(&SokuLib::VTable_Battle.onProcess, on_battle_process);
+        g_og_result_process = SokuLib::TamperDword(&g_vtable_match_end.onProcess, on_result_process);
+        g_og_result_render = SokuLib::TamperDword(&g_vtable_match_end.onRender, on_result_render);
+    }
+    g_og_SelectServer = SokuLib::TamperDword(&SokuLib::VTable_SelectServer.onProcess, on_SelectServer);
+    g_og_SelectClient = SokuLib::TamperDword(&SokuLib::VTable_SelectClient.onProcess, on_SelectClient);
+    g_og_LoadingServer = SokuLib::TamperDword(&SokuLib::VTable_LoadingServer.onProcess, on_LoadingServer);
+    g_og_LoadingClient = SokuLib::TamperDword(&SokuLib::VTable_LoadingClient.onProcess, on_LoadingClient);
+    g_og_BattleServer = SokuLib::TamperDword(&SokuLib::VTable_BattleServer.onProcess, on_BattleServer);
+    g_og_BattleClient = SokuLib::TamperDword(&SokuLib::VTable_BattleClient.onProcess, on_BattleClient);
+    netlog_install();
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
     FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
     return true;

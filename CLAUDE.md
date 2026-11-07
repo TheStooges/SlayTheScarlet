@@ -280,6 +280,28 @@ Netplay is a primary requirement. Each machine simulates both players from share
   sometimes splitting a word. `createFromText` does not wrap, so `mod/` draws each row separately.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
 
+### Findings from netplay (loopback, modded against an install without the mod, Giuroll on both)
+
+- **A deck written to memory reaches the opponent.** With the run deck written to `profile1`, as host
+  and as client, the sent `GAME_MATCH` carried it, the modded side loaded it, and the unmodded side
+  visibly played against it (seen on screen, not logged). No packet change is needed. Compatible mode's
+  slot injection works as designed.
+- **Each side only sends its own deck.** A `GAME_MATCH` from the host has the host's deck and 0 cards
+  for the client, and the reverse from the client. The other player's character bytes in that packet
+  can be junk, and so can the client's own (seen as 2, skin 119, deck 246, while the match used the
+  right ones), so do not rely on them. Packets are 59 bytes for two 20-card decks in total.
+- **The local player's deck is in `profile1` on both sides.** As client the player is on the right
+  (`rightPlayerInfo`) but their deck still comes from `profile1`. Which side a run deck is on follows
+  from the role, not the profile.
+- **Modes:** `mainMode` is 4 as host and 5 as client. After a match as client the scene hooked as
+  `SelectServer` ran with mode 5, so use `mainMode` for the role, not which vtable fired.
+- **The post-match screen is `CMenuEnd` online too**, and runs on top of the battle scene: both
+  `onProcess` hooks fire every frame, so the game (and network handling) keeps running under it.
+- **Packet types seen** (first byte): 0x01, 0x03-0x06, 0x0B, 0x0D, 0x0E, and 0x43, 0x6B, 0x6E, 0x9C,
+  the last four presumably from Giuroll. Pick mod message IDs outside these.
+- **Port clash when testing on one PC:** `clientport` in `configex123.ini` must be 0 on the side that
+  joins. If it matches the host's port, the two instances cannot connect.
+
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
 
 **Profile `.pf` deck format** (verified by parsing a real profile end to end):
