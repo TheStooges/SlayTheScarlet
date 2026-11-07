@@ -15,6 +15,13 @@ add_library(SlayTheScarlet MODULE
   screen_draw.cpp)
 set_target_properties(SlayTheScarlet PROPERTIES CXX_STANDARD 17)
 target_compile_options(SlayTheScarlet PRIVATE /Zi)
+# Release keeps a PDB for reading crash dumps. PDBALTPATH keeps the build folder, and so the
+# developer's Windows user name, out of the DLL.
+target_link_options(SlayTheScarlet PRIVATE
+  $<$<CONFIG:Release>:/DEBUG>
+  $<$<CONFIG:Release>:/OPT:REF>
+  $<$<CONFIG:Release>:/OPT:ICF>
+  $<$<CONFIG:Release>:/PDBALTPATH:SlayTheScarlet.pdb>)
 target_compile_definitions(SlayTheScarlet PRIVATE
   DIRECTINPUT_VERSION=0x0800 _CRT_SECURE_NO_WARNINGS $<$<CONFIG:Debug>:_DEBUG>)
 target_include_directories(SlayTheScarlet PRIVATE ${CMAKE_SOURCE_DIR}/lib/SokuLib/directx)

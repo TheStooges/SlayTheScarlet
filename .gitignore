@@ -40,6 +40,9 @@
 cmake-build-*
 build
  
+# Finished release zips and their debug files.
+release/
+
 # Reference material.
 reference/
 

@@ -67,7 +67,8 @@ cmake .. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build . --target <TargetName>
 ```
 
-- Release builds: `-DCMAKE_BUILD_TYPE=Release -DFORCE_PDB=ON` (keeps a PDB for crash dumps).
+- Release builds: `-DCMAKE_BUILD_TYPE=Release`. They keep a separate PDB for reading crash dumps; keep
+  the one matching each release. Finished releases go in the gitignored `release/` folder.
 - If CMake was configured in the wrong prompt, delete `build/` and reconfigure; the compiler
   choice is cached.
 - Register the DLL in the game's `SWRSToys.ini` with an absolute, forward-slash path:

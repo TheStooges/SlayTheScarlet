@@ -13,8 +13,6 @@ player with the mod and a player without it, so expect rough edges and please re
 
 - Hisoutensoku **v1.10a**. The English translation (`th123e`) is fine.
 - **SWRSToys**, the mod loader included in the usual community bundles.
-- The **DirectX End-User Runtime**, which provides `d3dx9_43.dll`. If the mod fails to load, install
-  it from <https://www.microsoft.com/en-us/download/details.aspx?id=35>.
 - A fully unlocked save (`score123.dat`), as the community normally uses. Other saves have not been tested.
 - **EasyDecks and InfiniteDecks must be disabled.** Their editors could save a run deck over your real
   deck, so runs are refused while either one is loaded.
