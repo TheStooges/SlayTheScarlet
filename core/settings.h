@@ -41,6 +41,9 @@ typedef struct {
     sts_pick_visibility pick_visibility;
     sts_opponent_deck opponent_deck;
     int items_enabled;
+    /* May a run made under other rules carry on under these? This says how to treat a
+     * rule change rather than being a rule, so it is not part of the fingerprint. */
+    int allow_rule_changes;
 } sts_settings;
 
 typedef enum {

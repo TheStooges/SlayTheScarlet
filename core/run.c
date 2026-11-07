@@ -433,3 +433,34 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
     }
     return STS_RUN_OK;
 }
+
+sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const sts_settings *settings)
+{
+    const sts_offer_settings *cfg = run->phase == STS_PHASE_DRAFT ? &settings->draft : &settings->reward;
+    sts_run updated = *run;
+    sts_run_status st;
+    int i, offers_valid = 1;
+
+    updated.settings_hash = sts_settings_hash(settings);
+    st = sts_run_validate(&updated, db, settings);
+    if (st != STS_RUN_OK)
+        return st;
+
+    for (i = 0; i < updated.offer_count; i++)
+        if (!sts_offer_is_valid(db, updated.character, &updated.deck, &settings->rules, cfg, &updated.offers[i]))
+            offers_valid = 0;
+
+    if (!offers_valid) {
+        if (updated.phase == STS_PHASE_DRAFT) {
+            st = advance_draft(&updated, db, settings);
+            if (st != STS_RUN_OK)
+                return st;
+        } else {
+            roll_offers(&updated, db, &settings->rules, cfg);
+            if (updated.offer_count == 0)
+                updated.phase = STS_PHASE_READY;
+        }
+    }
+    *run = updated;
+    return STS_RUN_OK;
+}

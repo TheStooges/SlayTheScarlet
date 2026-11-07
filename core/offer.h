@@ -64,6 +64,11 @@ int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *dec
                        const sts_rules *rules, const sts_offer_settings *settings,
                        sts_rng *rng, sts_offer *out, int max_out);
 
+/* Returns 1 if the generator could have made this exact offer: used to check an offer made
+ * earlier, such as one from a save, against the rules now. */
+int sts_offer_is_valid(const sts_card_db *db, int character, const sts_deck *deck,
+                       const sts_rules *rules, const sts_offer_settings *settings, const sts_offer *offer);
+
 /* ---------- applying a taken offer ----------
  *
  * Each function works on a copy and only changes the deck if the result is legal, so a

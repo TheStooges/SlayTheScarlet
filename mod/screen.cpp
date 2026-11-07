@@ -44,7 +44,8 @@ typedef enum {
     ST_REWARD,          /* offers after a match */
     ST_REWARD_TYPE,     /* REPLACE by type: which type leaves */
     ST_REWARD_REMOVE,   /* REPLACE by choice: which cards leave */
-    ST_REWARD_CONFIRM   /* REPLACE by choice: last check before the swap */
+    ST_REWARD_CONFIRM,  /* REPLACE by choice: last check before the swap */
+    ST_RULES            /* the run was made under other rules: carry on or start over? */
 } screen_state;
 typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
 
@@ -70,6 +71,13 @@ static sts_run g_run;
 static sts_run_phase g_saved_phase[STS_NUM_CHARACTERS];
 static int g_saved_picks[STS_NUM_CHARACTERS];
 static int g_has_save[STS_NUM_CHARACTERS];
+static int g_saved_rules_changed[STS_NUM_CHARACTERS];
+/* The run that was in use when the game closed, if the rules have changed since. Its deck is not
+ * used until the player decides what to do about it. -1 if there is no such run. */
+static int g_rules_changed_character = -1;
+static int g_rules_can_continue = 0;
+static int g_rules_start_over_armed = 0;
+static char g_rules_problem[128];
 
 static card_text g_texts[MAX_CARD_TEXT];
 static int g_text_count = 0;
@@ -193,6 +201,7 @@ static void scan_saves(void)
         g_has_save[c] = sts_run_load(path, &tmp) == STS_RUN_OK;
         g_saved_phase[c] = tmp.phase;
         g_saved_picks[c] = tmp.picks_done;
+        g_saved_rules_changed[c] = g_has_save[c] && tmp.settings_hash != sts_settings_hash(&g_settings);
     }
 }
 
@@ -429,6 +438,7 @@ static int activate_run_deck(void)
         return 0;
     }
     save_active_file();
+    g_rules_changed_character = -1;
     slog("using run deck for character %d, slot %d, %d cards", g_active_character, RUN_DECK_SLOT, g_active_deck.count);
     return 1;
 }
@@ -457,13 +467,23 @@ static void resume_active_run(void)
         character = -1;
     fclose(f);
 
-    if (character >= 0 && character < STS_NUM_CHARACTERS && load_data()) {
+    if (character >= 0 && character < STS_NUM_CHARACTERS) {
         sts_run_status st;
 
+        /* A typo in settings.ini is no reason to forget which run was in use. */
+        if (!load_data()) {
+            slog("could not resume the run for character %d: %s", character, g_error);
+            return;
+        }
         run_path(path, sizeof path, character);
         st = sts_run_load(path, &g_run);
         if (st == STS_RUN_OK)
             st = sts_run_validate(&g_run, &g_db, &g_settings);
+        if (st == STS_RUN_SETTINGS_CHANGED) {
+            g_rules_changed_character = character;
+            slog("the rules changed since the run for character %d was saved", character);
+            return;
+        }
         if (st == STS_RUN_OK && g_run.phase != STS_PHASE_DRAFT) {
             activate_run_deck();
             /* An offer left on screen when the game closed comes straight back. */
@@ -865,8 +885,53 @@ static void start_new_run(int character)
     /* That character's old run deck is finished with. */
     if (g_active && g_active_character == character)
         deactivate_run_deck();
+    if (g_rules_changed_character == character) {
+        g_rules_changed_character = -1;
+        save_active_file();
+    }
     save_run();
     enter_phase();
+}
+
+/* The choices on the rule change screen. Carrying on is left out when it is not possible. */
+typedef enum { RULES_CARRY_ON, RULES_BACK, RULES_START_OVER } rules_option;
+#define RULES_ROW_Y 150
+#define RULES_ROW_PITCH 70
+
+static int rules_option_count(void)
+{
+    return g_rules_can_continue ? 3 : 2;
+}
+
+static rules_option rules_option_at(int index)
+{
+    return (rules_option)(g_rules_can_continue ? index : index + 1);
+}
+
+/* Works out whether g_run, made under other rules, can carry on under the current ones. */
+static void enter_rules_screen(void)
+{
+    static sts_run trial;
+    sts_run_status st;
+
+    g_state = ST_RULES;
+    g_cursor = 0;
+    g_rules_start_over_armed = 0;
+    g_rules_problem[0] = 0;
+    g_dirty = 1;
+
+    trial = g_run;
+    st = sts_run_adopt_rules(&trial, &g_db, &g_settings);
+    g_rules_can_continue = g_settings.allow_rule_changes && st == STS_RUN_OK;
+    if (!g_settings.allow_rule_changes) {
+        sprintf(g_rules_problem, "The current settings do not allow a run to carry on under new rules.");
+    } else if (st != STS_RUN_OK) {
+        sts_deck_status deck = sts_deck_validate(&g_run.deck, &g_settings.rules, NULL);
+
+        _snprintf(g_rules_problem, sizeof g_rules_problem - 1, "It cannot carry on under them: %s.",
+                  deck != STS_DECK_OK ? sts_deck_status_str(deck) : sts_run_status_str(st));
+        g_rules_problem[sizeof g_rules_problem - 1] = 0;
+    }
 }
 
 static void open_character(int character)
@@ -886,6 +951,10 @@ static void open_character(int character)
     }
     if (st == STS_RUN_OK)
         st = sts_run_validate(&g_run, &g_db, &g_settings);
+    if (st == STS_RUN_SETTINGS_CHANGED) {
+        enter_rules_screen();
+        return;
+    }
     if (st != STS_RUN_OK) {
         set_error(sts_character_name(character), sts_run_status_str(st));
         return;
@@ -1156,6 +1225,73 @@ static void handle_event(screen_event ev)
         }
         break;
 
+    case ST_RULES:
+        switch (ev) {
+        case EV_LEFT:
+        case EV_RIGHT:
+        case EV_UP:
+        case EV_DOWN: {
+            int count = rules_option_count();
+            int step = (ev == EV_DOWN || ev == EV_RIGHT) ? 1 : count - 1;
+
+            g_cursor = (g_cursor + step) % count;
+            g_rules_start_over_armed = 0;
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+            g_dirty = 1;
+            break;
+        }
+        case EV_CONFIRM:
+            switch (rules_option_at(g_cursor)) {
+            case RULES_CARRY_ON: {
+                sts_run_status st = sts_run_adopt_rules(&g_run, &g_db, &g_settings);
+
+                if (st != STS_RUN_OK) {
+                    set_error("Could not carry on", sts_run_status_str(st));
+                    break;
+                }
+                slog("run for character %d now follows the current rules", g_run.character);
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+                save_run();
+                /* The run that was in use before the rules changed goes back into use. */
+                if (g_rules_changed_character == g_run.character && g_run.phase != STS_PHASE_DRAFT)
+                    activate_run_deck();
+                enter_phase();
+                break;
+            }
+            case RULES_BACK:
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+                go_to_chooser();
+                break;
+            case RULES_START_OVER:
+                /* A second press is needed, so one slip cannot lose the run. */
+                if (!g_rules_start_over_armed) {
+                    g_rules_start_over_armed = 1;
+                    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+                    g_dirty = 1;
+                    break;
+                }
+                g_rules_start_over_armed = 0;
+                g_error[0] = 0;
+                g_status[0] = 0;
+                SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+                start_new_run(g_run.character);
+                break;
+            }
+            break;
+        case EV_CANCEL:
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            if (g_rules_start_over_armed) {
+                g_rules_start_over_armed = 0;
+                g_dirty = 1;
+            } else {
+                go_to_chooser();
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+
     case ST_CLOSED:
         break;
     }
@@ -1264,7 +1400,8 @@ void screen_render_title_hint(void)
 {
     static Sprite lines[2];
     static int shown_for = -2;
-    int now = g_active ? g_active_character : -1;
+    int blocked = !g_active && g_rules_changed_character >= 0;
+    int now = blocked ? 100 + g_rules_changed_character : g_active ? g_active_character : -1;
     int i;
 
     /* The text only needs making again when the run in use changes. */
@@ -1273,11 +1410,13 @@ void screen_render_title_hint(void)
 
         ensure_fonts();
         make_hint_line(&lines[0], "F7: Slay the Scarlet", 422, COLOR_WHITE);
-        if (g_active)
+        if (blocked)
+            sprintf(text, "%s: rules changed", sts_character_name(g_rules_changed_character));
+        else if (g_active)
             sprintf(text, "In use: %s", sts_character_name(g_active_character));
         else
             sprintf(text, "No run in use");
-        make_hint_line(&lines[1], text, 438, g_active ? COLOR_GREEN : COLOR_GREY);
+        make_hint_line(&lines[1], text, 438, blocked ? COLOR_RED : g_active ? COLOR_GREEN : COLOR_GREY);
         shown_for = now;
     }
     for (i = 0; i < 2; i++)
@@ -1540,7 +1679,10 @@ static void rebuild_choose(void)
         add_label(sts_character_name(c), g_font_big, x + 6, y + 6, 110, 26, COLOR_WHITE);
         line[0] = 0;
         if (g_has_save[c]) {
-            if (g_saved_phase[c] == STS_PHASE_DRAFT) {
+            if (g_saved_rules_changed[c]) {
+                sprintf(line, "Rules changed");
+                color = COLOR_RED;
+            } else if (g_saved_phase[c] == STS_PHASE_DRAFT) {
                 sprintf(line, "Draft %d/%d", g_saved_picks[c], g_settings.draft_picks);
                 color = COLOR_GOLD;
             } else if (g_saved_phase[c] == STS_PHASE_REWARD) {
@@ -1699,6 +1841,44 @@ static void rebuild_reward_remove(void)
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
+static void rebuild_rules(void)
+{
+    char line[192];
+    int i;
+
+    sprintf(line, "%s: the rules have changed", sts_character_name(g_run.character));
+    add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    add_label("This run was made under different rules from the current settings.",
+              g_font_small, 40, 80, 580, 20, COLOR_WHITE);
+    add_label(g_rules_problem, g_font_small, 40, 106, 580, 20, COLOR_RED);
+
+    for (i = 0; i < rules_option_count(); i++) {
+        int y = RULES_ROW_Y + i * RULES_ROW_PITCH;
+        const char *note = NULL;
+
+        switch (rules_option_at(i)) {
+        case RULES_CARRY_ON:
+            add_label("Carry on under the current rules", g_font_big, 56, y, 500, 28, COLOR_WHITE);
+            note = "Your deck and progress stay as they are.";
+            break;
+        case RULES_BACK:
+            add_label("Back", g_font_big, 56, y, 500, 28, COLOR_WHITE);
+            note = "Leaves the run as it is.";
+            break;
+        case RULES_START_OVER:
+            add_label("Start over", g_font_big, 56, y, 500, 28, g_rules_start_over_armed ? COLOR_RED : COLOR_WHITE);
+            note = "Discards this run's deck and progress.";
+            break;
+        }
+        add_label(note, g_font_small, 72, y + 26, 500, 20, COLOR_GREY);
+    }
+    if (g_rules_start_over_armed)
+        sprintf(line, "Press %s again to discard this run.   %s: cancel", BUTTON_A, BUTTON_B);
+    else
+        sprintf(line, "Up/Down: choose   %s: select   %s: back", BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, g_rules_start_over_armed ? COLOR_RED : COLOR_GREY);
+}
+
 static void rebuild_reward_type(void)
 {
     static const char *const names[3] = { "System cards", "Skill cards", "Spell cards" };
@@ -1779,6 +1959,7 @@ static void rebuild(void)
         rebuild_reward_remove();
         break;
     case ST_REWARD_TYPE:   rebuild_reward_type(); break;
+    case ST_RULES:         rebuild_rules(); break;
     case ST_CLOSED:        break;
     }
     add_label(g_error, g_font_small, 20, 416, 600, 20, COLOR_RED);
@@ -1808,6 +1989,10 @@ void screen_render(int opaque)
         draw_box(x, y, 116, 60, 0x60FFE080u, 0xFFFFE080u);
     } else if (g_state == ST_REWARD_TYPE) {
         draw_box(44, 104 + g_cursor * 50, 552, 38, 0x60FFE080u, 0xFFFFE080u);
+    } else if (g_state == ST_RULES) {
+        draw_box(44, RULES_ROW_Y - 6 + g_cursor * RULES_ROW_PITCH, 552, 58,
+                 g_rules_start_over_armed ? 0x60FF6060u : 0x60FFE080u,
+                 g_rules_start_over_armed ? 0xFFFF6060u : 0xFFFFE080u);
     } else if (g_state == ST_DRAFT || g_state == ST_REWARD) {
         for (i = 0; i < g_run.offer_count && i < STS_OFFER_MAX; i++) {
             int selected = i == g_cursor;

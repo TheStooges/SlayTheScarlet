@@ -57,6 +57,7 @@ void sts_settings_defaults(sts_settings *s)
     s->pick_visibility = STS_VISIBILITY_AFTER_CONFIRM;
     s->opponent_deck = STS_OPPONENT_DECK_CHANGE;
     s->items_enabled = 0;
+    s->allow_rule_changes = 0;
 }
 
 static int set_int(const char *value, int min, int max, int *out)
@@ -176,6 +177,9 @@ static int set_key(sts_settings *s, const char *section, const char *key, char *
     } else if (strcmp(section, "items") == 0) {
         if (strcmp(key, "enabled") == 0)
             return find_named(value, g_bool, &s->items_enabled);
+    } else if (strcmp(section, "run") == 0) {
+        if (strcmp(key, "allow_rule_changes") == 0)
+            return find_named(value, g_bool, &s->allow_rule_changes);
     }
     return -1;
 }
@@ -183,7 +187,7 @@ static int set_key(sts_settings *s, const char *section, const char *key, char *
 static int known_section(const char *name)
 {
     return strcmp(name, "deck") == 0 || strcmp(name, "draft") == 0 || strcmp(name, "reward") == 0
-        || strcmp(name, "netplay") == 0 || strcmp(name, "items") == 0;
+        || strcmp(name, "netplay") == 0 || strcmp(name, "items") == 0 || strcmp(name, "run") == 0;
 }
 
 static char *trim(char *s)

@@ -1585,6 +1585,96 @@ static void test_run_endurance(void)
     CHECK(violations == 0);
 }
 
+/* A run moved onto new rules: kept when it can be, refused when its deck cannot follow. */
+static void test_run_adopt_rules(void)
+{
+    static sts_run run, before;
+    sts_settings s, changed;
+    sts_reward_outcome out;
+    int i, line = 0;
+
+    sts_settings_defaults(&s);
+    CHECK(s.allow_rule_changes == 0);
+
+    /* The setting parses, and how a rule change is treated is not itself a rule. */
+    CHECK(parse_ini("[run]\nallow_rule_changes=true\n", &changed, &line) == STS_SETTINGS_OK);
+    CHECK(changed.allow_rule_changes == 1);
+    CHECK(sts_settings_hash(&changed) == sts_settings_hash(&s));
+    CHECK(parse_ini("[run]\nallow_rule_changes=1\n", &changed, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[run]\nnope=true\n", &changed, &line) == STS_SETTINGS_UNKNOWN_KEY);
+
+    /* A ready run carries on under compatible rules and then validates. */
+    ready_run(&run, &s, 0, 51);
+    before = run;
+    changed = s;
+    changed.reward.replace = STS_REPLACE_RANDOM;
+    CHECK(sts_run_validate(&run, &g_db, &changed) == STS_RUN_SETTINGS_CHANGED);
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
+    CHECK(sts_run_validate(&run, &g_db, &changed) == STS_RUN_OK);
+    CHECK(decks_equal(&run.deck, &before.deck) && run.phase == STS_PHASE_READY);
+
+    /* A deck that breaks the new rules is refused, and nothing changes. */
+    run = before;
+    changed = s;
+    changed.rules.deck_min = 25;
+    changed.rules.deck_max = 25;
+    changed.draft_picks = 25;
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_ILLEGAL);
+    CHECK(run.settings_hash == before.settings_hash);
+
+    /* Offers that are still possible stay, whatever else changed: no free reroll. */
+    run = before;
+    CHECK(sts_run_begin_reward(&run, &g_db, &s, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    before = run;
+    changed = s;
+    changed.reward.replace = STS_REPLACE_RANDOM;
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
+    CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == before.offer_count);
+    for (i = 0; i < run.offer_count; i++)
+        CHECK(run.offers[i].id == before.offers[i].id && run.offers[i].copies == before.offers[i].copies);
+    CHECK(run.rng.state == before.rng.state);
+
+    /* Offers that are no longer possible are rolled again under the new rules. */
+    run = before;
+    changed = s;
+    changed.reward.copies_min = 2;
+    changed.reward.copies_max = 2;
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
+    CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == 3);
+    for (i = 0; i < run.offer_count; i++)
+        CHECK(run.offers[i].copies == 2);
+
+    /* A type no longer allowed also rolls again. */
+    run = before;
+    changed = s;
+    changed.reward.type_mask = STS_TYPE_BIT(STS_CARD_SPELL);
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
+    for (i = 0; i < run.offer_count; i++)
+        CHECK(run.offers[i].type == STS_CARD_SPELL);
+
+    /* A waiting reward under rules with no rewards at all simply ends. */
+    run = before;
+    changed = s;
+    changed.reward.mode = STS_REWARD_SKIP;
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
+    CHECK(run.phase == STS_PHASE_READY && run.offer_count == 0);
+    CHECK(sts_run_validate(&run, &g_db, &changed) == STS_RUN_OK);
+
+    /* A draft in progress follows the new draft rules. */
+    CHECK(sts_run_start(&run, &g_db, &s, 3, 61) == STS_RUN_OK);
+    for (i = 0; i < 5; i++)
+        CHECK(sts_run_draft_pick(&run, &g_db, &s, 0) == STS_RUN_OK);
+    changed = s;
+    changed.draft.offer_count = 3;
+    changed.draft.type_mask = STS_TYPE_BIT(STS_CARD_SKILL);
+    CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
+    CHECK(run.phase == STS_PHASE_DRAFT && run.picks_done == 5);
+    for (i = 0; i < run.offer_count; i++)
+        CHECK(run.offers[i].type == STS_CARD_SKILL);
+    CHECK(finish_draft(&run, &changed) == STS_RUN_OK);
+    CHECK(sts_deck_validate(&run.deck, &changed.rules, NULL) == STS_DECK_OK);
+}
+
 /* Every deck in a real profile must use only cards its character owns. */
 static void test_real_profile_cards(void)
 {
@@ -1644,6 +1734,7 @@ int main(void)
     test_run_rewards();
     test_run_save();
     test_run_endurance();
+    test_run_adopt_rules();
     test_real_profile_cards();
     printf("%d checks, %d failed\n", g_run, g_fail);
     return g_fail ? 1 : 0;

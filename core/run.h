@@ -109,4 +109,9 @@ sts_run_status sts_run_load(const char *path, sts_run *out);
  * deck and offers. Returns STS_RUN_OK if it can be continued. */
 sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const sts_settings *settings);
 
+/* Moves a run made under other rules onto these. Returns STS_RUN_ILLEGAL, changing nothing, if
+ * its deck breaks them. Offers on screen are kept if still possible, so editing the settings is
+ * not a free reroll; otherwise they are rolled again, which may end a reward or a draft. */
+sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const sts_settings *settings);
+
 #endif

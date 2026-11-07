@@ -117,6 +117,17 @@ int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *dec
     return want;
 }
 
+int sts_offer_is_valid(const sts_card_db *db, int character, const sts_deck *deck,
+                       const sts_rules *rules, const sts_offer_settings *settings, const sts_offer *offer)
+{
+    const sts_card *card = sts_card_db_find(db, character, offer->id);
+
+    if (!card || !(settings->type_mask & STS_TYPE_BIT(card->type)))
+        return 0;
+    return offer->copies >= settings->copies_min
+        && offer->copies <= max_copies_for(card, deck, rules, settings, replace_capacity(db, character, deck, settings));
+}
+
 /* ---------- applying a taken offer ---------- */
 
 /* Removes one copy. Returns 0 if the deck has none. */

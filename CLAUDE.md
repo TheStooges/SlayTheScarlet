@@ -106,7 +106,10 @@ Rule interpretations in `core/` that may need revisiting with the community:
 - REPLACE counts the copy limit before removing anything, so it stays legal whatever is removed.
 
 Runs save their random state and any offers on screen, so reloading cannot reroll a pick. A run made
-under different settings is detected through the fingerprint; what to do then is up to the mod.
+under different settings is detected through the fingerprint. By default the player can then only
+start over. With `allow_rule_changes=true` (off by default, not part of the fingerprint) they may also
+carry on under the new rules if the deck is legal under them; offers on screen survive this if still
+possible, so editing the settings is not a free reroll.
 
 Keep `core/` free of game dependencies so the logic can be developed and tested without the game.
 Use integer maths for anything that could affect a match (determinism across machines).
