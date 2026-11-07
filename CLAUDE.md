@@ -230,8 +230,10 @@ Netplay is a primary requirement. Each machine simulates both players from share
   of unlock target and its rarity (0,0 when unused), owner index (a system card's value is the
   character whose defeat awards it; Catfish is 21), display sort order. The flag does NOT mark the
   initially unlocked cards. In this install all skills are rarity 1, spells 2-5, and system cards 5.
-  `reference/Card Collecting Notes.md` explains the unlock system these drive; the mod does not
-  use it, and `data/cards.csv` does not carry rarity or unlock targets yet.
+  The Card Collecting Notes and flowcharts explain the unlock system these drive (not in this repo:
+  https://drive.google.com/drive/folders/1SMToH54savI-kohoauLHBUqlog8rj2mr, with a local copy in the
+  gitignored `reference/`). The mod does not use it, and `data/cards.csv` does not carry rarity or
+  unlock targets yet.
 - **Text is read at runtime:** `data/cards.csv` holds no names. The mod should read them from the
   game, so players see the language they launched with. `th123e.exe` is an 8 KB launcher for the
   same `th123.exe`, so addresses and the version hash are shared.

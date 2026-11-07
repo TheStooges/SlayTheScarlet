@@ -47,8 +47,8 @@ The buttons for each screen are listed at the bottom of that screen, using your 
 1. **Press F7 on the main menu** and choose a character. Each character has one run.
 2. **Draft your deck.** Each of the 20 picks is a choice of 3 cards. A finished draft goes into use
    straight away.
-3. **Play a VS match, offline or online, as that character on Deck 1.** Your real Deck 1 is safe: the
-   run deck only replaces it in memory, while the run is in use.
+3. **Play a VS match, offline or online, as that character on Deck 1 (![green Deck 1 symbol](images/deck1.svg)).**
+   Your real Deck 1 is safe: the run deck only replaces it in memory, while the run is in use.
 4. **Take an offer after the match.** Choose 1 of 3 cards, then choose which card in your deck it
    replaces. You cannot replace a card with another copy of itself.
 5. **Back to character select.** Your next match uses the changed deck.
@@ -59,7 +59,7 @@ or resume using a run, or start over. Starting over needs two presses, so one sl
 A match on a different character or deck slot is a normal match: no offer, and your run is unchanged.
 
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
-new ones. There is no time limit.
+new ones. There is no time limit for now.
 
 ### Online
 
@@ -83,7 +83,8 @@ on under the new rules when their deck is still legal, set `allow_rule_changes=t
 
 ## Current limits
 
-- Decks are always 20 cards with at most 4 copies of a card, and these settings are overridden.
+- Decks are always 20 cards with at most 4 copies of a card. 
+  The size_min, size_max and copy_limit settings have no effect for now.
 - The `add` and `remove` reward modes act as `replace`, because the game rejects decks of other sizes.
 - Pick visibility, opponent deck display and items are planned, and have no effect yet.
 - Two players who both have the mod have not been tested together yet. Each should simply manage their
@@ -114,3 +115,25 @@ The DLL, `cards.csv` and `settings.ini` end up in `build/mod`.
 `core/` holds the rules, offers and run saves as portable C with no game dependencies, and `tests/`
 covers it. `mod/` is the Windows DLL: hooks, screens and deck handling. `CLAUDE.md` has the design
 notes and reverse-engineering findings.
+
+## Credits
+
+This is an unofficial fan mod, and you need your own copy of the game.
+
+- **Touhou 12.3 Hisoutensoku** is by Team Shanghai Alice and Twilight Frontier.
+- **Slay the Spire**, by Mega Crit, inspired the run format.
+- **[The original "Slay the Scarlet" event](https://www.youtube.com/watch?v=aq1PMH7CWYc)** was hosted
+  by the OCE Hisoutensoku community before this mod automated it. Stooge got its modified install
+  working, and created the
+  [card collecting notes and flowcharts](https://drive.google.com/drive/folders/1SMToH54savI-kohoauLHBUqlog8rj2mr)
+  by hand.
+- **[SokuLib](https://github.com/SokuDev/SokuLib)**, by Gegel85 and the SokuDev contributors, provides
+  the reverse-engineered game structures and addresses. It is built into the DLL under the MIT
+  licence: see `lib/SokuLib/LICENSE` in the source, or `LICENSE-SokuLib.txt` in a release.
+- **[ModTemplate](https://github.com/SokuDev/ModTemplate)**, from SokuDev, was the project's starting
+  point.
+- **[SokuMods](https://github.com/SokuDev/SokuMods)**, from SokuDev, was a reference for how mods are
+  put together, and **[HandicapMod](https://github.com/SokuDev/HandicapMod)** for how decks and
+  netplay packets work.
+- **OnlinePractice**, from OCE Hisoutensoku, was a reference for which parts of the game a netplay mod
+  needs to hook.
