@@ -6,8 +6,25 @@
 #include "netlog.h"
 #include "screen.h"
 
-/* Netplay scenes: logged for now, with no change to how they run. */
-#define NET_SCENE_HOOK(Type, name) \
+/* The reward is done and the Result menu is being told to close. */
+static int g_result_closing = 0;
+
+/* Set when only logging: see Initialize. */
+static int g_observer = 0;
+
+/* Netplay scenes keep running exactly as normal. Pausing one, as offline character select does
+ * for a late reward, could stall the connection. */
+#define NET_SELECT_HOOK(Type, name) \
+    static int (SokuLib::Type::*g_og_##Type)(); \
+    static int __fastcall on_##Type(SokuLib::Type *This) \
+    { \
+        netlog_scene(name); \
+        g_result_closing = 0; \
+        if (!g_observer) \
+            deck_on_net_select_frame(); \
+        return (This->*g_og_##Type)(); \
+    }
+#define NET_LOADING_HOOK(Type, name) \
     static int (SokuLib::Type::*g_og_##Type)(); \
     static int __fastcall on_##Type(SokuLib::Type *This) \
     { \
@@ -20,13 +37,15 @@
     { \
         netlog_scene(name); \
         deck_on_battle_frame(); \
+        if (SokuLib::menuManager.empty()) \
+            g_result_closing = 0; \
         return (This->*g_og_##Type)(); \
     }
 
-NET_SCENE_HOOK(SelectServer, "character select, as host")
-NET_SCENE_HOOK(SelectClient, "character select, as client")
-NET_SCENE_HOOK(LoadingServer, "loading, as host")
-NET_SCENE_HOOK(LoadingClient, "loading, as client")
+NET_SELECT_HOOK(SelectServer, "character select, as host")
+NET_SELECT_HOOK(SelectClient, "character select, as client")
+NET_LOADING_HOOK(LoadingServer, "loading, as host")
+NET_LOADING_HOOK(LoadingClient, "loading, as client")
 NET_BATTLE_HOOK(BattleServer, "battle, as host")
 NET_BATTLE_HOOK(BattleClient, "battle, as client")
 
@@ -52,9 +71,6 @@ static int g_wait_for_release = 0;
  * the loading scene once. */
 static int g_select_stay = SokuLib::SCENE_SELECT;
 static int g_select_previous = -1;
-/* The reward is done and the Result menu is being told to close. */
-static int g_result_closing = 0;
-
 static int game_has_focus(void)
 {
     DWORD pid = 0;
@@ -153,24 +169,25 @@ static int __fastcall on_result_process(SokuLib::MenuResult *This)
     netlog_scene("the screen after a match");
     if (!g_result_closing) {
         deck_on_result_frame();
-        if (deck_take_result_skip()) {
+        if (deck_take_result_skip())
             g_result_closing = 1;
-            g_wait_for_release = 1;
-        }
     }
 
     if (screen_is_open()) {
         screen_update(SokuLib::inputMgrs.input);
-        if (!screen_is_open()) {
+        if (!screen_is_open())
             g_result_closing = 1;
-            g_wait_for_release = 1;
-        }
         return 1;   /* the menu stays */
     }
     if (g_result_closing) {
-        /* Leave through the game's own exit path by pressing its confirm button for it. */
+        /* Leave through the game's own exit path by pressing its confirm button for it. That
+         * waits for the player to let go first, or the same press carries on into the next
+         * screen. Online character select cannot be paused to wait for it there. */
         SokuLib::KeyInput saved = SokuLib::inputMgrs.input;
         int result;
+
+        if (saved.a || saved.b)
+            return 1;
 
         SokuLib::inputMgrs.input.a = 1;
         result = (This->*g_og_result_process)();
@@ -215,6 +232,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     strcpy(observer_path, dir);
     strcat(observer_path, "observer.txt");
     observer = PathFileExistsA(observer_path);
+    g_observer = observer;
     slog("started%s", observer ? " as a log-only observer" : "");
 
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);

@@ -33,6 +33,7 @@ void screen_render_title_hint(void);
  * match, whichever comes first; normally that is the result menu. */
 void deck_on_title_frame(void);
 void deck_on_select_frame(void);
+void deck_on_net_select_frame(void);
 void deck_on_battle_frame(void);
 void deck_on_result_frame(void);
 

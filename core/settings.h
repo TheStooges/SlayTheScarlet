@@ -70,8 +70,10 @@ const char *sts_settings_status_str(sts_settings_status s);
 /* Returns NULL if the settings can work, or a message saying why they cannot. */
 const char *sts_settings_validate(const sts_settings *s);
 
-/* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, and no rule
- * that needs another deck size. The result always passes sts_settings_validate. */
+/* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, and no rule that needs
+ * another deck size. The result always passes sts_settings_validate. Visibility settings are
+ * left alone: they need messages this mode never sends, so they have no effect here, and
+ * rules already compatible keep their fingerprint. */
 void sts_settings_force_compatible(sts_settings *s);
 
 /* Fingerprint of every rule, stable across machines. Differs if any setting differs. */

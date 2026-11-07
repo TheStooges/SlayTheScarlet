@@ -372,8 +372,6 @@ void sts_settings_force_compatible(sts_settings *s)
     sts_settings_defaults(&d);
     s->rules = d.rules;
     s->items_enabled = 0;
-    s->pick_visibility = STS_VISIBILITY_HIDDEN;
-    s->opponent_deck = STS_OPPONENT_DECK_CHANGE;
 
     /* Add and remove change the deck size, which a vanilla opponent cannot accept. */
     if (s->reward.mode == STS_REWARD_ADD || s->reward.mode == STS_REWARD_REMOVE)

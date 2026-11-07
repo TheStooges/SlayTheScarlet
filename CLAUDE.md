@@ -296,7 +296,16 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - **Modes:** `mainMode` is 4 as host and 5 as client. After a match as client the scene hooked as
   `SelectServer` ran with mode 5, so use `mainMode` for the role, not which vtable fired.
 - **The post-match screen is `CMenuEnd` online too**, and runs on top of the battle scene: both
-  `onProcess` hooks fire every frame, so the game (and network handling) keeps running under it.
+  `onProcess` hooks fire every frame, so the game (and network handling) keeps running under it. The
+  card offer goes there. Online scenes are never paused; offline character select may be. A vanilla
+  opponent sees their Result screen and then a black screen until the modded player finishes, which
+  is the game's normal wait. It is very tolerant: a wait of 28 minutes on the offer held, and the next
+  match played normally, so the offer needs no timer. If the opponent closes their game during an
+  offer, the offer still works and saves; character select then hangs until the game disconnects.
+- **Scene hooks and roles:** after a match, a client's select, loading and battle scenes all fired
+  through the Server vtables with mode 5. Trust only `mainMode` for the role.
+- **All runs use compatible rules for now** (`load_data` applies `sts_settings_force_compatible`),
+  until full mode exists. Rules that are already compatible keep their fingerprint.
 - **Packet types seen** (first byte): 0x01, 0x03-0x06, 0x0B, 0x0D, 0x0E, and 0x43, 0x6B, 0x6E, 0x9C,
   the last four presumably from Giuroll. Pick mod message IDs outside these.
 - **Port clash when testing on one PC:** `clientport` in `configex123.ini` must be 0 on the side that
@@ -335,8 +344,11 @@ LabTool are usually disabled.
 
 - **Always chain hooks, never overwrite.** Character select `onProcess`/`onRender` are already
   wrapped by another mod before OnlinePractice loads.
-- EasyDecks edits decks during netplay and may conflict with run-deck injection. Detect it and
-  handle or warn about it.
+- **EasyDecks can destroy a player's real deck while a run is in use.** Its editor (C on character
+  select) reads the deck from profile memory, so it shows the run deck, and saving writes that to the
+  `.pf`. Seen in game: Komachi's Deck 1 on disk became the run deck plus the player's edit. The run
+  deck itself was unharmed, because online character select rewrote it. This differs from the
+  profile menu, which shows and saves the real deck.
 
 **OnlinePractice** (a friend's netplay mod; only its `.ini` and `.log` are available, not the
 source). Its startup log shows the hook set for a netplay overlay mod that works under Giuroll:

@@ -149,8 +149,13 @@ void test_settings(void)
             CHECK(s.rules.deck_min == 20 && s.rules.deck_max == 20 && s.rules.copy_limit == 4);
             CHECK(s.items_enabled == 0);
             CHECK(s.reward.mode == STS_REWARD_REPLACE || s.reward.mode == STS_REWARD_SKIP);
-            CHECK(s.pick_visibility == STS_VISIBILITY_HIDDEN);
         }
+
+        /* Rules that are already compatible stay exactly as they were, so a run saved under the
+         * defaults is not treated as made under different rules. */
+        sts_settings_defaults(&s);
+        sts_settings_force_compatible(&s);
+        CHECK(sts_settings_hash(&s) == sts_settings_hash(&d));
 
         /* It only changes what it must: other reward and draft choices survive. */
         CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=30\n[draft]\noffers=5\n"

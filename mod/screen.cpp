@@ -110,6 +110,7 @@ static int g_close_after_deck = 0;
 
 /* What the last battle scene showed, kept for when the scene has gone. */
 static int g_match_used_run_deck = 0;
+static int g_match_run_on_right = 0;
 static int g_match_score_left = 0;
 static int g_match_score_right = 0;
 static int g_match_reward_due = 0;
@@ -188,6 +189,14 @@ static int load_data(void)
     if (bad) {
         set_error("settings.ini", bad);
         return 0;
+    }
+    /* Every run plays against opponents without the mod until full mode exists. */
+    {
+        uint32_t before = sts_settings_hash(&g_settings);
+
+        sts_settings_force_compatible(&g_settings);
+        if (sts_settings_hash(&g_settings) != before)
+            slog("settings.ini asks for rules that need full mode, using compatible rules instead");
     }
     g_data_ok = 1;
     return 1;
@@ -548,7 +557,7 @@ static void finish_match(void)
         slog("match was not finished, no reward");
         return;
     }
-    g_match_won = left > right;
+    g_match_won = g_match_run_on_right ? right > left : left > right;
     g_match_reward_due = 1;
 }
 
@@ -582,6 +591,26 @@ void deck_on_title_frame(void)
     finish_match();
     maybe_start_reward();
     note_slot_change("title");
+}
+
+/* Online, only the deck is kept up. Pausing an online scene for a late reward could stall the
+ * connection, so a reward that did not reach the screen after the match waits for the title. */
+void deck_on_net_select_frame(void)
+{
+    char why[96] = "";
+
+    if (!g_active)
+        return;
+    note_slot_change("online character select");
+    if (g_slot_differs) {
+        remember_real_deck();
+        if (write_active_deck(why, sizeof why)) {
+            slog("wrote the run deck again");
+            g_slot_differs = 0;
+        } else {
+            slog("could not write the run deck again: %s", why);
+        }
+    }
 }
 
 /* Character select is the point a write is known to reach the next match. */
@@ -651,12 +680,18 @@ void deck_on_battle_frame(void)
         __try {
             auto &mgr = SokuLib::getBattleMgr();
             int offline = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCOM || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSPLAYER;
+            /* SokuLib's names are from the opponent's view: "VSCLIENT" means you are the host. */
+            int host = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT;
+            int client = SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER;
             int left = log_battle_side("left", (int)SokuLib::leftPlayerInfo.character, SokuLib::leftPlayerInfo.deck, mgr.leftCharacterManager);
+            int right = log_battle_side("right", (int)SokuLib::rightPlayerInfo.character, SokuLib::rightPlayerInfo.deck, mgr.rightCharacterManager);
 
-            log_battle_side("right", (int)SokuLib::rightPlayerInfo.character, SokuLib::rightPlayerInfo.deck, mgr.rightCharacterManager);
-            /* Only VS matches played by a person earn a reward: not practice or replays.
-             * The run deck only reaches the left player for now. */
-            g_match_used_run_deck = left && offline && SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY;
+            /* Only VS matches played by a person earn a reward: not practice, replays or
+             * spectating. Offline the run deck only reaches the left player; online, the local
+             * player's own side. */
+            g_match_run_on_right = client;
+            g_match_used_run_deck = SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY
+                && (((offline || host) && left) || (client && right));
             g_match_score_left = 0;
             g_match_score_right = 0;
             slog("match mode %d submode %d, counts for a reward: %d", (int)SokuLib::mainMode, (int)SokuLib::subMode, g_match_used_run_deck);
