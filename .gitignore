@@ -39,8 +39,9 @@
 cmake-build-*
 build
  
-# Reference material from a game install or other people's mods.
+# Reference material and tools.
 reference/
+tools/
 
 # Safety net: personal/game files must not be committed even if they end up elsewhere.
 *.pf
