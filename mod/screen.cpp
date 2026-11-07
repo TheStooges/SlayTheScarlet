@@ -39,7 +39,7 @@ typedef enum {
     ST_REWARD_TYPE,     /* REPLACE by type: which type leaves */
     ST_REWARD_REMOVE    /* REPLACE by choice: which cards leave */
 } screen_state;
-typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT } screen_event;
+typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
 
 typedef struct {
     uint16_t id;
@@ -103,6 +103,7 @@ static void enter_phase(void);
 static void save_run(void);
 static void maybe_start_reward(void);
 static void load_card_text(int character);
+static int load_data(void);
 
 /* ---------- data ---------- */
 
@@ -273,6 +274,10 @@ static int g_active = 0;
 static int g_active_character = 0;
 static sts_deck g_active_deck;
 static int g_slot_differs = 0;
+/* What the slot held before the run deck: the player's real deck, put back when the run
+ * stops being used. In memory only, like the run deck itself. */
+static sts_deck g_real_deck;
+static int g_have_real_deck = 0;
 
 static SokuLib::Dequeue<unsigned short> &active_slot(void)
 {
@@ -314,22 +319,140 @@ static int write_active_deck(char *why, size_t why_size)
     return 1;
 }
 
+static void remember_real_deck(void)
+{
+    auto &slot = active_slot();
+    int i;
+
+    sts_deck_clear(&g_real_deck);
+    for (i = 0; i < slot.size && i < STS_MAX_DECK; i++)
+        sts_deck_add(&g_real_deck, slot[i]);
+    g_have_real_deck = 1;
+}
+
+/* Puts the player's deck back, unless the game has already reloaded it. */
+static void restore_real_deck(void)
+{
+    auto &slot = active_slot();
+    int i;
+
+    if (g_have_real_deck && slot_holds_active_deck() && slot.size == g_real_deck.count) {
+        for (i = 0; i < g_real_deck.count; i++)
+            slot[i] = g_real_deck.ids[i];
+        slog("restored the real deck for character %d", g_active_character);
+    }
+    g_have_real_deck = 0;
+}
+
+/* active.txt remembers which run is in use across restarts. */
+static void active_file_path(char *out)
+{
+    sprintf(out, "%sactive.txt", g_dir);
+}
+
+static void save_active_file(void)
+{
+    char path[MAX_PATH + 32];
+
+    active_file_path(path);
+    if (g_active) {
+        FILE *f = fopen(path, "w");
+        if (f) {
+            fprintf(f, "%d\n", g_active_character);
+            fclose(f);
+        }
+    } else {
+        remove(path);
+    }
+}
+
+static void deactivate_run_deck(void)
+{
+    if (!g_active)
+        return;
+    restore_real_deck();
+    g_active = 0;
+    g_slot_differs = 0;
+    save_active_file();
+    slog("stopped using the run deck for character %d", g_active_character);
+}
+
+/* Starts using g_run's deck, or updates the deck in use after a reward. */
 static int activate_run_deck(void)
 {
     char why[96] = "";
+    int fresh = !g_active || g_active_character != g_run.character;
+
+    if (g_active && fresh)
+        restore_real_deck();
+    /* Still on the same run: if the slot no longer holds the old run deck, the game has
+     * reloaded the player's deck into it since. */
+    if (!fresh && !slot_holds_active_deck())
+        remember_real_deck();
 
     g_active_character = g_run.character;
     g_active_deck = g_run.deck;
     g_active = 1;
     g_slot_differs = 0;
+    if (fresh)
+        remember_real_deck();
+
     if (!write_active_deck(why, sizeof why)) {
         g_active = 0;
+        g_have_real_deck = 0;
+        save_active_file();
         set_error("Cannot use this deck", why);
         slog("activate failed for character %d: %s", g_active_character, why);
         return 0;
     }
-    slog("activated run deck for character %d, slot %d, %d cards", g_active_character, RUN_DECK_SLOT, g_active_deck.count);
+    save_active_file();
+    slog("using run deck for character %d, slot %d, %d cards", g_active_character, RUN_DECK_SLOT, g_active_deck.count);
     return 1;
+}
+
+static int run_deck_in_use(void)
+{
+    return g_active && g_active_character == g_run.character;
+}
+
+/* Goes back to the run that was in use last time the game was open. */
+static void resume_active_run(void)
+{
+    static int done = 0;
+    char path[MAX_PATH + 32];
+    int character = -1;
+    FILE *f;
+
+    if (done)
+        return;
+    done = 1;
+    active_file_path(path);
+    f = fopen(path, "r");
+    if (!f)
+        return;
+    if (fscanf(f, "%d", &character) != 1)
+        character = -1;
+    fclose(f);
+
+    if (character >= 0 && character < STS_NUM_CHARACTERS && load_data()) {
+        sts_run_status st;
+
+        run_path(path, sizeof path, character);
+        st = sts_run_load(path, &g_run);
+        if (st == STS_RUN_OK)
+            st = sts_run_validate(&g_run, &g_db, &g_settings);
+        if (st == STS_RUN_OK && g_run.phase != STS_PHASE_DRAFT) {
+            activate_run_deck();
+            /* An offer left on screen when the game closed comes straight back. */
+            if (g_active && g_run.phase == STS_PHASE_REWARD)
+                g_match_reward_due = 1;
+            return;
+        }
+        slog("could not resume the run for character %d: %s", character, sts_run_status_str(st));
+    }
+    /* Whatever active.txt named cannot be used, so stop asking for it. */
+    active_file_path(path);
+    remove(path);
 }
 
 static void note_slot_change(const char *where)
@@ -382,6 +505,7 @@ void deck_log_result_close(int result)
 
 void deck_on_title_frame(void)
 {
+    resume_active_run();
     finish_match();
     maybe_start_reward();
     note_slot_change("title");
@@ -405,6 +529,8 @@ void deck_on_select_frame(void)
         return;
     note_slot_change("character select");
     if (g_slot_differs) {
+        /* The game put the player's deck back, possibly with edits from the deck editor. */
+        remember_real_deck();
         if (write_active_deck(why, sizeof why)) {
             slog("wrote the run deck again");
             g_slot_differs = 0;
@@ -490,6 +616,17 @@ static void save_run(void)
         set_error("Could not save the run", sts_run_status_str(st));
 }
 
+static void set_deck_status(void)
+{
+    if (run_deck_in_use())
+        _snprintf(g_status, sizeof g_status - 1, "In use as %s's Deck %d. Your own deck is safe in your profile.",
+                  sts_character_name(g_run.character), RUN_DECK_SLOT + 1);
+    else
+        _snprintf(g_status, sizeof g_status - 1, "Not in use. %s's Deck %d is your own deck.",
+                  sts_character_name(g_run.character), RUN_DECK_SLOT + 1);
+    g_status[sizeof g_status - 1] = 0;
+}
+
 static void enter_phase(void)
 {
     g_cursor = 0;
@@ -500,11 +637,10 @@ static void enter_phase(void)
     } else {
         g_state = g_run.phase == STS_PHASE_REWARD ? ST_REWARD : ST_DECK;
         g_deck_art_dirty = 1;
-        if (activate_run_deck()) {
-            _snprintf(g_status, sizeof g_status - 1, "This deck is now %s's Deck %d until the game closes.",
-                      sts_character_name(g_run.character), RUN_DECK_SLOT + 1);
-            g_status[sizeof g_status - 1] = 0;
-        }
+        /* Opening a run only looks at it. A run already in use picks up any new deck. */
+        if (run_deck_in_use())
+            activate_run_deck();
+        set_deck_status();
     }
 }
 
@@ -531,13 +667,18 @@ static void maybe_start_reward(void)
         return;
     }
     load_card_text(g_active_character);
-    st = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
-    slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(st), (int)outcome);
-    if (st != STS_RUN_OK)
-        return;
-    save_run();
-    if (outcome == STS_REWARD_NONE)
-        return;
+    /* An offer still waiting from before is shown again rather than replaced. */
+    if (g_run.phase != STS_PHASE_REWARD) {
+        st = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+        slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(st), (int)outcome);
+        if (st != STS_RUN_OK)
+            return;
+        save_run();
+        if (outcome == STS_REWARD_NONE)
+            return;
+    } else {
+        slog("showing the offer that was already waiting");
+    }
 
     g_error[0] = 0;
     g_status[0] = 0;
@@ -619,7 +760,7 @@ static void start_new_run(int character)
     }
     /* That character's old run deck is finished with. */
     if (g_active && g_active_character == character)
-        g_active = 0;
+        deactivate_run_deck();
     save_run();
     enter_phase();
 }
@@ -703,6 +844,8 @@ static void handle_event(screen_event ev)
             }
             g_dirty = 1;
             return;
+        case EV_TOGGLE:
+            return;
         }
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
         g_error[0] = 0;
@@ -728,6 +871,9 @@ static void handle_event(screen_event ev)
             }
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
             save_run();
+            /* A finished draft is meant to be played. */
+            if (g_run.phase == STS_PHASE_READY)
+                activate_run_deck();
             enter_phase();
             break;
         }
@@ -747,6 +893,16 @@ static void handle_event(screen_event ev)
         case EV_UP:
         case EV_DOWN:
             move_grid_cursor(ev);
+            break;
+        case EV_TOGGLE:
+            g_error[0] = 0;
+            if (run_deck_in_use())
+                deactivate_run_deck();
+            else
+                activate_run_deck();
+            set_deck_status();
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            g_dirty = 1;
             break;
         case EV_CONFIRM:
         case EV_CANCEL:
@@ -922,6 +1078,8 @@ void screen_update(const SokuLib::KeyInput &input)
         handle_event(EV_CANCEL);
     else if (input.c == 1)
         handle_event(EV_ALT);
+    else if (input.d == 1)
+        handle_event(EV_TOGGLE);
 }
 
 /* ---------- drawing ---------- */
@@ -1105,9 +1263,12 @@ static void rebuild_choose(void)
             } else if (g_saved_phase[c] == STS_PHASE_REWARD) {
                 sprintf(line, "Reward waiting");
                 color = COLOR_GOLD;
+            } else if (g_active && g_active_character == c) {
+                sprintf(line, "In use");
+                color = COLOR_GREEN;
             } else {
                 sprintf(line, "Deck ready");
-                color = COLOR_GREEN;
+                color = COLOR_GREY;
             }
         }
         add_label(line, g_font_small, x + 6, y + 32, 110, 20, color);
@@ -1240,7 +1401,9 @@ static void rebuild_deck(void)
     y = DECK_Y + rows * DECK_PITCH_Y + 8;
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], y);
-    add_label(g_status, g_font_small, 20, 416, 600, 20, COLOR_GREEN);
+    add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
+    add_label(run_deck_in_use() ? "D: stop using this run" : "D: use this run",
+              g_font_small, 20, 416, 600, 20, COLOR_WHITE);
     add_label(g_alt_armed ? "Press C again to discard this run and start over."
                           : "Arrows: inspect   A or B: back   C twice: start over",
               g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
