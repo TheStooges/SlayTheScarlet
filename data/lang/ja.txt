@@ -81,6 +81,10 @@ en=In use
 ja=使用中
 en=Deck ready
 ja=デッキ完成
+en=%s: use %s's run
+ja=%s: %sのランを使う
+en=%s: stop using %s's run
+ja=%s: %sのランの使用をやめる
 en=Press %s again to discard this character's run and start over.
 ja=もう一度%sを押すと、このキャラクターのランを破棄してやり直します。
 en=%s: open   %s: close   %s twice: start over
@@ -185,6 +189,8 @@ en=Press %s again to discard this run and start over.
 ja=もう一度%sを押すと、このランを破棄してやり直します。
 en=Arrows: inspect   %s: back   %s twice: start over
 ja=方向キー: 確認   %s: 戻る   %s 2回: やり直し
+en=Arrows: inspect   %s: next offer
+ja=方向キー: 確認   %s: 次の報酬へ
 
 # Errors. The details after the heading stay in English for now.
 en=Reward

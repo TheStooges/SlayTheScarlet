@@ -88,18 +88,49 @@ static void enter_phase(void)
     }
 }
 
+/* The deck screen, whatever the phase. With offers waiting it leads on to them. */
+static void show_deck(void)
+{
+    enter_phase();
+    g_state = ST_DECK;
+}
+
+static int on_reward_screen(void)
+{
+    return g_state == ST_REWARD || g_state == ST_REWARD_TYPE || g_state == ST_REWARD_REMOVE
+        || g_state == ST_REWARD_CONFIRM;
+}
+
 /* Runs on the first title or character select frame after a finished match. */
 void maybe_start_reward(void)
 {
     char path[MAX_PATH + 32];
     sts_reward_outcome outcome = STS_REWARD_NONE;
     sts_run_status status;
+    int new_match = g_match_new;
 
     if (!g_match_reward_due)
         return;
     g_match_reward_due = 0;
-    if (!g_active || g_state != ST_CLOSED)
+    g_match_new = 0;
+    if (!g_active)
         return;
+    if (g_state != ST_CLOSED) {
+        /* An offer still open from an earlier match: a disconnect left it under the game's network
+         * menu and the player reconnected from there. This match's reward waits behind it, and
+         * comes up once it is taken. */
+        if (new_match && on_reward_screen() && g_run.character == g_active_character) {
+            status = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+            slog("reward: won %d, owed behind the offer on screen, status %s, owed %d",
+                 g_match_won, sts_run_status_str(status), g_run.owed_count);
+            if (status == STS_RUN_OK)
+                save_run();
+            g_dirty = 1;
+        } else if (new_match) {
+            slog("reward lost: the mod's screen was open on something other than an offer");
+        }
+        return;
+    }
 
     /* g_run may hold another character if the screen was used since this deck became active. */
     run_path(path, sizeof path, g_active_character);
@@ -111,14 +142,15 @@ void maybe_start_reward(void)
         return;
     }
     load_card_text(g_active_character);
-    /* An offer still waiting from before is shown again rather than replaced. */
-    if (g_run.phase != STS_PHASE_REWARD) {
+    if (new_match) {
         sts_deck before = g_run.deck;
 
+        /* An offer still waiting from before is shown again, and this match's reward is owed. */
         status = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
         if (outcome == STS_REWARD_AUTO)
             describe_deck_change(&before);
-        slog("reward: won %d, status %s, outcome %d", g_match_won, sts_run_status_str(status), (int)outcome);
+        slog("reward: won %d, status %s, outcome %d, owed %d", g_match_won, sts_run_status_str(status),
+             (int)outcome, g_run.owed_count);
         if (status != STS_RUN_OK)
             return;
         save_run();
@@ -126,8 +158,10 @@ void maybe_start_reward(void)
             g_match_no_offer = 1;
             return;
         }
-    } else {
+    } else if (g_run.phase == STS_PHASE_REWARD) {
         slog("showing the offer that was already waiting");
+    } else {
+        return;
     }
 
     g_error[0] = 0;
@@ -189,6 +223,12 @@ static void commit_reward(const sts_replace_choice *choice)
     g_selected_count = 0;
     describe_deck_change(&before);
     save_run();
+    if (g_run.phase == STS_PHASE_REWARD) {
+        /* A reward was owed: the deck screen shows this change, then moves on to its offers. */
+        slog("owed reward: new offers, %d more owed", g_run.owed_count);
+        show_deck();
+        return;
+    }
     enter_phase();
 }
 
@@ -394,6 +434,49 @@ static void move_offer_cursor(screen_event event)
     }
 }
 
+/* What the toggle button does on the character screen for this character: stop using its run,
+ * start using it, or nothing (no finished deck, rules changed, or runs are off). */
+choose_toggle choose_toggle_for(int character)
+{
+    if (!g_data_ok || blocking_mod())
+        return TOGGLE_NONE;
+    if (g_active && g_active_character == character)
+        return TOGGLE_STOP;
+    if (g_has_save[character] && !g_saved_rules_changed[character] && g_saved_phase[character] != STS_PHASE_DRAFT
+        && g_rules_changed_character != character)
+        return TOGGLE_USE;
+    return TOGGLE_NONE;
+}
+
+/* The same as the deck screen's toggle, without opening the run. Starting one stops any other. */
+static void toggle_from_chooser(int character)
+{
+    char path[MAX_PATH + 32];
+    sts_run_status status;
+    choose_toggle toggle = choose_toggle_for(character);
+
+    if (toggle == TOGGLE_NONE)
+        return;
+    g_error[0] = 0;
+    g_dirty = 1;
+    if (toggle == TOGGLE_STOP) {
+        deactivate_run_deck();
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        return;
+    }
+    run_path(path, sizeof path, character);
+    status = sts_run_load(path, &g_run);
+    if (status == STS_RUN_OK)
+        status = sts_run_validate(&g_run, &g_db, &g_settings);
+    if (status != STS_RUN_OK) {
+        set_error(character_label(character), sts_run_status_str(status));
+        return;
+    }
+    g_character = character;
+    if (activate_run_deck())
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+}
+
 static void on_choose_event(screen_event event)
 {
     switch (event) {
@@ -424,6 +507,7 @@ static void on_choose_event(screen_event event)
         g_dirty = 1;
         return;
     case EV_TOGGLE:
+        toggle_from_chooser(g_cursor);
         return;
     }
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
@@ -487,8 +571,13 @@ static void on_deck_event(screen_event event)
         break;
     case EV_CONFIRM:
     case EV_CANCEL:
-        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
         clear_deck_change();
+        if (g_run.phase == STS_PHASE_REWARD) {
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+            enter_phase();
+            break;
+        }
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
         if (g_close_after_deck) {
             g_close_after_deck = 0;
             g_state = ST_CLOSED;
@@ -497,6 +586,9 @@ static void on_deck_event(screen_event event)
         }
         break;
     case EV_ALT:
+        /* Not on the way to an owed reward's offers. */
+        if (g_run.phase == STS_PHASE_REWARD)
+            break;
         if (alt_twice()) {
             g_error[0] = 0;
             g_status[0] = 0;

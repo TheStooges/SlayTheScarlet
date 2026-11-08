@@ -26,36 +26,56 @@ static int compare_ids(const void *first, const void *second)
     return (int)*(const unsigned short *)first - (int)*(const unsigned short *)second;
 }
 
-/* Same cards, in any order? Reads game memory, so a bad read counts as no. */
-static int profile_slot_matches(int profile, int character, int slot, const unsigned short *ids, int count)
+/* Which deck of a profile holds these cards, in any order. The packet's own character and deck bytes
+ * cannot be trusted (a client's own part carries junk there), so every deck is searched. Writes the
+ * first match to character and slot and returns 1, or returns 0. Reads game memory, so a bad read
+ * counts as no. */
+static int find_in_profile(int profile, const unsigned short *ids, int count, int *character, int *slot)
 {
     unsigned short sorted[256], other[256];
-    int wau;
+    int deck, wau;
 
-    if (character < 0 || character >= 20 || slot < 0 || slot >= 4 || count > 256)
+    if (count > 256)
         return 0;
     memcpy(sorted, ids, (size_t)count * 2);
     qsort(sorted, (size_t)count, 2, compare_ids);
-    __try {
-        auto &deque = (profile == 1 ? SokuLib::profile1 : SokuLib::profile2).cards[character][slot];
+    for (deck = 0; deck < 20 * 4; deck++) {
+        __try {
+            auto &deque = (profile == 1 ? SokuLib::profile1 : SokuLib::profile2).cards[deck / 4][deck % 4];
 
-        if (deque.size != count)
+            if (deque.size != count)
+                continue;
+            for (wau = 0; wau < count; wau++)
+                other[wau] = deque[wau];
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
             return 0;
-        for (wau = 0; wau < count; wau++)
-            other[wau] = deque[wau];
+        }
+        qsort(other, (size_t)count, 2, compare_ids);
+        if (memcmp(sorted, other, (size_t)count * 2) == 0) {
+            *character = deck / 4;
+            *slot = deck % 4;
+            return 1;
+        }
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
-        return 0;
-    }
-    qsort(other, (size_t)count, 2, compare_ids);
-    return memcmp(sorted, other, (size_t)count * 2) == 0;
+    return 0;
+}
+
+static void profile_text(char *out, int profile, const unsigned short *ids, int count)
+{
+    int character, slot;
+
+    if (count > 0 && find_in_profile(profile, ids, count, &character, &slot))
+        sprintf(out, "character %d deck %d", character, slot);
+    else
+        strcpy(out, "no");
 }
 
 /* Logs one player's part of GAME_MATCH. Returns the offset after it, or -1 if it does not fit. */
 static int log_match_player(const char *dir, const char *who, const unsigned char *packet, int len, int offset)
 {
     unsigned short ids[256];
-    char text[1100];
+    char text[1100], in_profile1[40], in_profile2[40];
     size_t used = 0;
     int character, skin, slot, count, wau;
 
@@ -74,10 +94,10 @@ static int log_match_player(const char *dir, const char *who, const unsigned cha
         used += (size_t)sprintf(text + used, "%u ", (unsigned)ids[wau]);
     }
     slog("%s GAME_MATCH %s: character %d skin %d deck %d, %d cards: %s", dir, who, character, skin, slot, count, text);
-    slog("   in profile1 slot: %s. in profile2 slot: %s. the run deck in use: %s",
-         profile_slot_matches(1, character, slot, ids, count) ? "yes" : "no",
-         profile_slot_matches(2, character, slot, ids, count) ? "yes" : "no",
-         deck_matches_active(character, ids, count) ? "yes" : "no");
+    profile_text(in_profile1, 1, ids, count);
+    profile_text(in_profile2, 2, ids, count);
+    slog("   in profile1: %s. in profile2: %s. the run deck in use: %s",
+         in_profile1, in_profile2, count > 0 && deck_is_active(ids, count) ? "yes" : "no");
     return offset + count * 2 + 1;
 }
 

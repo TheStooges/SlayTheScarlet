@@ -34,12 +34,12 @@ static SokuLib::Dequeue<unsigned short> &active_slot(void)
     return SokuLib::profile1.cards[g_active_character][RUN_DECK_SLOT];
 }
 
-int deck_matches_active(int character, const unsigned short *ids, int count)
+int deck_is_active(const unsigned short *ids, int count)
 {
     static sts_deck given, expected;
     int wau;
 
-    if (!g_active || character != g_active_character || count != g_active_deck.count)
+    if (!g_active || count != g_active_deck.count)
         return 0;
     sts_deck_clear(&given);
     for (wau = 0; wau < count; wau++)

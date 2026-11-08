@@ -116,12 +116,16 @@ extern int g_active_character;
 extern sts_deck g_active_deck;
 extern int g_slot_differs;
 
-/* match.cpp */
+/* match.cpp. g_match_reward_due asks for the reward screen: after a new match (g_match_new), or
+ * to show an offer that was already waiting when the game started. */
 extern int g_match_reward_due;
+extern int g_match_new;
 extern int g_match_won;
 extern int g_match_no_offer;
 
 /* screen.cpp */
+typedef enum { TOGGLE_NONE, TOGGLE_USE, TOGGLE_STOP } choose_toggle;
+choose_toggle choose_toggle_for(int character);
 void set_error(const char *what, const char *detail);
 void maybe_start_reward(void);
 int rules_option_count(void);

@@ -4,7 +4,7 @@
 #include "run.h"
 #include "util.h"
 
-#define RUN_FORMAT_VERSION 1
+#define RUN_FORMAT_VERSION 2   /* 2 added the owed line; version 1 saves still load */
 #define CHECK_LINE_SIZE 15   /* "check " + 8 hex digits + newline */
 #define MAX_TOKEN 24
 
@@ -128,16 +128,13 @@ static sts_apply_status apply_reward(sts_run *run, const sts_card_db *db, const 
     return STS_APPLY_ILLEGAL;
 }
 
-sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
-                                    int won, sts_reward_outcome *outcome)
+/* The reward for one match, from READY. */
+static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_settings *settings,
+                             int won, sts_reward_outcome *outcome)
 {
     int gets_offer;
 
     *outcome = STS_REWARD_NONE;
-    if (run->phase != STS_PHASE_READY)
-        return STS_RUN_WRONG_PHASE;
-    run->matches_played++;
-
     switch (settings->who_picks) {
     case STS_WHO_BOTH:   gets_offer = 1; break;
     case STS_WHO_WINNER: gets_offer = won != 0; break;
@@ -146,7 +143,7 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
     default:             gets_offer = 0; break;
     }
     if (!gets_offer)
-        return STS_RUN_OK;
+        return;
 
     /* A replacement type only makes sense if a person picks it. */
     if (settings->who_picks == STS_WHO_NOBODY) {
@@ -162,7 +159,7 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
             if (apply_reward(run, db, settings, &offer, STS_REPLACE_RANDOM, NULL) == STS_APPLY_OK)
                 *outcome = STS_REWARD_AUTO;
         }
-        return STS_RUN_OK;
+        return;
     }
 
     roll_offers(run, db, &settings->rules, &settings->reward);
@@ -170,6 +167,38 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
         run->phase = STS_PHASE_REWARD;
         *outcome = STS_REWARD_OFFERS;
     }
+}
+
+/* From READY: starts owed rewards, oldest first, until one gives offers or none are left. */
+static void start_owed_rewards(sts_run *run, const sts_card_db *db, const sts_settings *settings)
+{
+    sts_reward_outcome outcome;
+
+    while (run->phase == STS_PHASE_READY && run->owed_count > 0) {
+        int won = run->owed_won[0];
+
+        run->owed_count--;
+        memmove(run->owed_won, run->owed_won + 1, (size_t)run->owed_count);
+        reward_for_match(run, db, settings, won, &outcome);
+    }
+}
+
+sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
+                                    int won, sts_reward_outcome *outcome)
+{
+    *outcome = STS_REWARD_NONE;
+    if (run->phase == STS_PHASE_REWARD) {
+        if (run->owed_count >= STS_RUN_OWED_MAX)
+            return STS_RUN_WRONG_PHASE;
+        run->matches_played++;
+        run->owed_won[run->owed_count++] = (uint8_t)(won != 0);
+        *outcome = STS_REWARD_OFFERS;
+        return STS_RUN_OK;
+    }
+    if (run->phase != STS_PHASE_READY)
+        return STS_RUN_WRONG_PHASE;
+    run->matches_played++;
+    reward_for_match(run, db, settings, won, outcome);
     return STS_RUN_OK;
 }
 
@@ -184,6 +213,7 @@ sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const st
         return STS_RUN_BAD_CHOICE;
     run->offer_count = 0;
     run->phase = STS_PHASE_READY;
+    start_owed_rewards(run, db, settings);
     return STS_RUN_OK;
 }
 
@@ -229,6 +259,10 @@ size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
     PUT("offers %d", run->offer_count);
     for (wau = 0; wau < run->offer_count; wau++)
         PUT(" %u %u %d", (unsigned)run->offers[wau].id, (unsigned)run->offers[wau].type, run->offers[wau].copies);
+    PUT("\n");
+    PUT("owed %d", run->owed_count);
+    for (wau = 0; wau < run->owed_count; wau++)
+        PUT(" %d", (int)run->owed_won[wau]);
     PUT("\n");
     check = sts_fnv1a(STS_FNV_START, buf, offset);
     PUT("check %08x\n", (unsigned)check);
@@ -332,7 +366,7 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
     stream.end = text + body;
     if (!expect(&stream, "sts_run") || !read_int(&stream, 1000000, &version))
         return STS_RUN_DAMAGED;
-    if (version != RUN_FORMAT_VERSION)
+    if (version != 1 && version != RUN_FORMAT_VERSION)
         return STS_RUN_BAD_VERSION;
 
     if (!expect(&stream, "settings") || !read_hex32(&stream, &out->settings_hash)
@@ -366,6 +400,18 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
         out->offers[wau].type = (uint8_t)type;
     }
     out->offer_count = count;
+
+    /* Version 1 had no owed rewards. */
+    if (version >= 2) {
+        if (!expect(&stream, "owed") || !read_int(&stream, STS_RUN_OWED_MAX, &count))
+            return STS_RUN_DAMAGED;
+        for (wau = 0; wau < count; wau++) {
+            if (!read_int(&stream, 1, &value))
+                return STS_RUN_DAMAGED;
+            out->owed_won[wau] = (uint8_t)value;
+        }
+        out->owed_count = count;
+    }
     return STS_RUN_OK;
 }
 
@@ -450,6 +496,9 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
         return STS_RUN_ILLEGAL;
     if (run->phase != STS_PHASE_READY && run->offer_count == 0)
         return STS_RUN_ILLEGAL;
+    if (run->owed_count < 0 || run->owed_count > STS_RUN_OWED_MAX
+        || (run->owed_count > 0 && run->phase != STS_PHASE_REWARD))
+        return STS_RUN_ILLEGAL;
     for (wau = 0; wau < run->offer_count; wau++) {
         const sts_card *card = sts_card_db_find(db, run->character, run->offers[wau].id);
         if (!card || card->type != run->offers[wau].type || run->offers[wau].copies < 1)
@@ -481,8 +530,10 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
                 return status;
         } else {
             roll_offers(&updated, db, &settings->rules, cfg);
-            if (updated.offer_count == 0)
+            if (updated.offer_count == 0) {
                 updated.phase = STS_PHASE_READY;
+                start_owed_rewards(&updated, db, settings);
+            }
         }
     }
     *run = updated;

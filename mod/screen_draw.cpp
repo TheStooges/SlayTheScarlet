@@ -384,6 +384,18 @@ static void rebuild_choose(void)
         }
         add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, color);
     }
+    switch (choose_toggle_for(g_cursor)) {
+    case TOGGLE_USE:
+        sprintf(line, tr("%s: use %s's run"), BUTTON_D, character_label(g_cursor));
+        add_label(line, g_font_small, 20, 392, 600, 20, COLOR_GREY);
+        break;
+    case TOGGLE_STOP:
+        sprintf(line, tr("%s: stop using %s's run"), BUTTON_D, character_label(g_cursor));
+        add_label(line, g_font_small, 20, 392, 600, 20, COLOR_GREY);
+        break;
+    case TOGGLE_NONE:
+        break;
+    }
     if (g_alt_armed)
         sprintf(line, tr("Press %s again to discard this character's run and start over."), BUTTON_C);
     else
@@ -429,7 +441,8 @@ static void rebuild_draft(void)
                            : tr("%s: choose a card to swap in");
         sprintf(line, format, character_label(g_run.character));
         add_label(line, g_font_big, 20, 16, 470, 30, COLOR_WHITE);
-        sprintf(line, tr("Match %d"), g_run.matches_played);
+        /* Owed rewards come from the latest matches, so the offer on screen is from an earlier one. */
+        sprintf(line, tr("Match %d"), g_run.matches_played - g_run.owed_count);
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     } else {
         sprintf(line, tr("%s: pick %d of %d"), character_label(g_run.character),
@@ -639,8 +652,10 @@ static void rebuild_deck(void)
     add_change_list(pos_y, tr("Removed"), tr("Added"));
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
     sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
-    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_WHITE);
-    if (g_alt_armed)
+    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GREY);
+    if (g_run.phase == STS_PHASE_REWARD)
+        sprintf(line, tr("Arrows: inspect   %s: next offer"), BUTTON_A);
+    else if (g_alt_armed)
         sprintf(line, tr("Press %s again to discard this run and start over."), BUTTON_C);
     else
         sprintf(line, tr("Arrows: inspect   %s: back   %s twice: start over"), BUTTON_B, BUTTON_C);

@@ -21,6 +21,10 @@ typedef enum {
     STS_PHASE_REWARD    /* a match ended and offers are waiting */
 } sts_run_phase;
 
+/* Matches whose reward waits behind an offer still on screen, as after a disconnect during an
+ * offer and a reconnect without taking it. */
+#define STS_RUN_OWED_MAX 32
+
 typedef struct {
     uint32_t settings_hash;
     int character;
@@ -31,6 +35,9 @@ typedef struct {
     sts_deck deck;
     sts_offer offers[STS_OFFER_MAX];
     int offer_count;
+    /* Oldest first: whether each owed match was won. Only non-empty in REWARD. */
+    uint8_t owed_won[STS_RUN_OWED_MAX];
+    int owed_count;
 } sts_run;
 
 typedef enum {
@@ -73,8 +80,10 @@ typedef enum {
     STS_REWARD_OFFERS   /* offers are waiting; call sts_run_reward_pick */
 } sts_reward_outcome;
 
-/* Call once from READY when a match ends. Returns STS_RUN_WRONG_PHASE from any other
- * phase, leaving *outcome as NONE. */
+/* Call once when a match ends, from READY or REWARD. From REWARD the offers on screen stay, the
+ * match's reward is owed until they are taken, and *outcome is OFFERS. Returns
+ * STS_RUN_WRONG_PHASE from DRAFT, or when STS_RUN_OWED_MAX rewards are already owed, leaving
+ * *outcome as NONE. */
 sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                     int won, sts_reward_outcome *outcome);
 
@@ -85,8 +94,10 @@ typedef struct {
     int type;                    /* BY_TYPE: an sts_card_type */
 } sts_replace_choice;
 
-/* Takes offer `index` and returns to READY. On any error nothing changes and the offers
- * stay, so the screen can simply ask again. choice may be NULL unless the mode needs it. */
+/* Takes offer `index` and returns to READY, or starts the oldest owed reward, which may leave
+ * the run in REWARD with new offers. Owed rewards that give no offer are used up on the way (a
+ * random change under who_picks nobody is made then). On any error nothing changes and the
+ * offers stay, so the screen can simply ask again. choice may be NULL unless the mode needs it. */
 sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                    int index, const sts_replace_choice *choice);
 
