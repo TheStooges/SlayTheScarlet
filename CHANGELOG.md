@@ -29,9 +29,9 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 ### Fixed
 
-- A disconnect during an offer no longer loses anything. The offer waits under the game's network menu
-  and comes back after it, without reacting to buttons pressed in the menu. A match played after
-  reconnecting straight from the menu has its offer queued behind the waiting one.
+- A disconnect during an offer no longer loses anything. The offer stays on screen in place of the
+  game's network menu, which appears once the offer is taken. If a match still finishes while an offer
+  waits, its reward is queued behind that offer.
 
 ### Online
 

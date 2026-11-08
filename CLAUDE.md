@@ -350,9 +350,15 @@ Netplay is a primary requirement. Each machine simulates both players from share
   offer, the offer still works and saves; character select then hangs until the game disconnects.
 - **A disconnect during an offer** (seen with and without InGameHostlist) sends the game to the title
   with its network menu open. Game menus are drawn after the scene, so the menu covered the offer,
-  and the offer kept reading buttons under it. The offer now pauses while any menu is open at the
-  title, and comes back when the menu closes. Reconnecting straight from the menu leaves it open but
-  hidden; it shows on the next result screen, and that match's reward is owed behind it.
+  and the offer kept reading buttons under it. Now the network menu's own `onProcess`/`onRender`
+  (`VTable_ConnectMenu`, 0x859300) run the offer instead while it is open, so it shows straight away,
+  and the menu appears once it is taken. These hooks go in on the first title frame, after every
+  mod has loaded, to be the outermost. InGameHostlist still drew its host list and menu items over
+  the offer: it draws with ImGui from EndScene whenever the top menu's vtable pointer is 0x859300
+  (source: github.com/SokuDev/InGameHostlist). So while the offer is open the menu object points
+  at a copy of the vtable, which hides it from such checks. Under any other title menu the offer
+  pauses. The owed queue
+  stays as a fallback.
 - **Junk bytes in `GAME_MATCH`:** a client's own character byte was 110 in one packet and the
   opponent's character in another, so the packet log finds each deck by searching every profile slot.
 - **Scene hooks and roles:** after a match, a client's select, loading and battle scenes all fired

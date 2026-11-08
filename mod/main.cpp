@@ -100,21 +100,25 @@ static int game_has_focus(void)
     return pid == GetCurrentProcessId();
 }
 
+static void install_connect_hooks(void);
+
 static int __fastcall on_title_process(SokuLib::Title *This)
 {
     int f7 = (GetAsyncKeyState(VK_F7) & 0x8000) != 0;
     int pressed = f7 && !g_f7_prev;
 
     g_f7_prev = f7;
+    install_connect_hooks();
     g_result_closing = 0;
     deck_on_title_frame();
     /* Only from the bare main menu, not with a submenu such as Options on top. */
     if (pressed && !screen_is_open() && game_has_focus() && SokuLib::menuManager.empty())
         screen_open();
 
-    /* A game menu over the title, such as the network menu the game opens after a disconnect
-     * during an offer, is drawn on top of the screen and hides it. The screen waits under it,
-     * reading no buttons, so presses meant for the menu cannot take an offer unseen. */
+    /* A game menu over the title is drawn on top of the screen and would hide it. The network
+     * menu, which the game opens after a disconnect during an offer, shows the screen in its
+     * place (on_connect_process). Under any other menu the screen waits, reading no buttons,
+     * so presses meant for the menu cannot take an offer unseen. */
     if (screen_is_open() && SokuLib::menuManager.empty()) {
         /* The menu keeps running but sees no input. The real values go back afterwards,
          * because the game counts how long buttons are held in these same fields. */
@@ -233,6 +237,75 @@ static int __fastcall on_result_render(SokuLib::MenuResult *This)
     if (g_result_closing)
         return 1;   /* keeps the unlock list from flashing up on the way out */
     return (This->*g_og_result_render)();
+}
+
+/* A disconnect during an offer sends the game to the title with its network menu open. The
+ * offer is shown in the menu's place, and the menu waits, frozen, until the screen closes.
+ *
+ * InGameHostlist draws its host list and its own menu items from Direct3D's EndScene, after
+ * everything else, whenever the top menu's vtable is the network menu's. So while the offer is
+ * open the menu object points at a copy of that vtable instead: the game still runs it, through
+ * the copy, but other mods no longer see a network menu. The real vtable goes back when the
+ * screen closes, and those mods start again as if the menu had just opened. */
+static int (SokuLib::MenuConnect::*g_og_connect_process)();
+static int (SokuLib::MenuConnect::*g_og_connect_render)();
+static int g_connect_wait_for_release = 0;
+static void **const g_connect_vtable = reinterpret_cast<void **>(&SokuLib::VTable_ConnectMenu);
+/* More entries than the menu's 4 virtual functions, in case the class has others unknown. The
+ * copy matches the original at every index it holds. */
+static void *g_connect_hidden_vtable[32];
+
+static void set_connect_vtable(SokuLib::MenuConnect *menu, void **vtable)
+{
+    *reinterpret_cast<void ***>(menu) = vtable;
+}
+
+static int __fastcall on_connect_process(SokuLib::MenuConnect *This)
+{
+    if (screen_is_open()) {
+        set_connect_vtable(This, g_connect_hidden_vtable);
+        screen_update(SokuLib::inputMgrs.input);
+        if (!screen_is_open()) {
+            set_connect_vtable(This, g_connect_vtable);
+            g_connect_wait_for_release = 1;
+        }
+        return 1;   /* the menu stays */
+    }
+    set_connect_vtable(This, g_connect_vtable);
+    /* Or the press that closed the screen would also choose an item in the menu. */
+    if (g_connect_wait_for_release) {
+        if (SokuLib::inputMgrs.input.a || SokuLib::inputMgrs.input.b)
+            return 1;
+        g_connect_wait_for_release = 0;
+    }
+    return (This->*g_og_connect_process)();
+}
+
+static int __fastcall on_connect_render(SokuLib::MenuConnect *This)
+{
+    if (screen_is_open()) {
+        screen_render(1);
+        return 1;
+    }
+    return (This->*g_og_connect_render)();
+}
+
+/* Hooked on the first title frame, after every mod has loaded, so this hook is the outermost
+ * and an open offer stops all of the others' network menu code, not just the game's. */
+static void install_connect_hooks(void)
+{
+    static int installed = 0;
+    DWORD old;
+
+    if (installed)
+        return;
+    installed = 1;
+    VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, PAGE_EXECUTE_WRITECOPY, &old);
+    g_og_connect_process = SokuLib::TamperDword(&SokuLib::VTable_ConnectMenu.onProcess, on_connect_process);
+    g_og_connect_render = SokuLib::TamperDword(&SokuLib::VTable_ConnectMenu.onRender, on_connect_render);
+    VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
+    memcpy(g_connect_hidden_vtable, g_connect_vtable, sizeof g_connect_hidden_vtable);
+    slog("network menu hooked over %p and %p", *(void **)&g_og_connect_process, *(void **)&g_og_connect_render);
 }
 
 extern "C" __declspec(dllexport) bool CheckVersion(const BYTE hash[16])

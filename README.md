@@ -67,10 +67,8 @@ A match on a different character or deck slot is a normal match: no offer, and y
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
 new ones. There is no time limit for now.
 
-If the connection drops during an offer, the game goes back to its network menu, and the offer waits
-underneath. It comes back when you leave the menu. If you reconnect straight from the menu instead, it
-comes back after your next match, and that match's own offer follows once you have taken it, so no
-reward is lost.
+If the connection drops during an offer, the game goes back to the title, and the offer stays on screen.
+The game's network menu appears once you have taken it.
 
 ### Online
 
