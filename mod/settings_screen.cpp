@@ -114,10 +114,18 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("reward", "mode", tr("Reward mode"), tr("Replace a card: a card comes in and the same number leave."));
         add_help_line(row, tr("No offers: the deck never changes after a match."));
         add_help_line(row, tr("Adding and removing change the deck size, which the mod cannot do yet."));
-        row = add_row("reward", "who_picks", tr("Who gets an offer"),
-                      tr("Both players: each player gets their own offer after every match."));
-        add_help_line(row, tr("Winner only: the loser keeps their deck."));
-        add_help_line(row, tr("Loser only: the winner keeps their deck."));
+        row = add_row("reward", "who_picks", tr("When you get an offer"),
+                      tr("Win or lose: you get an offer after every match."));
+        add_help_line(row, tr("Only if you win: no offer after a loss."));
+        add_help_line(row, tr("Only if you lose: no offer after a win."));
+        add_help_line(row, tr("Random: a set chance of an offer after each match, win or lose."));
+        if (g_settings_edit.who_picks == STS_WHO_RANDOM)
+            add_row("reward", "random_chance", tr("Chance of an offer"),
+                    tr("Out of 100: how likely an offer is after each match."));
+        row = add_row("reward", "offer_pick", tr("What comes into the deck"),
+                      tr("Player chooses a card: pick one of the cards offered."));
+        add_help_line(row, tr("Random: one of the cards offered is picked for you."));
+        add_help_line(row, tr("With \"What leaves the deck\" on Random too, the swap happens by itself."));
         row = add_row("reward", "replacement", tr("What leaves the deck"),
                       tr("Player chooses cards: pick exactly which cards leave."));
         add_help_line(row, tr("Player chooses a type: random cards of the chosen type leave."));
@@ -156,9 +164,9 @@ static const char *choice_text(const char *raw)
 {
     if (strcmp(raw, "true") == 0) return tr("On");
     if (strcmp(raw, "false") == 0) return tr("Off");
-    if (strcmp(raw, "both") == 0) return tr("Both players");
-    if (strcmp(raw, "winner") == 0) return tr("Winner only");
-    if (strcmp(raw, "loser") == 0) return tr("Loser only");
+    if (strcmp(raw, "both") == 0) return tr("Win or lose");
+    if (strcmp(raw, "winner") == 0) return tr("Only if you win");
+    if (strcmp(raw, "loser") == 0) return tr("Only if you lose");
     if (strcmp(raw, "replace") == 0) return tr("Replace a card");
     if (strcmp(raw, "skip") == 0) return tr("No offers");
     if (strcmp(raw, "add") == 0) return tr("Add a card");
@@ -197,7 +205,11 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
         out[used] = 0;
         return;
     }
-    words = choice_text(raw);
+    /* The other "choose" is about the cards that leave. */
+    if (strcmp(row->key, "offer_pick") == 0 && strcmp(raw, "choose") == 0)
+        words = tr("Player chooses a card");
+    else
+        words = choice_text(raw);
     _snprintf(out, size - 1, "%s", words ? words : raw);
     out[size - 1] = 0;
 }
@@ -324,10 +336,6 @@ static void change_setting(int direction)
     if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "mode") == 0)
         for (wau = 0; wau < 4 && !reward_mode_allowed(); wau++)
             sts_settings_step(&g_settings_edit, row->section, row->key, direction);
-    /* A random swap for both players needs the opponent's mod to agree, so it is not offered. */
-    if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "who_picks") == 0)
-        for (wau = 0; wau < 4 && g_settings_edit.who_picks == STS_WHO_NOBODY; wau++)
-            sts_settings_step(&g_settings_edit, row->section, row->key, direction);
     /* No more offers than the screen fits. */
     if (g_settings_edit.draft.offer_count > OFFERS_ON_SCREEN)
         g_settings_edit.draft.offer_count = OFFERS_ON_SCREEN;
@@ -415,6 +423,9 @@ static void describe_problem(sts_settings_problem problem, const sts_settings_pr
         break;
     case STS_PROBLEM_REWARD_WEIGHTS:
         _snprintf(out, size - 1, "%s", tr("Rewards: every card type offered has a weight of 0, so nothing can be offered."));
+        break;
+    case STS_PROBLEM_RANDOM_CHANCE:
+        _snprintf(out, size - 1, "%s", tr("The chance of an offer cannot be above 100."));
         break;
     case STS_PROBLEM_STARTER_TOO_BIG:
         _snprintf(out, size - 1, tr("%s's starting cards are more than a deck can hold."), character_label(info->character));

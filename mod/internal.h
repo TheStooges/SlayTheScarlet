@@ -88,7 +88,7 @@ typedef enum { RULES_CARRY_ON, RULES_BACK, RULES_START_OVER } rules_option;
 
 /* One setting on the settings screen. Its help is a few lines, one for each value where the value
  * needs explaining. */
-#define SETTINGS_HELP_LINES 3
+#define SETTINGS_HELP_LINES 4
 typedef struct {
     const char *section, *key;
     const char *label;
@@ -100,7 +100,7 @@ typedef struct {
 enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_COUNT };
 #define SETTINGS_LIST_Y 56
 #define SETTINGS_ROW_H 19
-#define SETTINGS_VISIBLE_ROWS 15
+#define SETTINGS_VISIBLE_ROWS 14
 
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);

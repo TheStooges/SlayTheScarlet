@@ -28,7 +28,8 @@ defaults to be chosen after playtesting. Do not hardcode any of these:
 - Number of offers per draft pick (the draft itself is fixed: one card per pick until the deck
   reaches `size_min`, so 20 picks, or 12 with the starter; decided for v0.3)
 - Reward mode: replace / add / skip / remove (deck size min/max as bounds)
-- Who picks after a match: both / winner only / loser only / nobody (pure RNG)
+- When you get an offer after a match: win or lose / only if you win / only if you lose / at random
+- Which offered card comes in: player chooses / random
 - Replacement control: player chooses specific cards / chooses by type (system, skill, spell) / random
 - Offer copy counts: fixed 1 or random (e.g. 2x A / 4x B / 1x C)
 - Opponent visibility of picks: hidden / reveal after you confirm (suggested default) / live
@@ -124,10 +125,15 @@ or `one_of_each` (system, skill, spell in turn), separately for the draft and re
 
 Rule interpretations in `core/` that may need revisiting with the community:
 
-- `who_picks`: a player left out (loser under `winner`, winner under `loser`) keeps their deck
-  unchanged. `nobody` rolls an offer and any removals at random for both players. By decision (v0.3),
-  compatible mode turns `nobody` into `both` and the settings screen does not offer it: a random swap
-  for both players needs both machines to agree on the setting, so it waits for full mode.
+- `who_picks`, by decision (v0.3), says when this player gets an offer, from their own result alone:
+  `both` (win or lose), `winner` (only if they won), `loser` (only if they lost), `random` (a
+  `random_chance` in 100 chance, win or lose, 50 by default and stepping by 25 on the screen, from the
+  run's saved RNG so a restart cannot reroll it; hashed only while `who_picks=random`). Each player's mod
+  applies it alone and nothing is exchanged, which avoids any chance of a desync. With no offer the
+  deck stays unchanged. Which card comes in is a separate setting, `offer_pick`: `choose`, or `random`
+  (one offer is kept, saved as the only offer so a restart cannot change it). With `replacement=random`
+  as well, the swap makes itself and the deck screen shows it. The old `who_picks=nobody` was that
+  automatic swap; it is gone, and a file that says it reads as `both`.
 - The draft adds one copy per pick until the deck reaches `size_min` (by decision, v0.3: `picks`,
   `copies_min` and `copies_max` left `[draft]`; older files still list them and they are ignored).
   Rewards keep their copy range, and add/remove grow or shrink the deck towards `size_max`/`size_min`.
@@ -524,13 +530,13 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 10. Roulette for random picks (after v0.2): instead of jumping to the deck-changed screen, the cursor
    runs through the offers, fast at first and slowing down (gaps from a few frames to about 15,
    about 2 s in all, move sound per step, confirm sound at the end), and settles on the result.
-   Used on a time-out (item 9), with `who_picks=nobody`, and possibly over the deck grid when
+   Used on a time-out (item 9), with `offer_pick=random`, and possibly over the deck grid when
    `replacement=random` picks the cards to remove. The result is rolled first and the animation only
    shows it: pick the starting position so the slow-down lands on it. Runs per frame like every
    screen, never a blocking loop. Confirm skips to the result. Cosmetic setting, e.g.
    `reward_animation=true`, not in the fingerprint (like `show_deck`). Testable offline with
-   `who_picks=nobody`.
-11. (done for v0.3, not yet played in game) Settings screen: edit `settings.ini` in game, from a
+   `offer_pick=random`.
+11. (done for v0.3, played in game) Settings screen: edit `settings.ini` in game, from a
    Settings entry on its own row under the F7 character grid (chosen over a button). It opens a list
    of menus (Draft, with the starter's on/off; Rewards; Runs, which the match limit of item 12 will
    join) ending with Save changes; edits are
@@ -541,7 +547,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    mod through `tr()` (translated), not read from the file's comments. Settings with no effect yet
    (deck size and copy limit, forced by compatible mode; pick visibility, opponent deck, items) are
    not shown, by decision: they join a menu when they do something. The reward mode only steps
-   between replace and skip, and who gets an offer leaves out nobody. Saving
+   between replace and skip, Saving
    runs `sts_settings_validate` and the starter check, lists the runs whose rules would change and
    asks, refuses if the file changed on disk since the screen opened, then writes through
    `sts_settings_rewrite` (only changed values; missing settings added to their section) to a
@@ -571,11 +577,6 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 
 ## Open questions
 
-- Who gets an offer (`who_picks`): `both`, `winner` and `loser` are settled as fine client-side
-  (decided during v0.3): a match has one winner and one loser, each player's mod applies the rule to
-  its own result, and a player left out just sees the usual waiting screen, so nothing needs
-  checking with the other side. Still open: whether `nobody` (a random swap for both players) should
-  exist at all. It is off in compatible mode, as both machines would have to agree on it.
 - Which replacement rule is the default (community decision).
 - Starting card pool and offer pool per character (system vs character cards).
 - What happens if a player picks a different character mid-run (block / end run / plain match).

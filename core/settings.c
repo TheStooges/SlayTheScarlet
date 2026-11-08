@@ -19,7 +19,10 @@ static const named_value g_modes[] = {
 };
 static const named_value g_who[] = {
     {"both", STS_WHO_BOTH}, {"winner", STS_WHO_WINNER},
-    {"loser", STS_WHO_LOSER}, {"nobody", STS_WHO_NOBODY}, {NULL, 0}
+    {"loser", STS_WHO_LOSER}, {"random", STS_WHO_RANDOM}, {NULL, 0}
+};
+static const named_value g_offer_picks[] = {
+    {"choose", STS_OFFER_PICK_CHOOSE}, {"random", STS_OFFER_PICK_RANDOM}, {NULL, 0}
 };
 static const named_value g_replace[] = {
     {"choose", STS_REPLACE_CHOOSE}, {"by_type", STS_REPLACE_BY_TYPE},
@@ -121,6 +124,7 @@ void sts_settings_defaults(sts_settings *settings)
     settings->reward.replace = STS_REPLACE_CHOOSE;
 
     settings->who_picks = STS_WHO_BOTH;
+    settings->random_chance = 50;
     settings->pick_visibility = STS_VISIBILITY_AFTER_CONFIRM;
     settings->opponent_deck = STS_OPPONENT_DECK_CHANGE;
     settings->items_enabled = 0;
@@ -216,6 +220,7 @@ typedef struct {
     void *field;                /* int (or an enum, which is int-sized), or an unsigned mask */
     const named_value *names;   /* KIND_NAMED */
     int step_min, step_max;     /* KIND_INT: the range the settings screen steps through */
+    int step_size;              /* KIND_INT: how far one step goes, 0 meaning 1 */
 } setting_ref;
 
 /* Enum fields are read and written as int. */
@@ -288,6 +293,12 @@ static int find_setting(sts_settings *settings, const char *section, const char 
             set_ref(ref, KIND_NAMED, &settings->reward.mode, g_modes, 0, 0);
         else if (strcmp(key, "who_picks") == 0)
             set_ref(ref, KIND_NAMED, &settings->who_picks, g_who, 0, 0);
+        else if (strcmp(key, "random_chance") == 0) {
+            set_ref(ref, KIND_INT, &settings->random_chance, NULL, 0, 100);
+            ref->step_size = 25;
+        }
+        else if (strcmp(key, "offer_pick") == 0)
+            set_ref(ref, KIND_NAMED, &settings->offer_pick, g_offer_picks, 0, 0);
         else if (strcmp(key, "replacement") == 0)
             set_ref(ref, KIND_NAMED, &settings->reward.replace, g_replace, 0, 0);
         else
@@ -473,6 +484,10 @@ static sts_settings_status parse_line(char *line, char *section, size_t section_
         return STS_SETTINGS_UNKNOWN_KEY;   /* a key before any section */
     if (obsolete_key(section, key))
         return STS_SETTINGS_OK;
+    /* Up to 0.2, who_picks=nobody was an automatic swap. That is offer_pick and replacement now,
+     * and in 0.3's first builds it acted as both, so a file that still says it reads as both. */
+    if (strcmp(section, "reward") == 0 && strcmp(key, "who_picks") == 0 && strcmp(value, "nobody") == 0)
+        strcpy(value, "both");
     result = set_key(out, section, key, value);
     if (result < 0)
         return STS_SETTINGS_UNKNOWN_KEY;
@@ -649,6 +664,9 @@ sts_settings_problem sts_settings_check(const sts_settings *settings, sts_settin
             return problem;
     }
 
+    if (settings->random_chance > 100)
+        return STS_PROBLEM_RANDOM_CHANCE;
+
     if (settings->reward.mode != STS_REWARD_SKIP) {
         offer = check_offer(&settings->reward, rules);
         if (offer >= 0)
@@ -681,6 +699,7 @@ const char *sts_settings_validate(const sts_settings *settings)
     case STS_PROBLEM_DRAFT_WEIGHTS:
     case STS_PROBLEM_REWARD_WEIGHTS:    return "weighted offers need a weight above 0 on a type that can be offered";
     case STS_PROBLEM_REWARD_SIZE:       return "reward mode add or remove needs size_min below size_max";
+    case STS_PROBLEM_RANDOM_CHANCE:     return "random_chance cannot be above 100";
     case STS_PROBLEM_STARTER_TOO_BIG:
         name = sts_character_name(info.character);
         sprintf(message, "%s's starter has more cards than size_max", name);
@@ -704,10 +723,6 @@ void sts_settings_force_compatible(sts_settings *settings)
     /* Add and remove change the deck size, which a vanilla opponent cannot accept. */
     if (settings->reward.mode == STS_REWARD_ADD || settings->reward.mode == STS_REWARD_REMOVE)
         settings->reward.mode = STS_REWARD_REPLACE;
-    /* A random swap for both players needs both machines to agree on it, which takes the mod on
-     * both sides. Each player picks for themselves instead. */
-    if (settings->who_picks == STS_WHO_NOBODY)
-        settings->who_picks = STS_WHO_BOTH;
 
     /* Whatever the player configured for other sizes may not fit; fall back to defaults. */
     if (sts_settings_validate(settings)) {
@@ -781,6 +796,13 @@ uint32_t sts_settings_hash(const sts_settings *settings)
         for (character = 0; character < STS_NUM_CHARACTERS; character++)
             hash = hash_starter_list(hash, &settings->starter[character]);
     }
+
+    /* Only a rule while offers are at random, so other runs keep their fingerprint. */
+    if (settings->who_picks == STS_WHO_RANDOM)
+        hash = hash_int(hash, settings->random_chance);
+    /* Likewise, so runs from before it existed keep theirs. */
+    if (settings->offer_pick != STS_OFFER_PICK_CHOOSE)
+        hash = hash_int(hash, (int)settings->offer_pick + 1000);
     return hash;
 }
 
@@ -795,9 +817,9 @@ static const setting_key g_keys[] = {
     {"draft", "offers"}, {"draft", "show_deck"}, {"draft", "types"}, {"draft", "offer_style"}, {"draft", "system_weight"},
     {"draft", "skill_weight"}, {"draft", "spell_weight"},
     {"starter", "enabled"},
-    {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "offers"}, {"reward", "copies_min"},
+    {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "random_chance"}, {"reward", "offers"}, {"reward", "copies_min"},
     {"reward", "copies_max"}, {"reward", "types"}, {"reward", "offer_style"}, {"reward", "system_weight"},
-    {"reward", "skill_weight"}, {"reward", "spell_weight"}, {"reward", "replacement"},
+    {"reward", "skill_weight"}, {"reward", "spell_weight"}, {"reward", "offer_pick"}, {"reward", "replacement"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
     {"run", "allow_rule_changes"},
@@ -879,8 +901,14 @@ int sts_settings_step(sts_settings *settings, const char *section, const char *k
     direction = direction < 0 ? -1 : 1;
     switch (ref.kind) {
     case KIND_INT: {
-        int number = read_number(&ref) + direction;
+        int size = ref.step_size > 0 ? ref.step_size : 1;
+        int number = read_number(&ref);
 
+        /* A value between steps, from the file, moves onto the next step in that direction. */
+        if (number % size != 0)
+            number = number - number % size + (direction > 0 ? size : 0);
+        else
+            number += direction * size;
         if (number > ref.step_max)
             number = ref.step_max;
         if (number < ref.step_min)

@@ -15,13 +15,20 @@
  * limit would need its own patch, so settings may not go above this for now. */
 #define STS_GAME_COPY_LIMIT 4
 
-/* Who gets a card offer after a match. A player left out keeps their deck unchanged. */
+/* When this player gets a card offer, from their own result alone. Each player's mod applies it
+ * by itself, so nothing is exchanged with the opponent. With no offer the deck stays unchanged. */
 typedef enum {
     STS_WHO_BOTH,
     STS_WHO_WINNER,
     STS_WHO_LOSER,
-    STS_WHO_NOBODY      /* nobody chooses: an offer and any removals are rolled at random */
+    STS_WHO_RANDOM      /* a random_chance in 100 chance of an offer after each match, win or lose */
 } sts_who_picks;
+
+/* Which of the cards offered comes in. */
+typedef enum {
+    STS_OFFER_PICK_CHOOSE,   /* the player chooses */
+    STS_OFFER_PICK_RANDOM    /* one is taken at random; with replacement random too, the swap makes itself */
+} sts_offer_pick;
 
 typedef enum {
     STS_VISIBILITY_HIDDEN,
@@ -49,6 +56,8 @@ typedef struct {
     sts_offer_settings draft;
     sts_offer_settings reward;
     sts_who_picks who_picks;
+    int random_chance;   /* out of 100, for STS_WHO_RANDOM */
+    sts_offer_pick offer_pick;
     sts_pick_visibility pick_visibility;
     sts_opponent_deck opponent_deck;
     int items_enabled;
@@ -106,7 +115,8 @@ typedef enum {
     STS_PROBLEM_REWARD_COPY_LIMIT,
     STS_PROBLEM_REWARD_TYPES,
     STS_PROBLEM_REWARD_WEIGHTS,
-    STS_PROBLEM_REWARD_SIZE         /* add or remove with a fixed deck size */
+    STS_PROBLEM_REWARD_SIZE,        /* add or remove with a fixed deck size */
+    STS_PROBLEM_RANDOM_CHANCE       /* random_chance above 100 */
 } sts_settings_problem;
 
 typedef struct {
@@ -129,7 +139,7 @@ void sts_settings_starter(const sts_settings *settings, int character, sts_deck 
 int sts_settings_draft_length(const sts_settings *settings, int character);
 
 /* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, no rule that needs another
- * deck size, and who_picks=nobody (a random swap both machines must agree on) becomes both. The result always passes sts_settings_validate. Visibility settings are
+ * deck size. The result always passes sts_settings_validate. Visibility settings are
  * left alone: they need messages this mode never sends, so they have no effect here, and
  * rules already compatible keep their fingerprint. */
 void sts_settings_force_compatible(sts_settings *settings);
@@ -148,7 +158,7 @@ sts_settings_status sts_settings_set(sts_settings *settings, const char *section
 
 /* Moves a setting to its next value (direction 1) or previous one (-1): numbers by one within the
  * range the screen offers (fewest copies up to most copies, and most copies from fewest copies up
- * to copy_limit), choices in order and wrapping round. Returns 0 for an unknown setting. Does not
+ * to copy_limit; random_chance by 25, onto the next multiple of 25), choices in order and wrapping round. Returns 0 for an unknown setting. Does not
  * validate. */
 int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction);
 

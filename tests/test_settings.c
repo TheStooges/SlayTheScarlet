@@ -291,11 +291,14 @@ static void test_settings_compatible(void)
         CHECK(settings.rules.deck_min == 20 && settings.rules.deck_max == 20 && settings.rules.copy_limit == 4);
         CHECK(settings.items_enabled == 0);
         CHECK(settings.reward.mode == STS_REWARD_REPLACE || settings.reward.mode == STS_REWARD_SKIP);
-        CHECK(settings.who_picks != STS_WHO_NOBODY);
     }
     CHECK(parse_ini("[reward]\nwho_picks=nobody\n", &settings, &line) == STS_SETTINGS_OK);
     sts_settings_force_compatible(&settings);
     CHECK(settings.who_picks == STS_WHO_BOTH);
+    /* An old file's nobody reads as both, and random needs nothing from the other player. */
+    CHECK(parse_ini("[reward]\nwho_picks=random\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_force_compatible(&settings);
+    CHECK(settings.who_picks == STS_WHO_RANDOM);
 
     /* Rules that are already compatible stay exactly as they were, so a run saved under the
      * defaults is not treated as made under different rules. */
@@ -461,7 +464,7 @@ static void test_settings_one_value(void)
     CHECK(sts_settings_step(&settings, "reward", "spell_weight", -1) && settings.reward.weights[STS_CARD_SPELL] == 20);
 
     /* Choices go round in order, both ways. */
-    CHECK(sts_settings_step(&settings, "reward", "who_picks", -1) && settings.who_picks == STS_WHO_NOBODY);
+    CHECK(sts_settings_step(&settings, "reward", "who_picks", -1) && settings.who_picks == STS_WHO_RANDOM);
     CHECK(sts_settings_step(&settings, "reward", "who_picks", 1) && settings.who_picks == STS_WHO_BOTH);
     CHECK(sts_settings_step(&settings, "draft", "show_deck", 1) && settings.draft_show_deck == 0);
     CHECK(sts_settings_step(&settings, "draft", "show_deck", 1) && settings.draft_show_deck == 1);
@@ -478,6 +481,40 @@ static void test_settings_one_value(void)
     CHECK(!sts_settings_step(&settings, "starter", "common", 1));
     CHECK(!sts_settings_step(&settings, "draft", "nonsense", 1));
     CHECK(sts_settings_equal(&settings, &before));
+
+    /* The chance of a random offer steps by 25 within 0 to 100, and a value between steps moves
+     * onto the next one. */
+    sts_settings_defaults(&settings);
+    CHECK(settings.random_chance == 50);
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 75);
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 100);
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 100);
+    settings.random_chance = 25;
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", -1) && settings.random_chance == 0);
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", -1) && settings.random_chance == 0);
+    settings.random_chance = 60;
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 75);
+    settings.random_chance = 60;
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", -1) && settings.random_chance == 50);
+    CHECK(parse_ini("[reward]\nrandom_chance=33\n", &settings, NULL) == STS_SETTINGS_OK && settings.random_chance == 33);
+    CHECK(sts_settings_validate(&settings) == NULL);
+    CHECK(parse_ini("[reward]\nrandom_chance=101\n", &settings, NULL) == STS_SETTINGS_OK);
+    CHECK(sts_settings_check(&settings, NULL) == STS_PROBLEM_RANDOM_CHANCE && sts_settings_validate(&settings) != NULL);
+
+    /* Which card comes in is a setting of its own, and only counts when it is not the default. */
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(sts_settings_step(&settings, "reward", "offer_pick", 1) && settings.offer_pick == STS_OFFER_PICK_RANDOM);
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&before));
+    CHECK(sts_settings_get(&settings, "reward", "offer_pick", value, sizeof value) && strcmp(value, "random") == 0);
+
+    /* It only counts towards the fingerprint while offers are at random. */
+    sts_settings_defaults(&settings);
+    before = settings;
+    settings.random_chance = 75;
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before));
+    settings.who_picks = before.who_picks = STS_WHO_RANDOM;
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&before));
 
     /* Fewest and most copies cannot pass each other. The draft's copies are not settings. */
     sts_settings_defaults(&settings);
@@ -614,6 +651,7 @@ static void test_settings_rewrite(void)
             {"draft", "offers"}, {"draft", "show_deck"},
             {"draft", "types"}, {"draft", "offer_style"}, {"draft", "system_weight"}, {"draft", "skill_weight"},
             {"draft", "spell_weight"}, {"starter", "enabled"}, {"reward", "mode"}, {"reward", "who_picks"},
+            {"reward", "random_chance"}, {"reward", "offer_pick"},
             {"reward", "offers"}, {"reward", "copies_min"}, {"reward", "copies_max"}, {"reward", "types"},
             {"reward", "offer_style"}, {"reward", "system_weight"}, {"reward", "skill_weight"},
             {"reward", "spell_weight"}, {"reward", "replacement"}, {"netplay", "pick_visibility"},

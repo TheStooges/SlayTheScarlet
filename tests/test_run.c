@@ -205,8 +205,8 @@ static void test_rewards_who_picks(void)
     }
 }
 
-/* nobody: changes the deck by itself, for winner and loser, whatever replacement says. */
-static void test_rewards_nobody(void)
+/* offer_pick and replacement both random: the deck changes by itself, win or lose. */
+static void test_rewards_automatic(void)
 {
     static sts_run run, before;
     sts_settings settings;
@@ -214,7 +214,8 @@ static void test_rewards_nobody(void)
     int wau, j;
 
     sts_settings_defaults(&settings);
-    settings.who_picks = STS_WHO_NOBODY;
+    settings.offer_pick = STS_OFFER_PICK_RANDOM;
+    settings.reward.replace = STS_REPLACE_RANDOM;
     for (wau = 0; wau < 2; wau++) {
         int changed = 0;
         ready_run(&run, &settings, 9, 21);
@@ -229,9 +230,9 @@ static void test_rewards_nobody(void)
     }
 }
 
-/* nobody removes at random, so the by_type limit on copies must not apply: no type
- * here has 3 cards, but the deck can still give up 3. */
-static void test_rewards_nobody_ignores_by_type(void)
+/* Random removal has no by_type limit on copies: no type here has 3 cards, but the deck can still
+ * give up 3. */
+static void test_rewards_automatic_ignores_types(void)
 {
     static sts_run run;
     sts_settings settings;
@@ -240,8 +241,8 @@ static void test_rewards_nobody_ignores_by_type(void)
     sts_settings_defaults(&settings);
     settings.rules.deck_min = 6;
     settings.rules.deck_max = 6;
-    settings.who_picks = STS_WHO_NOBODY;
-    settings.reward.replace = STS_REPLACE_BY_TYPE;
+    settings.offer_pick = STS_OFFER_PICK_RANDOM;
+    settings.reward.replace = STS_REPLACE_RANDOM;
     settings.reward.copies_min = 3;
     settings.reward.copies_max = 3;
     memset(&run, 0, sizeof run);
@@ -255,6 +256,48 @@ static void test_rewards_nobody_ignores_by_type(void)
     CHECK(run.deck.count == 6);
 }
 
+/* offer_pick random with the player choosing what leaves: one card waits, saved, so a restart
+ * cannot change it, and the player still decides what goes. */
+static void test_rewards_offer_pick(void)
+{
+    static sts_run run, loaded;
+    static char text[8192];
+    sts_settings settings;
+    sts_reward_outcome out;
+    sts_replace_choice choice;
+    uint16_t leaving;
+    size_t count;
+
+    sts_settings_defaults(&settings);
+    settings.offer_pick = STS_OFFER_PICK_RANDOM;
+    ready_run(&run, &settings, 5, 95);
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == 1);
+    count = sts_run_serialize(&run, text, sizeof text);
+    CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK);
+    CHECK(loaded.offer_count == 1 && loaded.offers[0].id == run.offers[0].id);
+
+    leaving = run.deck.ids[0] != run.offers[0].id ? run.deck.ids[0] : run.deck.ids[run.deck.count - 1];
+    choice.remove_ids = &leaving;
+    choice.remove_count = 1;
+    choice.type = 0;
+    CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, &choice) == STS_RUN_OK);
+    CHECK(run.phase == STS_PHASE_READY && run.deck.count == 20);
+    CHECK(sts_deck_count_of(&run.deck, loaded.offers[0].id) > sts_deck_count_of(&loaded.deck, loaded.offers[0].id));
+
+    /* It goes with when an offer comes: no offer after a win under loser. */
+    settings.who_picks = STS_WHO_LOSER;
+    ready_run(&run, &settings, 5, 96);
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(run.offer_count == 1);
+
+    /* The default still shows them all. */
+    sts_settings_defaults(&settings);
+    ready_run(&run, &settings, 5, 97);
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && run.offer_count == 3);
+}
+
 /* skip: no offers for anyone, with or without a picker. */
 static void test_rewards_skip(void)
 {
@@ -264,7 +307,7 @@ static void test_rewards_skip(void)
 
     sts_settings_defaults(&settings);
     settings.reward.mode = STS_REWARD_SKIP;
-    settings.who_picks = STS_WHO_NOBODY;
+    settings.offer_pick = STS_OFFER_PICK_RANDOM;
     ready_run(&run, &settings, 0, 3);
     before = run;
     CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
@@ -399,6 +442,67 @@ static void test_rewards_owed(void)
     CHECK(sts_run_begin_reward(&drafting, &g_db, &settings, 1, &out) == STS_RUN_WRONG_PHASE && drafting.owed_count == 0);
 }
 
+/* who_picks random: about half of all matches give an offer, whatever the result, and with none the
+ * deck stays as it was. The same seed gives the same outcomes, as the coin is the run's saved RNG. */
+static void test_rewards_at_random(void)
+{
+    static sts_run run, again;
+    sts_settings settings;
+    sts_reward_outcome out, out_again;
+    int wau, offers[2] = {0, 0}, none[2] = {0, 0};
+
+    sts_settings_defaults(&settings);
+    settings.who_picks = STS_WHO_RANDOM;
+    settings.reward.replace = STS_REPLACE_RANDOM;
+    ready_run(&run, &settings, 5, 90);
+    ready_run(&again, &settings, 5, 90);
+    for (wau = 0; wau < 400; wau++) {
+        int won = wau % 2;
+        sts_deck before = run.deck;
+
+        CHECK(sts_run_begin_reward(&run, &g_db, &settings, won, &out) == STS_RUN_OK);
+        CHECK(sts_run_begin_reward(&again, &g_db, &settings, won, &out_again) == STS_RUN_OK);
+        CHECK(out == out_again);
+        if (out == STS_REWARD_OFFERS) {
+            offers[won]++;
+            CHECK(run.phase == STS_PHASE_REWARD);
+            CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+            CHECK(sts_run_reward_pick(&again, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+        } else {
+            none[won]++;
+            CHECK(out == STS_REWARD_NONE && run.phase == STS_PHASE_READY && decks_equal(&run.deck, &before));
+        }
+        CHECK(decks_equal(&run.deck, &again.deck));
+    }
+    CHECK(run.matches_played == 400);
+    for (wau = 0; wau < 2; wau++)
+        CHECK(offers[wau] > 60 && none[wau] > 60);
+
+    /* The chance is a setting: never at 0, always at 100, and about a quarter of the time at 25. */
+    settings.random_chance = 0;
+    ready_run(&run, &settings, 5, 91);
+    for (wau = 0; wau < 50; wau++) {
+        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    }
+    settings.random_chance = 100;
+    ready_run(&run, &settings, 5, 92);
+    for (wau = 0; wau < 50; wau++) {
+        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+    }
+    settings.random_chance = 25;
+    ready_run(&run, &settings, 5, 93);
+    offers[0] = 0;
+    for (wau = 0; wau < 400; wau++) {
+        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
+        if (out == STS_REWARD_OFFERS) {
+            offers[0]++;
+            CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+        }
+    }
+    CHECK(offers[0] > 60 && offers[0] < 140);
+}
+
 /* add and remove walk the deck to its bounds and then stop offering. */
 static void test_rewards_add_and_remove(void)
 {
@@ -444,13 +548,15 @@ void test_run_rewards(void)
 {
     test_rewards_replace_choose();
     test_rewards_who_picks();
-    test_rewards_nobody();
-    test_rewards_nobody_ignores_by_type();
+    test_rewards_automatic();
+    test_rewards_automatic_ignores_types();
+    test_rewards_offer_pick();
     test_rewards_skip();
     test_rewards_by_type();
     test_rewards_random();
     test_rewards_add_and_remove();
     test_rewards_owed();
+    test_rewards_at_random();
 }
 
 static int runs_equal(const sts_run *first, const sts_run *second)
@@ -736,7 +842,7 @@ void test_run_endurance(void)
         "",
         "[reward]\nreplacement=by_type\n",
         "[reward]\nreplacement=random\ncopies_max=4\n",
-        "[reward]\nwho_picks=nobody\ncopies_max=4\n",
+        "[reward]\noffer_pick=random\nreplacement=random\ncopies_max=4\n",
         "[reward]\nwho_picks=loser\nreplacement=random\n",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=add\ncopies_max=4\n",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=remove\ncopies_max=3\n",

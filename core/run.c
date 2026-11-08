@@ -127,6 +127,14 @@ static sts_apply_status apply_reward(sts_run *run, const sts_card_db *db, const 
     return STS_APPLY_ILLEGAL;
 }
 
+/* The offers roll as usual, so their types follow the settings, and then one is kept. It stays saved
+ * as the only offer, so a restart cannot change which card it was. */
+static void keep_one_offer_at_random(sts_run *run)
+{
+    run->offers[0] = run->offers[sts_rng_below(&run->rng, (uint32_t)run->offer_count)];
+    run->offer_count = 1;
+}
+
 /* The reward for one match, from READY. */
 static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                              int won, sts_reward_outcome *outcome)
@@ -138,34 +146,31 @@ static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_sett
     case STS_WHO_BOTH:   gets_offer = 1; break;
     case STS_WHO_WINNER: gets_offer = won != 0; break;
     case STS_WHO_LOSER:  gets_offer = won == 0; break;
-    case STS_WHO_NOBODY: gets_offer = 1; break;
+    /* From the run's saved random state, so restarting the game cannot reroll it. */
+    case STS_WHO_RANDOM: gets_offer = (int)sts_rng_below(&run->rng, 100) < settings->random_chance; break;
     default:             gets_offer = 0; break;
     }
     if (!gets_offer)
         return;
 
-    /* A replacement type only makes sense if a person picks it. */
-    if (settings->who_picks == STS_WHO_NOBODY) {
-        sts_offer_settings cfg = settings->reward;
+    roll_offers(run, db, &settings->rules, &settings->reward);
+    if (run->offer_count == 0)
+        return;
+    if (settings->offer_pick == STS_OFFER_PICK_RANDOM) {
+        keep_one_offer_at_random(run);
 
-        cfg.replace = STS_REPLACE_RANDOM;
-        roll_offers(run, db, &settings->rules, &cfg);
-        if (run->offer_count > 0) {
-            int wau = (int)sts_rng_below(&run->rng, (uint32_t)run->offer_count);
-            sts_offer offer = run->offers[wau];
+        /* With nothing left to choose, the change makes itself. */
+        if (settings->reward.mode != STS_REWARD_REPLACE || settings->reward.replace == STS_REPLACE_RANDOM) {
+            sts_offer offer = run->offers[0];
 
             run->offer_count = 0;
             if (apply_reward(run, db, settings, &offer, STS_REPLACE_RANDOM, NULL) == STS_APPLY_OK)
                 *outcome = STS_REWARD_AUTO;
+            return;
         }
-        return;
     }
-
-    roll_offers(run, db, &settings->rules, &settings->reward);
-    if (run->offer_count > 0) {
-        run->phase = STS_PHASE_REWARD;
-        *outcome = STS_REWARD_OFFERS;
-    }
+    run->phase = STS_PHASE_REWARD;
+    *outcome = STS_REWARD_OFFERS;
 }
 
 /* From READY: starts owed rewards, oldest first, until one gives offers or none are left. */
@@ -532,6 +537,8 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
             if (updated.offer_count == 0) {
                 updated.phase = STS_PHASE_READY;
                 start_owed_rewards(&updated, db, settings);
+            } else if (settings->offer_pick == STS_OFFER_PICK_RANDOM) {
+                keep_one_offer_at_random(&updated);
             }
         }
     }

@@ -441,6 +441,7 @@ static void rebuild_draft(void)
     if (g_state == ST_REWARD) {
         const char *format = g_settings.reward.mode == STS_REWARD_ADD ? tr("%s: choose a card to add")
                            : g_settings.reward.mode == STS_REWARD_REMOVE ? tr("%s: choose a card to remove")
+                           : g_settings.offer_pick == STS_OFFER_PICK_RANDOM ? tr("%s: this card swaps in")
                            : tr("%s: choose a card to swap in");
         sprintf(line, format, character_label(g_run.character));
         add_label(line, g_font_big, 20, 16, 470, 30, COLOR_WHITE);
@@ -477,7 +478,9 @@ static void rebuild_draft(void)
             add_wrapped(entry->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, description_row_bytes(), 0, 6,
                         COLOR_WHITE);
     }
-    if (g_state == ST_REWARD)
+    if (g_state == ST_REWARD && g_run.offer_count == 1)
+        sprintf(line, tr("%s: take"), BUTTON_A);
+    else if (g_state == ST_REWARD)
         sprintf(line, tr("Left/Right: choose   %s: take"), BUTTON_A);
     else
         sprintf(line, tr("Left/Right: choose   %s: take   %s: back (progress is saved)"), BUTTON_A, BUTTON_B);
@@ -714,8 +717,8 @@ static int settings_menu_y(int index)
 static void rebuild_settings(void)
 {
     char line[256], value[128];
-    /* Help runs from help_y down to help_bottom: three lines, or fewer above an error. */
-    int wau, unsaved = 0, help_y = 366, help_bottom = 366 + 3 * 17;
+    /* Help runs from help_y down to help_bottom: four lines, or fewer above a longer error. */
+    int wau, unsaved = 0, help_y = 349, help_bottom = 349 + 4 * 17;
 
     for (wau = 0; wau < SETTINGS_MENU_COUNT; wau++)
         if (settings_menu_changed(wau))
@@ -761,8 +764,8 @@ static void rebuild_settings(void)
 
         if (error_lines > 2)
             error_lines = 2;
-        help_bottom = 416 - (error_lines - 1) * 17;
-        add_wrapped(g_error, g_font_small, 28, help_bottom, 590, 17, HELP_COLUMNS, !game_is_japanese(), 2,
+        help_bottom -= (error_lines - 1) * 17;
+        add_wrapped(g_error, g_font_small, 28, 416 - (error_lines - 1) * 17, 590, 17, HELP_COLUMNS, !game_is_japanese(), 2,
                     COLOR_RED);
     } else {
         add_label(g_status, g_font_small, 28, 416, 590, 20, COLOR_GREEN);
@@ -782,8 +785,8 @@ static void rebuild_settings(void)
         const settings_row *current = &g_settings_rows[g_cursor];
 
         sprintf(line, "settings.ini: [%s] %s", current->section, current->key);
-        add_label(line, g_font_small, 28, 348, 590, 20, COLOR_GREY);
-        /* Each value's line starts on a line of its own. Three lines fit above the status line. */
+        add_label(line, g_font_small, 28, 331, 590, 20, COLOR_GREY);
+        /* Each value's line starts on a line of its own. */
         for (wau = 0; wau < current->help_count; wau++)
             help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
     }

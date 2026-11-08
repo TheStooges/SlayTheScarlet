@@ -76,7 +76,7 @@ sts_run_status sts_run_draft_pick(sts_run *run, const sts_card_db *db, const sts
 
 typedef enum {
     STS_REWARD_NONE,    /* no change to the deck; still READY */
-    STS_REWARD_AUTO,    /* who_picks is nobody: the deck was changed at random; still READY */
+    STS_REWARD_AUTO,    /* nothing to choose (offer_pick and replacement random): the deck has changed; still READY */
     STS_REWARD_OFFERS   /* offers are waiting; call sts_run_reward_pick */
 } sts_reward_outcome;
 
@@ -96,7 +96,7 @@ typedef struct {
 
 /* Takes offer `index` and returns to READY, or starts the oldest owed reward, which may leave
  * the run in REWARD with new offers. Owed rewards that give no offer are used up on the way (a
- * random change under who_picks nobody is made then). On any error nothing changes and the
+ * automatic change, with nothing to choose, is made then). On any error nothing changes and the
  * offers stay, so the screen can simply ask again. choice may be NULL unless the mode needs it. */
 sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                    int index, const sts_replace_choice *choice);

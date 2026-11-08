@@ -73,6 +73,17 @@ static int next_tr_literal(const char **cursor, char *out, size_t size)
         return 0;
     memcpy(out, start, (size_t)(end - start));
     out[end - start] = 0;
+    /* The translation file holds the text itself, where the source writes a quote as \". */
+    {
+        char *from = out, *to = out;
+
+        for (; *from; from++) {
+            if (from[0] == '\\' && from[1] == '"')
+                from++;
+            *to++ = *from;
+        }
+        *to = 0;
+    }
     *cursor = end + 2;
     return 1;
 }
