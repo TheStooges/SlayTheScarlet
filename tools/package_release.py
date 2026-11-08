@@ -20,6 +20,7 @@ CONTENTS = {
     "SlayTheScarlet.dll": os.path.join(BUILD, "SlayTheScarlet.dll"),
     "cards.csv": os.path.join(ROOT, "data", "cards.csv"),
     "settings.ini": os.path.join(ROOT, "data", "settings.ini"),
+    "lang/ja.txt": os.path.join(ROOT, "data", "lang", "ja.txt"),
     "README.md": os.path.join(ROOT, "README.md"),
     "LICENSE.txt": os.path.join(ROOT, "LICENSE"),
     "LICENSE-SokuLib.txt": os.path.join(ROOT, "lib", "SokuLib", "LICENSE"),
@@ -28,6 +29,9 @@ CONTENTS = {
 # The licence names its copyright holder on purpose, which may match the builder's user name. It is
 # still checked for local paths.
 NAMES_ITS_AUTHOR = {"LICENSE.txt"}
+
+# Translations are UTF-8 by design; everything else must be ASCII.
+UTF8_TEXT = {"lang/ja.txt"}
 
 # The README's picture of the Deck 1 symbol is left out of the zip, as plain words.
 README_IMAGE = b"(![green Deck 1 symbol](images/deck1.svg))"
@@ -116,13 +120,19 @@ def main():
                 if needle.lower() in data.lower():
                     print("  PRIVATE: %s contains %r" % (info.filename, needle))
                     problems += 1
-            if not inside.endswith(".dll") and any(byte > 127 for byte in data):
+            if inside in UTF8_TEXT:
+                try:
+                    data.decode("utf-8")
+                except UnicodeDecodeError:
+                    print("  NOT UTF-8: %s" % info.filename)
+                    problems += 1
+            elif not inside.endswith(".dll") and any(byte > 127 for byte in data):
                 print("  NOT ASCII: %s" % info.filename)
                 problems += 1
     if problems:
         os.remove(path)
         sys.exit("%d problem(s), so the zip was deleted." % problems)
-    print("Checked: contents match, ASCII text, nothing private. The debug files are in %s" % debug)
+    print("Checked: contents match, ASCII text (UTF-8 translations), nothing private. The debug files are in %s" % debug)
 
 
 main()

@@ -12,7 +12,8 @@ add_library(SlayTheScarlet MODULE
   run_data.cpp
   run_deck.cpp
   screen.cpp
-  screen_draw.cpp)
+  screen_draw.cpp
+  text.cpp)
 set_target_properties(SlayTheScarlet PROPERTIES CXX_STANDARD 17)
 target_compile_options(SlayTheScarlet PRIVATE /Zi)
 # Release keeps a PDB for reading crash dumps. PDBALTPATH keeps the build folder, and so the
@@ -32,4 +33,6 @@ target_link_libraries(SlayTheScarlet PRIVATE sts_core SokuLib shlwapi d3d9 d3dx9
 add_custom_command(TARGET SlayTheScarlet POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           ${CMAKE_SOURCE_DIR}/data/cards.csv ${CMAKE_SOURCE_DIR}/data/settings.ini
-          $<TARGET_FILE_DIR:SlayTheScarlet>)
+          $<TARGET_FILE_DIR:SlayTheScarlet>
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          ${CMAKE_SOURCE_DIR}/data/lang $<TARGET_FILE_DIR:SlayTheScarlet>/lang)

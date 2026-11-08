@@ -40,7 +40,7 @@ int load_data(void)
     status = sts_settings_load(path, &g_settings, &line);
     if (status != STS_SETTINGS_OK && status != STS_SETTINGS_IO) {   /* no file just means defaults */
         char where[64];
-        sprintf(where, "settings.ini line %d", line);
+        sprintf(where, tr("settings.ini line %d"), line);
         set_error(where, sts_settings_status_str(status));
         return 0;
     }
@@ -79,5 +79,5 @@ void save_run(void)
     run_path(path, sizeof path, g_run.character);
     status = sts_run_save(path, &g_run);
     if (status != STS_RUN_OK)
-        set_error("Could not save the run", sts_run_status_str(status));
+        set_error(tr("Could not save the run"), sts_run_status_str(status));
 }

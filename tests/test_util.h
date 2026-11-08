@@ -58,6 +58,7 @@ void test_offer_no_self_replace(void);
 void test_offer_runs(void);
 void test_offer_apply(void);
 void test_settings(void);
+void test_lang(void);
 void test_run_draft(void);
 void test_run_rewards(void);
 void test_run_save(void);

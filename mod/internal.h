@@ -87,6 +87,14 @@ extern sts_card_db g_db;
 extern sts_settings g_settings;
 extern sts_run g_run;
 
+/* text.cpp: the mod's own text in the game's language. tr takes the English text as written in
+ * the source and returns its translation, or the English if there is none. Use it with a string
+ * literal, tr("..."), so the tests can check every one has a translation. */
+const char *tr(const char *english);
+const char *character_label(int character);
+/* 1 if the game runs in Japanese, 0 under the English translation (th123e). */
+int game_is_japanese(void);
+
 /* card_text.cpp */
 void load_card_text(int character);
 const card_text *find_text(uint16_t id);

@@ -52,7 +52,11 @@ the copy limit or deck bounds), rather than rerolling on failure.
   fields. The first loop index is `wau` (not `i`); `j` and `k` are fine as nested ones, and `id`, `db` and `ok` are fine as words.
 - **ASCII only** in every file (source, comments, docs, ini, CMake): no em dashes, curly quotes, arrows
   or math symbols. The developer's Japanese-locale Windows misreads UTF-8 as Shift-JIS and shows
-  garbled text, and MSVC reads source files in the system code page.
+  garbled text, and MSVC reads source files in the system code page. The one exception, by
+  decision: translations in `data/lang/` are UTF-8 (the mod converts them to Shift-JIS on load).
+- **On-screen text** goes through `tr("...")` with the English as a string literal, never built from
+  pieces (Japanese word order differs), so each line can be translated whole. A test fails if
+  `data/lang/ja.txt` lacks any `tr` literal in `mod/`, or keeps one no longer used. Logs stay English.
 
 ## Build and run (Windows)
 
@@ -86,7 +90,8 @@ cmake --build . --target <TargetName>
 core/    Portable C. NO Windows or SokuLib headers. Rules engine, deck model, validation,
          card table, offer generation, draft logic, settings parsing, run save format.
          Builds and is unit-tested on any OS (initial development was on macOS with clang).
-data/    Data files the mod loads at runtime. cards.csv is the card table (no text).
+data/    Data files the mod loads at runtime. cards.csv is the card table (no text). lang/ holds
+         translations of the mod's own text (UTF-8).
 tests/   Console tests for core/, one file per module.
 mod/     Windows-only DLL glue: SokuLib hooks, UI scenes, netplay, deck injection.
          Built only when MSVC is available.
@@ -98,8 +103,14 @@ recorded here, and online logging now lives in `mod/netlog.cpp`.
 
 `core/` modules: `deck` (model, validation), `pf` (profile read/write), `pool` (card table), `rng`
 (PCG32), `offer` (offer generator, applying a taken offer), `settings` (`.ini` parsing, validation,
-compatible-mode override, fingerprint), `run` (draft and reward state machine, save format), `util`.
+compatible-mode override, fingerprint), `run` (draft and reward state machine, save format), `lang`
+(translation files, checking each keeps its English line's %d/%s blanks), `util`.
 `data/settings.ini` documents every setting and states the defaults.
+
+Language: the game's text is Japanese unless `th123e` replaced its data, so `mod/text.cpp` checks
+whether the game's card names are ASCII. If not, it loads `lang/ja.txt`. Card names and
+descriptions always come from the game. System/Skill/Spell and cost labels stay English, as in the
+Japanese game. Error details from `core/` are still English.
 
 By decision, every card is in the offer pool, including Catfish and the two rarity 0 spells. The game's
 unlock rules (rarity, sequences, story rewards) do not limit the pool, because players use a fully
@@ -295,8 +306,10 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - **Button names:** `profile1.keyboardBindings` holds DirectInput scan codes (name them with
   `GetKeyNameText`), and `controllerBindings` pad buttons counted from 0, while the key config screen
   counts from 1.
-- **Card text layout:** descriptions are stored in fixed rows of 36 bytes, padded with spaces and
-  sometimes splitting a word. `createFromText` does not wrap, so `mod/` draws each row separately.
+- **Card text layout:** descriptions are stored in fixed rows, padded with spaces where a sentence
+  ends early and sometimes splitting a word: 36 bytes under `th123e`, 30 bytes (15 full-width
+  characters) in the Japanese game, matching its deck editor. `createFromText` does not wrap, so
+  `mod/` draws each row separately at the width for the game's language.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
 
 ### Findings from netplay (loopback, modded against an install without the mod, Giuroll on both)

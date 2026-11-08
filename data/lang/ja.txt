@@ -1,0 +1,205 @@
+# Japanese text for Slay the Scarlet. UTF-8; the mod converts it to Shift-JIS for the game.
+# Used when the game itself is in Japanese (not under th123e).
+#
+# Each en= line is the English text exactly as the mod writes it, and the ja= line under it is
+# its translation. Everything after the '=' counts, spaces included. Keep every %d, %s and %.90s
+# of the English, in the same order, or the file is refused and the mod stays in English.
+# Card names and descriptions come from the game, so they are not here.
+
+# Characters
+en=Reimu
+ja=霊夢
+en=Marisa
+ja=魔理沙
+en=Sakuya
+ja=咲夜
+en=Alice
+ja=アリス
+en=Patchouli
+ja=パチュリー
+en=Youmu
+ja=妖夢
+en=Remilia
+ja=レミリア
+en=Yuyuko
+ja=幽々子
+en=Yukari
+ja=紫
+en=Suika
+ja=萃香
+en=Reisen
+ja=鈴仙
+en=Aya
+ja=文
+en=Komachi
+ja=小町
+en=Iku
+ja=衣玖
+en=Tenshi
+ja=天子
+en=Sanae
+ja=早苗
+en=Cirno
+ja=チルノ
+en=Meiling
+ja=美鈴
+en=Utsuho
+ja=お空
+en=Suwako
+ja=諏訪子
+
+# Main menu
+en=Disable %s to play runs
+ja=ランを遊ぶには%sを無効にしてください
+en=%s: rules changed
+ja=%s: ルール変更あり
+en=In use: %s
+ja=使用中: %s
+en=No run in use
+ja=使用中のランなし
+
+# Buttons, as in "Z or Pad2"
+en=%s or Pad%d
+ja=%s / Pad%d
+
+# Character screen
+en=Slay the Scarlet: choose a character
+ja=Slay the Scarlet: キャラクター選択
+en=Starter decks are on: each draft begins with the [starter] cards from settings.ini.
+ja=スターターデッキ有効: ドラフトはsettings.iniの[starter]のカードから始まります。
+en=%s can overwrite your real decks with a run deck, so runs are off.
+ja=%sがランのデッキで本来のデッキを上書きするおそれがあるため、ランは無効です。
+en=Disable it in SWRSToys.ini and restart the game to play runs.
+ja=ランを遊ぶにはSWRSToys.iniで無効にし、ゲームを再起動してください。
+en=Rules changed
+ja=ルール変更あり
+en=Draft %d/%d
+ja=ドラフト %d/%d
+en=Reward waiting
+ja=報酬待ち
+en=In use
+ja=使用中
+en=Deck ready
+ja=デッキ完成
+en=Press %s again to discard this character's run and start over.
+ja=もう一度%sを押すと、このキャラクターのランを破棄してやり直します。
+en=%s: open   %s: close   %s twice: start over
+ja=%s: 開く   %s: 閉じる   %s 2回: やり直し
+
+# Draft and offers
+en=Your deck so far
+ja=現在のデッキ
+en=%s: choose a card to add
+ja=%s: 追加するカードを選択
+en=%s: choose a card to remove
+ja=%s: 外すカードを選択
+en=%s: choose a card to swap in
+ja=%s: 入れるカードを選択
+en=Match %d
+ja=第%d試合
+en=%s: pick %d of %d
+ja=%s: ピック %d/%d
+en=Deck %d/%d
+ja=デッキ %d/%d
+en=Left/Right: choose   %s: take
+ja=左右: 選択   %s: 決定
+en=Left/Right: choose   %s: take   %s: back (progress is saved)
+ja=左右: 選択   %s: 決定   %s: 戻る（進行は保存されます）
+
+# Choosing what leaves the deck
+en=Choose what leaves your deck
+ja=デッキから外すカードを選択
+en=Confirm?
+ja=よろしいですか？
+en=Removing
+ja=外すカード
+en=Adding
+ja=入れるカード
+en=%s: confirm   %s: change the last pick
+ja=%s: 確定   %s: 最後の選択を変更
+en=This is the card you are taking, so it cannot leave.
+ja=受け取るカードなので外せません。
+en=Replacing with %dx %.90s. Choose %d more.
+ja=%dx %.90sと入れ替え。あと%d枚選んでください。
+en=Arrows: choose   %s: select   %s: back to the offers
+ja=方向キー: 選択   %s: 決定   %s: 報酬に戻る
+en=Choose what type leaves your deck
+ja=デッキから外す種類を選択
+en=System cards
+ja=システムカード
+en=Skill cards
+ja=スキルカード
+en=Spell cards
+ja=スペルカード
+en=%s (%d can leave)
+ja=%s（%d枚が対象）
+en=Replacing with %dx %.90s. Random cards of that type leave.
+ja=%dx %.90sと入れ替え。その種類のカードがランダムに外れます。
+en=Up/Down: choose   %s: confirm   %s: back to the offers
+ja=上下: 選択   %s: 確定   %s: 報酬に戻る
+
+# Rule changes
+en=%s: the rules have changed
+ja=%s: ルールが変更されました
+en=This run was made under different rules from the current settings.
+ja=このランは現在の設定とは異なるルールで作られました。
+en=Carry on under the current rules
+ja=現在のルールで続ける
+en=Your deck and progress stay as they are.
+ja=デッキと進行はそのまま残ります。
+en=Back
+ja=戻る
+en=Leaves the run as it is.
+ja=ランはそのままにします。
+en=Start over
+ja=やり直す
+en=Discards this run's deck and progress.
+ja=このランのデッキと進行を破棄します。
+en=Press %s again to discard this run.   %s: cancel
+ja=もう一度%sを押すと、このランを破棄します。   %s: キャンセル
+en=Up/Down: choose   %s: select   %s: back
+ja=上下: 選択   %s: 決定   %s: 戻る
+en=The current settings do not allow a run to carry on under new rules.
+ja=現在の設定では、新しいルールでランを続けることはできません。
+en=It cannot carry on under them: %s.
+ja=新しいルールでは続けられません: %s。
+
+# Deck screen
+en=%s: your deck
+ja=%sのデッキ
+en=%d cards
+ja=%d枚
+en=Removed
+ja=外したカード
+en=Added
+ja=入れたカード
+en=In use as %s's Deck %d. Your own deck is safe in your profile.
+ja=%sのデッキ%dとして使用中。本来のデッキはプロファイルに残っています。
+en=Not in use. %s's Deck %d is your own deck.
+ja=未使用。%sのデッキ%dは本来のデッキです。
+en=%s: stop using this run
+ja=%s: このランの使用をやめる
+en=%s: use this run
+ja=%s: このランを使う
+en=Press %s again to discard this run and start over.
+ja=もう一度%sを押すと、このランを破棄してやり直します。
+en=Arrows: inspect   %s: back   %s twice: start over
+ja=方向キー: 確認   %s: 戻る   %s 2回: やり直し
+
+# Errors. The details after the heading stay in English for now.
+en=Reward
+ja=報酬
+en=Draft
+ja=ドラフト
+en=Could not start a run
+ja=ランを開始できませんでした
+en=Could not carry on
+ja=続行できませんでした
+en=Could not save the run
+ja=ランを保存できませんでした
+en=Cannot use this deck
+ja=このデッキは使えません
+en=another mod is loaded that could overwrite your real deck
+ja=本来のデッキを上書きするおそれのあるMODが読み込まれています
+en=settings.ini line %d
+ja=settings.ini %d行目

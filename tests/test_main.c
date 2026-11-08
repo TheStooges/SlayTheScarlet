@@ -25,6 +25,7 @@ int main(void)
     test_offer_runs();
     test_offer_apply();
     test_settings();
+    test_lang();
     test_run_draft();
     test_run_rewards();
     test_run_save();

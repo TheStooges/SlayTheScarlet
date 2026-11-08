@@ -168,7 +168,7 @@ int activate_run_deck(void)
     int fresh = !g_active || g_active_character != g_run.character;
 
     if (blocking_mod()) {
-        set_error("Cannot use this deck", "another mod is loaded that could overwrite your real deck");
+        set_error(tr("Cannot use this deck"), tr("another mod is loaded that could overwrite your real deck"));
         return 0;
     }
     if (g_active && fresh)
@@ -189,7 +189,7 @@ int activate_run_deck(void)
         g_active = 0;
         g_have_real_deck = 0;
         save_active_file();
-        set_error("Cannot use this deck", why);
+        set_error(tr("Cannot use this deck"), why);
         slog("activate failed for character %d: %s", g_active_character, why);
         return 0;
     }

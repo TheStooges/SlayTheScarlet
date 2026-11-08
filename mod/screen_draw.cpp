@@ -76,13 +76,13 @@ void screen_render_title_hint(void)
         ensure_fonts();
         make_hint_line(&lines[0], "F7: Slay the Scarlet", 422, COLOR_WHITE);
         if (mod_in_the_way)
-            sprintf(text, "Disable %s to play runs", mod_in_the_way);
+            sprintf(text, tr("Disable %s to play runs"), mod_in_the_way);
         else if (blocked)
-            sprintf(text, "%s: rules changed", sts_character_name(g_rules_changed_character));
+            sprintf(text, tr("%s: rules changed"), character_label(g_rules_changed_character));
         else if (g_active)
-            sprintf(text, "In use: %s", sts_character_name(g_active_character));
+            sprintf(text, tr("In use: %s"), character_label(g_active_character));
         else
-            sprintf(text, "No run in use");
+            sprintf(text, tr("No run in use"));
         make_hint_line(&lines[1], text, 438, blocked ? COLOR_RED : g_active ? COLOR_GREEN : COLOR_GREY);
         shown_for = now;
     }
@@ -130,7 +130,7 @@ static const char *button_name(int SokuLib::KeyBindings::*field)
         sprintf(key, "Key%d", dik);
     /* The key config screen counts pad buttons from 1. */
     if (pad >= 0)
-        _snprintf(out, 47, "%s or Pad%d", key, pad + 1);
+        _snprintf(out, 47, tr("%s or Pad%d"), key, pad + 1);
     else
         _snprintf(out, 47, "%s", key);
     out[47] = 0;
@@ -228,6 +228,14 @@ static size_t take_line(const char *text, int cols, int at_spaces, char *out)
     return length;
 }
 
+/* The game stores card descriptions in rows of a fixed number of bytes, padded with spaces where a
+ * sentence ends early: 36 in the English translation, 30 (15 full-width characters) in Japanese.
+ * Splitting at the same width puts each sentence where the game's deck editor shows it. */
+static int description_row_bytes(void)
+{
+    return game_is_japanese() ? 30 : 36;
+}
+
 static void add_wrapped(const char *text, SokuLib::SWRFont &font, int pos_x, int pos_y, int width, int line_h,
                         int cols, int at_spaces, int max_lines, unsigned color)
 {
@@ -290,10 +298,10 @@ static void add_card_kind(const sts_card *card, int pos_x, int pos_y, int width)
 
     switch (card->type) {
     case STS_CARD_SYSTEM:
-        sprintf(text, "System, cost %d", card->cost_or_slot);
+        sprintf(text, "System, Cost %d", card->cost_or_slot);
         break;
     case STS_CARD_SPELL:
-        sprintf(text, "Spell, cost %d", card->cost_or_slot);
+        sprintf(text, "Spell, Cost %d", card->cost_or_slot);
         break;
     case STS_CARD_SKILL:
         if (sts_skill_label(&g_db, g_run.character, card->id, skill)) {
@@ -338,14 +346,14 @@ static void rebuild_choose(void)
     int character;
     char line[128];
 
-    add_label("Slay the Scarlet: choose a character", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    add_label(tr("Slay the Scarlet: choose a character"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_settings.starter_enabled)
-        add_label("Starter decks are on: each draft begins with the [starter] cards from settings.ini.",
+        add_label(tr("Starter decks are on: each draft begins with the [starter] cards from settings.ini."),
                   g_font_small, 20, 414, 600, 20, COLOR_GOLD);
     if (blocking_mod()) {
-        sprintf(line, "%s can overwrite your real decks with a run deck, so runs are off.", blocking_mod());
+        sprintf(line, tr("%s can overwrite your real decks with a run deck, so runs are off."), blocking_mod());
         add_label(line, g_font_small, 20, 372, 600, 20, COLOR_RED);
-        sprintf(line, "Disable it in SWRSToys.ini and restart the game to play runs.");
+        sprintf(line, tr("Disable it in SWRSToys.ini and restart the game to play runs."));
         add_label(line, g_font_small, 20, 392, 600, 20, COLOR_RED);
     }
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
@@ -353,33 +361,33 @@ static void rebuild_choose(void)
         int pos_y = 80 + (character / COLS) * 70;
         unsigned color = COLOR_WHITE;
 
-        add_label(sts_character_name(character), g_font_big, pos_x + 6, pos_y + 6, 110, 26, COLOR_WHITE);
+        add_label(character_label(character), g_font_big, pos_x + 6, pos_y + 6, 110, 26, COLOR_WHITE);
         line[0] = 0;
         if (g_has_save[character]) {
             if (g_saved_rules_changed[character]) {
-                sprintf(line, "Rules changed");
+                sprintf(line, tr("Rules changed"));
                 color = COLOR_RED;
             } else if (g_saved_phase[character] == STS_PHASE_DRAFT) {
-                sprintf(line, "Draft %d/%d", g_saved_picks[character],
+                sprintf(line, tr("Draft %d/%d"), g_saved_picks[character],
                         sts_settings_draft_length(&g_settings, character));
                 color = COLOR_GOLD;
             } else if (g_saved_phase[character] == STS_PHASE_REWARD) {
-                sprintf(line, "Reward waiting");
+                sprintf(line, tr("Reward waiting"));
                 color = COLOR_GOLD;
             } else if (g_active && g_active_character == character) {
-                sprintf(line, "In use");
+                sprintf(line, tr("In use"));
                 color = COLOR_GREEN;
             } else {
-                sprintf(line, "Deck ready");
+                sprintf(line, tr("Deck ready"));
                 color = COLOR_GREY;
             }
         }
         add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, color);
     }
     if (g_alt_armed)
-        sprintf(line, "Press %s again to discard this character's run and start over.", BUTTON_C);
+        sprintf(line, tr("Press %s again to discard this character's run and start over."), BUTTON_C);
     else
-        sprintf(line, "%s: open   %s: close   %s twice: start over", BUTTON_A, BUTTON_B, BUTTON_C);
+        sprintf(line, tr("%s: open   %s: close   %s twice: start over"), BUTTON_A, BUTTON_B, BUTTON_C);
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
@@ -412,21 +420,22 @@ static void rebuild_draft(void)
     if (draft_deck_shown()) {
         if (g_deck_art_dirty)
             load_deck_art();
-        add_label("Your deck so far", g_font_small, DRAFT_DECK_X, DRAFT_DECK_Y - 24, 320, 20, COLOR_GREY);
+        add_label(tr("Your deck so far"), g_font_small, DRAFT_DECK_X, DRAFT_DECK_Y - 24, 320, 20, COLOR_GREY);
     }
 
     if (g_state == ST_REWARD) {
-        const char *verb = g_settings.reward.mode == STS_REWARD_ADD ? "add"
-                         : g_settings.reward.mode == STS_REWARD_REMOVE ? "remove" : "swap in";
-        sprintf(line, "%s: choose a card to %s", sts_character_name(g_run.character), verb);
+        const char *format = g_settings.reward.mode == STS_REWARD_ADD ? tr("%s: choose a card to add")
+                           : g_settings.reward.mode == STS_REWARD_REMOVE ? tr("%s: choose a card to remove")
+                           : tr("%s: choose a card to swap in");
+        sprintf(line, format, character_label(g_run.character));
         add_label(line, g_font_big, 20, 16, 470, 30, COLOR_WHITE);
-        sprintf(line, "Match %d", g_run.matches_played);
+        sprintf(line, tr("Match %d"), g_run.matches_played);
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     } else {
-        sprintf(line, "%s: pick %d of %d", sts_character_name(g_run.character),
+        sprintf(line, tr("%s: pick %d of %d"), character_label(g_run.character),
                 g_run.picks_done + 1, sts_settings_draft_length(&g_settings, g_run.character));
         add_label(line, g_font_big, 20, 16, 400, 30, COLOR_WHITE);
-        sprintf(line, "Deck %d/%d", g_run.deck.count, g_settings.rules.deck_min);
+        sprintf(line, tr("Deck %d/%d"), g_run.deck.count, g_settings.rules.deck_min);
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     }
 
@@ -448,14 +457,14 @@ static void rebuild_draft(void)
     }
     if (g_cursor < g_run.offer_count) {
         const card_text *entry = find_text(g_run.offers[g_cursor].id);
-        /* The game's own descriptions are laid out in rows of exactly this many bytes. */
         if (entry)
-            add_wrapped(entry->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, 36, 0, 6, COLOR_WHITE);
+            add_wrapped(entry->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, description_row_bytes(), 0, 6,
+                        COLOR_WHITE);
     }
     if (g_state == ST_REWARD)
-        sprintf(line, "Left/Right: choose   %s: take", BUTTON_A);
+        sprintf(line, tr("Left/Right: choose   %s: take"), BUTTON_A);
     else
-        sprintf(line, "Left/Right: choose   %s: take   %s: back (progress is saved)", BUTTON_A, BUTTON_B);
+        sprintf(line, tr("Left/Right: choose   %s: take   %s: back (progress is saved)"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
@@ -465,14 +474,17 @@ static void add_card_details(uint16_t id, int pos_y)
     const card_text *entry = find_text(id);
     const sts_card *card = sts_card_db_find(&g_db, g_run.character, id);
 
-    /* A skill's arrows sit above its type line, so they need room under the name. */
-    int kind_y = pos_y + (card && card->type == STS_CARD_SKILL ? 46 : 28);
+    /* A skill's arrows sit above its type line, so they need room under the name. Every type gets
+     * that room, so the type line and description sit at the same height for any card. Six rows of
+     * description still end above the status line at y 396. */
+    int kind_y = pos_y + 46;
 
     add_label(entry ? entry->name : "?", g_font_big, 24, pos_y, 592, 28, COLOR_WHITE);
     if (card)
         add_card_kind(card, 24, kind_y, 592);
     if (entry)
-        add_wrapped(entry->desc, g_font_small, 24, kind_y + 20, 592, 17, 36, 0, 6, COLOR_WHITE);
+        add_wrapped(entry->desc, g_font_small, 24, kind_y + 20, 592, 17, description_row_bytes(), 0, 6,
+                    COLOR_WHITE);
 }
 
 /* One heading and its cards. Returns the y position after them. */
@@ -487,24 +499,15 @@ static int add_change_section(const char *heading, const deck_change *list, int 
     pos_y += 18;
     for (wau = 0; wau < count; wau++) {
         const card_text *entry = find_text(list[wau].id);
-        const sts_card *card = sts_card_db_find(&g_db, g_run.character, list[wau].id);
-        char prefix[STS_SKILL_LABEL_SIZE + 8] = "";
         char text[NAME_SIZE + 32];
 
-        /* "a22 Taste of Death", "4-cost Death Sign ...": what matters most about each type. */
-        if (card && card->type == STS_CARD_SKILL) {
-            char skill[STS_SKILL_LABEL_SIZE];
-            if (sts_skill_label(&g_db, g_run.character, card->id, skill))
-                sprintf(prefix, "%s ", skill);
-        } else if (card && card->type == STS_CARD_SPELL) {
-            sprintf(prefix, "%d-cost ", card->cost_or_slot);
-        }
+        /* Names only: the card details beside the list show the type, cost or skill input. */
         if (list[wau].copies > 1)
-            _snprintf(text, sizeof text - 1, "%s%s x%d", prefix, entry ? entry->name : "?", list[wau].copies);
+            _snprintf(text, sizeof text - 1, "%s x%d", entry ? entry->name : "?", list[wau].copies);
         else
-            _snprintf(text, sizeof text - 1, "%s%s", prefix, entry ? entry->name : "?");
+            _snprintf(text, sizeof text - 1, "%s", entry ? entry->name : "?");
         text[sizeof text - 1] = 0;
-        add_label(text, g_font_small, pos_x + 8, pos_y, 340, 20, COLOR_WHITE);
+        add_label(text, g_font_small, pos_x, pos_y, 340, 20, COLOR_WHITE);
         pos_y += 17;
     }
     return pos_y + 6;
@@ -529,23 +532,23 @@ static void rebuild_reward_remove(void)
     if (g_deck_art_dirty)
         load_deck_art();
     if (g_state == ST_REWARD_CONFIRM) {
-        add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
-        add_label("Confirm?", g_font_big, 520, 432, 110, 30, COLOR_GOLD);
+        add_label(tr("Choose what leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+        add_label(tr("Confirm?"), g_font_big, 455, 432, 175, 30, COLOR_GOLD);
         if (g_cursor < g_run.deck.count)
             add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
-        add_change_list(DECK_Y + 2 * DECK_PITCH_Y + 8, "Removing", "Adding");
-        sprintf(line, "%s: confirm   %s: change the last pick", BUTTON_A, BUTTON_B);
+        add_change_list(DECK_Y + 2 * DECK_PITCH_Y + 8, tr("Removing"), tr("Adding"));
+        sprintf(line, tr("%s: confirm   %s: change the last pick"), BUTTON_A, BUTTON_B);
         add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
         return;
     }
-    add_label("Choose what leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    add_label(tr("Choose what leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
     if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == offer->id)
-        add_label("This is the card you are taking, so it cannot leave.", g_font_small, 20, 396, 600, 20, COLOR_RED);
-    sprintf(line, "Replacing with %dx %.90s. Choose %d more.", offer->copies, entry ? entry->name : "?", remaining);
+        add_label(tr("This is the card you are taking, so it cannot leave."), g_font_small, 20, 396, 600, 20, COLOR_RED);
+    sprintf(line, tr("Replacing with %dx %.90s. Choose %d more."), offer->copies, entry ? entry->name : "?", remaining);
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
-    sprintf(line, "Arrows: choose   %s: select   %s: back to the offers", BUTTON_A, BUTTON_B);
+    sprintf(line, tr("Arrows: choose   %s: select   %s: back to the offers"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
@@ -554,9 +557,9 @@ static void rebuild_rules(void)
     char line[192];
     int wau;
 
-    sprintf(line, "%s: the rules have changed", sts_character_name(g_run.character));
+    sprintf(line, tr("%s: the rules have changed"), character_label(g_run.character));
     add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
-    add_label("This run was made under different rules from the current settings.",
+    add_label(tr("This run was made under different rules from the current settings."),
               g_font_small, 40, 80, 580, 20, COLOR_WHITE);
     add_label(g_rules_problem, g_font_small, 40, 106, 580, 20, COLOR_RED);
 
@@ -566,49 +569,50 @@ static void rebuild_rules(void)
 
         switch (rules_option_at(wau)) {
         case RULES_CARRY_ON:
-            add_label("Carry on under the current rules", g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
-            note = "Your deck and progress stay as they are.";
+            add_label(tr("Carry on under the current rules"), g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
+            note = tr("Your deck and progress stay as they are.");
             break;
         case RULES_BACK:
-            add_label("Back", g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
-            note = "Leaves the run as it is.";
+            add_label(tr("Back"), g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
+            note = tr("Leaves the run as it is.");
             break;
         case RULES_START_OVER:
-            add_label("Start over", g_font_big, 56, pos_y, 500, 28, g_rules_start_over_armed ? COLOR_RED : COLOR_WHITE);
-            note = "Discards this run's deck and progress.";
+            add_label(tr("Start over"), g_font_big, 56, pos_y, 500, 28, g_rules_start_over_armed ? COLOR_RED : COLOR_WHITE);
+            note = tr("Discards this run's deck and progress.");
             break;
         }
         add_label(note, g_font_small, 72, pos_y + 26, 500, 20, COLOR_GREY);
     }
     if (g_rules_start_over_armed)
-        sprintf(line, "Press %s again to discard this run.   %s: cancel", BUTTON_A, BUTTON_B);
+        sprintf(line, tr("Press %s again to discard this run.   %s: cancel"), BUTTON_A, BUTTON_B);
     else
-        sprintf(line, "Up/Down: choose   %s: select   %s: back", BUTTON_A, BUTTON_B);
+        sprintf(line, tr("Up/Down: choose   %s: select   %s: back"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, g_rules_start_over_armed ? COLOR_RED : COLOR_GREY);
 }
 
 static void rebuild_reward_type(void)
 {
-    static const char *const names[3] = { "System cards", "Skill cards", "Spell cards" };
     char line[192];
     const sts_offer *offer = &g_run.offers[g_pending_offer];
     const card_text *entry = find_text(offer->id);
     unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, offer->id, offer->copies);
     int type;
 
-    add_label("Choose what type leaves your deck", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    add_label(tr("Choose what type leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     for (type = 0; type < 3; type++) {
         /* Copies of the incoming card are not counted, as they cannot leave. */
         int count = sts_replace_count_of_type(&g_db, g_run.character, &g_run.deck, offer->id, type);
+        const char *name = type == STS_CARD_SYSTEM ? tr("System cards")
+                         : type == STS_CARD_SKILL ? tr("Skill cards") : tr("Spell cards");
 
-        sprintf(line, "%s (%d can leave)", names[type], count);
+        sprintf(line, tr("%s (%d can leave)"), name, count);
         add_label(line, g_font_big, 56, 110 + type * 50, 500, 28,
                   (mask & STS_TYPE_BIT(type)) ? COLOR_WHITE : COLOR_GREY);
     }
-    sprintf(line, "Replacing with %dx %.90s. Random cards of that type leave.",
+    sprintf(line, tr("Replacing with %dx %.90s. Random cards of that type leave."),
             offer->copies, entry ? entry->name : "?");
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
-    sprintf(line, "Up/Down: choose   %s: confirm   %s: back to the offers", BUTTON_A, BUTTON_B);
+    sprintf(line, tr("Up/Down: choose   %s: confirm   %s: back to the offers"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
@@ -621,9 +625,9 @@ static void rebuild_deck(void)
     if (g_deck_art_dirty)
         load_deck_art();
 
-    sprintf(line, "%s: your deck", sts_character_name(g_run.character));
+    sprintf(line, tr("%s: your deck"), character_label(g_run.character));
     add_label(line, g_font_big, 20, 16, 400, 30, COLOR_WHITE);
-    sprintf(line, "%d cards", g_run.deck.count);
+    sprintf(line, tr("%d cards"), g_run.deck.count);
     add_label(line, g_font_small, 540, 22, 90, 20, COLOR_GREY);
 
     /* Details of the card under the cursor, below however many rows the deck needs. */
@@ -632,14 +636,14 @@ static void rebuild_deck(void)
     pos_y = DECK_Y + rows * DECK_PITCH_Y + 8;
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], pos_y);
-    add_change_list(pos_y, "Removed", "Added");
+    add_change_list(pos_y, tr("Removed"), tr("Added"));
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
-    sprintf(line, "%s: %s", BUTTON_D, run_deck_in_use() ? "stop using this run" : "use this run");
+    sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
     add_label(line, g_font_small, 20, 416, 600, 20, COLOR_WHITE);
     if (g_alt_armed)
-        sprintf(line, "Press %s again to discard this run and start over.", BUTTON_C);
+        sprintf(line, tr("Press %s again to discard this run and start over."), BUTTON_C);
     else
-        sprintf(line, "Arrows: inspect   %s: back   %s twice: start over", BUTTON_B, BUTTON_C);
+        sprintf(line, tr("Arrows: inspect   %s: back   %s twice: start over"), BUTTON_B, BUTTON_C);
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 

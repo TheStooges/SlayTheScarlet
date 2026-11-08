@@ -63,11 +63,11 @@ static void scan_saves(void)
 static void set_deck_status(void)
 {
     if (run_deck_in_use())
-        _snprintf(g_status, sizeof g_status - 1, "In use as %s's Deck %d. Your own deck is safe in your profile.",
-                  sts_character_name(g_run.character), RUN_DECK_SLOT + 1);
+        _snprintf(g_status, sizeof g_status - 1, tr("In use as %s's Deck %d. Your own deck is safe in your profile."),
+                  character_label(g_run.character), RUN_DECK_SLOT + 1);
     else
-        _snprintf(g_status, sizeof g_status - 1, "Not in use. %s's Deck %d is your own deck.",
-                  sts_character_name(g_run.character), RUN_DECK_SLOT + 1);
+        _snprintf(g_status, sizeof g_status - 1, tr("Not in use. %s's Deck %d is your own deck."),
+                  character_label(g_run.character), RUN_DECK_SLOT + 1);
     g_status[sizeof g_status - 1] = 0;
 }
 
@@ -180,7 +180,7 @@ static void commit_reward(const sts_replace_choice *choice)
     sts_run_status status = sts_run_reward_pick(&g_run, &g_db, &g_settings, g_pending_offer, choice);
 
     if (status != STS_RUN_OK) {
-        set_error("Reward", sts_run_status_str(status));
+        set_error(tr("Reward"), sts_run_status_str(status));
         slog("reward pick refused: %s", sts_run_status_str(status));
         return;
     }
@@ -282,7 +282,7 @@ static void start_new_run(int character)
     QueryPerformanceCounter(&ticks);
     status = sts_run_start(&g_run, &g_db, &g_settings, character, (uint64_t)ticks.QuadPart);
     if (status != STS_RUN_OK) {
-        set_error("Could not start a run", sts_run_status_str(status));
+        set_error(tr("Could not start a run"), sts_run_status_str(status));
         return;
     }
     /* That character's old run deck is finished with. */
@@ -322,11 +322,11 @@ static void enter_rules_screen(void)
     status = sts_run_adopt_rules(&trial, &g_db, &g_settings);
     g_rules_can_continue = g_settings.allow_rule_changes && status == STS_RUN_OK;
     if (!g_settings.allow_rule_changes) {
-        sprintf(g_rules_problem, "The current settings do not allow a run to carry on under new rules.");
+        sprintf(g_rules_problem, tr("The current settings do not allow a run to carry on under new rules."));
     } else if (status != STS_RUN_OK) {
         sts_deck_status deck = sts_deck_validate(&g_run.deck, &g_settings.rules, NULL);
 
-        _snprintf(g_rules_problem, sizeof g_rules_problem - 1, "It cannot carry on under them: %s.",
+        _snprintf(g_rules_problem, sizeof g_rules_problem - 1, tr("It cannot carry on under them: %s."),
                   deck != STS_DECK_OK ? sts_deck_status_str(deck) : sts_run_status_str(status));
         g_rules_problem[sizeof g_rules_problem - 1] = 0;
     }
@@ -354,7 +354,7 @@ static void open_character(int character)
         return;
     }
     if (status != STS_RUN_OK) {
-        set_error(sts_character_name(character), sts_run_status_str(status));
+        set_error(character_label(character), sts_run_status_str(status));
         return;
     }
     enter_phase();
@@ -436,7 +436,7 @@ static void take_draft_offer(void)
     sts_run_status status = sts_run_draft_pick(&g_run, &g_db, &g_settings, g_cursor);
 
     if (status != STS_RUN_OK) {
-        set_error("Draft", sts_run_status_str(status));
+        set_error(tr("Draft"), sts_run_status_str(status));
         return;
     }
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
@@ -655,7 +655,7 @@ static void carry_on_under_new_rules(void)
     sts_run_status status = sts_run_adopt_rules(&g_run, &g_db, &g_settings);
 
     if (status != STS_RUN_OK) {
-        set_error("Could not carry on", sts_run_status_str(status));
+        set_error(tr("Could not carry on"), sts_run_status_str(status));
         return;
     }
     slog("run for character %d now follows the current rules", g_run.character);
