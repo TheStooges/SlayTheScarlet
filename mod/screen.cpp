@@ -236,18 +236,28 @@ static void preview_selected_swap(void)
     g_changes_added_count = 1;
 }
 
-/* Moves through the card grid shared by the deck and removal screens. */
+/* Moves through the card grid shared by the deck and removal screens. Left and right wrap around
+ * within a row, as on the character menu; a shorter last row wraps at its own end. */
 static void move_grid_cursor(screen_event event)
 {
     int count = g_run.deck.count < MAX_DECK_ART ? g_run.deck.count : MAX_DECK_ART;
-    int step = event == EV_RIGHT ? 1 : event == EV_LEFT ? count - 1
-             : event == EV_DOWN ? DECK_COLS : count - DECK_COLS % count;
+    int row_start, row_length, column;
 
-    if (count > 0) {
-        g_cursor = (g_cursor + step) % count;
-        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
-        g_dirty = 1;
-    }
+    if (count <= 0)
+        return;
+    row_start = g_cursor - g_cursor % DECK_COLS;
+    row_length = count - row_start < DECK_COLS ? count - row_start : DECK_COLS;
+    column = g_cursor - row_start;
+    if (event == EV_RIGHT)
+        g_cursor = row_start + (column + 1) % row_length;
+    else if (event == EV_LEFT)
+        g_cursor = row_start + (column + row_length - 1) % row_length;
+    else if (event == EV_DOWN)
+        g_cursor = (g_cursor + DECK_COLS) % count;
+    else
+        g_cursor = (g_cursor + count - DECK_COLS % count) % count;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+    g_dirty = 1;
 }
 
 static void next_available_type(int direction)
@@ -387,8 +397,9 @@ static void move_offer_cursor(screen_event event)
 static void on_choose_event(screen_event event)
 {
     switch (event) {
-    case EV_LEFT:  g_cursor = (g_cursor + STS_NUM_CHARACTERS - 1) % STS_NUM_CHARACTERS; break;
-    case EV_RIGHT: g_cursor = (g_cursor + 1) % STS_NUM_CHARACTERS; break;
+    /* Left and right wrap around within a row, as up and down do within a column. */
+    case EV_LEFT:  g_cursor = g_cursor - g_cursor % COLS + (g_cursor % COLS + COLS - 1) % COLS; break;
+    case EV_RIGHT: g_cursor = g_cursor - g_cursor % COLS + (g_cursor % COLS + 1) % COLS; break;
     case EV_UP:    g_cursor = (g_cursor + STS_NUM_CHARACTERS - COLS) % STS_NUM_CHARACTERS; break;
     case EV_DOWN:  g_cursor = (g_cursor + COLS) % STS_NUM_CHARACTERS; break;
     case EV_CONFIRM:
