@@ -35,13 +35,13 @@ Giuroll is supported for online play. Other common mods should not need disablin
 5. Start the game. The main menu should show `F7: Slay the Scarlet` in the bottom right corner.
 
 To uninstall, remove the line and delete the folder. The mod never changes your profiles or
-`score123.dat`, so your real decks and your save are untouched.
+`score123.dat`, so your real decks and profile are untouched.
 
 To update, replace `SlayTheScarlet.dll`, `cards.csv` and the `lang` folder. Keep `settings.ini`, which
 holds your rules, and the `runs` folder, which holds your runs.
 
-The mod's menus follow the game's language: Japanese on the Japanese game, and English under the
-English translation (`th123e`).
+The mod's menus follow the game's language: Japanese on the Japanese game (`th123`), and English under
+the English translation (`th123e`).
 
 ## How to play
 
@@ -153,3 +153,5 @@ This is an unofficial fan mod, and you need your own copy of the game.
   netplay packets work.
 - **OnlinePractice**, from OCE Hisoutensoku, was a reference for which parts of the game a netplay mod
   needs to hook.
+
+wau

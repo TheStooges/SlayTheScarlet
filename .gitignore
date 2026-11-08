@@ -66,6 +66,7 @@ out/
 
 # IDE and OS files
 .vs/
+.vscode/
 *.vcxproj.user
 .idea/
 .DS_Store
