@@ -139,6 +139,10 @@ start over. With `allow_rule_changes=true` (off by default, not part of the fing
 carry on under the new rules if the deck is legal under them; offers on screen survive this if still
 possible, so editing the settings is not a free reroll.
 
+A match finished while an offer still waits (see the disconnect finding under netplay) does not lose
+its reward: it is owed, saved with the run (`owed` line, save format 2; version 1 saves still load),
+and its offers come up once the waiting offer is taken, after the deck screen shows that change.
+
 Keep `core/` free of game dependencies so the logic can be developed and tested without the game.
 Use integer maths for anything that could affect a match (determinism across machines).
 
@@ -344,6 +348,13 @@ Netplay is a primary requirement. Each machine simulates both players from share
   is the game's normal wait. It is very tolerant: a wait of 28 minutes on the offer held, and the next
   match played normally, so the offer needs no timer. If the opponent closes their game during an
   offer, the offer still works and saves; character select then hangs until the game disconnects.
+- **A disconnect during an offer** (seen with and without InGameHostlist) sends the game to the title
+  with its network menu open. Game menus are drawn after the scene, so the menu covered the offer,
+  and the offer kept reading buttons under it. The offer now pauses while any menu is open at the
+  title, and comes back when the menu closes. Reconnecting straight from the menu leaves it open but
+  hidden; it shows on the next result screen, and that match's reward is owed behind it.
+- **Junk bytes in `GAME_MATCH`:** a client's own character byte was 110 in one packet and the
+  opponent's character in another, so the packet log finds each deck by searching every profile slot.
 - **Scene hooks and roles:** after a match, a client's select, loading and battle scenes all fired
   through the Server vtables with mode 5. Trust only `mainMode` for the role.
 - **All runs use compatible rules for now** (`load_data` applies `sts_settings_force_compatible`),
