@@ -44,15 +44,17 @@ typedef struct {
 
 typedef struct {
     sts_rules rules;
-    int draft_picks;
-    sts_offer_settings draft;    /* mode is always ADD */
+    /* The draft adds one copy per pick until the deck holds size_min cards (rewards may grow it
+     * towards size_max later): mode is always ADD and copies always 1. Only the offers, card types and their weights can be set. */
+    sts_offer_settings draft;
     sts_offer_settings reward;
     sts_who_picks who_picks;
     sts_pick_visibility pick_visibility;
     sts_opponent_deck opponent_deck;
     int items_enabled;
     /* The starting deck: every character gets starter_common, plus their own list. A draft
-     * starts from these cards and the picks fill the rest. */
+     * starts from these cards and the picks fill the rest. Only starter_enabled is a setting; the
+     * lists are built in. */
     int starter_enabled;
     sts_starter_list starter_common;
     sts_starter_list starter[STS_NUM_CHARACTERS];
@@ -85,24 +87,78 @@ sts_settings_status sts_settings_load(const char *path, sts_settings *out, int *
 
 const char *sts_settings_status_str(sts_settings_status status);
 
-/* Returns NULL if the settings can work, or a message saying why they cannot. Starter cards
+/* Why settings cannot work. The offer problems are listed in the same order for the draft and the
+ * reward. */
+typedef enum {
+    STS_PROBLEM_NONE = 0,
+    STS_PROBLEM_DECK_SIZE,          /* size_min below 1 or above size_max */
+    STS_PROBLEM_DECK_TOO_BIG,       /* size_max above STS_MAX_DECK */
+    STS_PROBLEM_COPY_LIMIT,         /* copy_limit outside 1 to STS_GAME_COPY_LIMIT */
+    STS_PROBLEM_DRAFT_OFFERS,       /* offers outside 1 to STS_OFFER_MAX */
+    STS_PROBLEM_DRAFT_COPIES,       /* copies_min below 1 or above copies_max (not settable for the draft) */
+    STS_PROBLEM_DRAFT_COPY_LIMIT,   /* copies_max above copy_limit (not settable for the draft) */
+    STS_PROBLEM_DRAFT_TYPES,        /* no card type */
+    STS_PROBLEM_DRAFT_WEIGHTS,      /* weighted, and every type offered weighs 0 */
+    STS_PROBLEM_STARTER_TOO_BIG,    /* the character's starter is above size_max */
+    STS_PROBLEM_STARTER_COPIES,     /* number: the card with more than copy_limit copies */
+    STS_PROBLEM_REWARD_OFFERS,
+    STS_PROBLEM_REWARD_COPIES,
+    STS_PROBLEM_REWARD_COPY_LIMIT,
+    STS_PROBLEM_REWARD_TYPES,
+    STS_PROBLEM_REWARD_WEIGHTS,
+    STS_PROBLEM_REWARD_SIZE         /* add or remove with a fixed deck size */
+} sts_settings_problem;
+
+typedef struct {
+    int character;   /* the character a problem is about, or -1 */
+    int number;      /* see the problem */
+} sts_settings_problem_info;
+
+/* The first reason the settings cannot work, or STS_PROBLEM_NONE. info may be NULL. Starter cards
  * are only counted here; sts_run_check_starters checks each character can use them. */
+sts_settings_problem sts_settings_check(const sts_settings *settings, sts_settings_problem_info *info);
+
+/* Returns NULL if the settings can work, or a message saying why they cannot, for the log and for
+ * errors in settings.ini. The settings screen words them for players from sts_settings_check. */
 const char *sts_settings_validate(const sts_settings *settings);
 
 /* The cards this character's draft starts from: none unless the starter is enabled. */
 void sts_settings_starter(const sts_settings *settings, int character, sts_deck *out);
 
-/* How many picks this character's draft can take at most: the picks setting, or fewer when the
- * starter leaves less room. With a varying copy count the draft may still end sooner. */
+/* How many picks this character's draft takes: one per card from its starter up to size_min. */
 int sts_settings_draft_length(const sts_settings *settings, int character);
 
-/* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, and no rule that needs
- * another deck size. The result always passes sts_settings_validate. Visibility settings are
+/* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, no rule that needs another
+ * deck size, and who_picks=nobody (a random swap both machines must agree on) becomes both. The result always passes sts_settings_validate. Visibility settings are
  * left alone: they need messages this mode never sends, so they have no effect here, and
  * rules already compatible keep their fingerprint. */
 void sts_settings_force_compatible(sts_settings *settings);
 
 /* Fingerprint of every rule, stable across machines. Differs if any setting differs. */
 uint32_t sts_settings_hash(const sts_settings *settings);
+
+/* One setting, by its section and key as in the file, for the settings screen. */
+
+/* Writes the setting's value as the file would hold it ("true", "system,spell", "3").
+ * Returns 0 for an unknown setting. */
+int sts_settings_get(const sts_settings *settings, const char *section, const char *key, char *out, size_t size);
+
+/* Sets a setting from text as the file would hold it. A bad value changes nothing. */
+sts_settings_status sts_settings_set(sts_settings *settings, const char *section, const char *key, const char *value);
+
+/* Moves a setting to its next value (direction 1) or previous one (-1): numbers by one within the
+ * range the screen offers (fewest copies up to most copies, and most copies from fewest copies up
+ * to copy_limit), choices in order and wrapping round. Returns 0 for an unknown setting. Does not
+ * validate. */
+int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction);
+
+/* 1 if every setting is the same, including ones outside the fingerprint. */
+int sts_settings_equal(const sts_settings *first, const sts_settings *second);
+
+/* Rewrites the text of a settings file so it holds these settings. Only values that change are
+ * rewritten, so comments and layout stay; a setting the file does not list is added after the last
+ * setting of its section, or in a new section at the end. Returns text to free(), with its length in
+ * *out_len, or NULL if the original text does not parse (or memory runs out). */
+char *sts_settings_rewrite(const char *text, size_t len, const sts_settings *settings, size_t *out_len);
 
 #endif

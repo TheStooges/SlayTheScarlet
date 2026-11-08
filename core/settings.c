@@ -5,6 +5,8 @@
 #include "util.h"
 
 #define MAX_LINE 128
+/* A value as text, with room to spare. */
+#define VALUE_SIZE 64
 
 typedef struct {
     const char *name;
@@ -104,7 +106,6 @@ void sts_settings_defaults(sts_settings *settings)
     default_offer_style(&settings->draft);
     default_offer_style(&settings->reward);
 
-    settings->draft_picks = 20;
     settings->draft.mode = STS_REWARD_ADD;
     settings->draft.offer_count = 3;
     settings->draft.copies_min = 1;
@@ -184,31 +185,6 @@ static int set_types(char *value, unsigned *out)
     return 1;
 }
 
-/* "0,0,12" lists card IDs, a card listed twice being two copies. An empty value is no cards. */
-static int set_starter_list(char *value, sts_starter_list *out)
-{
-    sts_starter_list list;
-
-    list.count = 0;
-    while (*value) {
-        char *comma = strchr(value, ',');
-        int id;
-
-        if (comma)
-            *comma = 0;
-        if (list.count >= STS_STARTER_MAX || !set_int(value, 0, 0xFFFF, &id))
-            return 0;
-        list.ids[list.count++] = (uint16_t)id;
-        if (!comma)
-            break;
-        value = comma + 1;
-        if (!*value)
-            return 0;   /* a trailing comma */
-    }
-    *out = list;
-    return 1;
-}
-
 static char lower_case(char letter)
 {
     return letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
@@ -231,96 +207,220 @@ static int character_key(const char *key)
     return -1;
 }
 
-/* Keys shared by [draft] and [reward]. Returns -1 for an unknown key, else success. */
-static int set_offer_key(sts_offer_settings *offer_settings, const char *key, char *value)
+/* What kind of value a setting holds, and where it lives in sts_settings. Every setting is found
+ * through find_setting, so parsing, the settings screen and rewriting the file agree on them. */
+typedef enum { KIND_INT, KIND_BOOL, KIND_NAMED, KIND_TYPES } value_kind;
+
+typedef struct {
+    value_kind kind;
+    void *field;                /* int (or an enum, which is int-sized), or an unsigned mask */
+    const named_value *names;   /* KIND_NAMED */
+    int step_min, step_max;     /* KIND_INT: the range the settings screen steps through */
+} setting_ref;
+
+/* Enum fields are read and written as int. */
+typedef char enum_is_int_sized[sizeof(sts_who_picks) == sizeof(int) && sizeof(sts_reward_mode) == sizeof(int) ? 1 : -1];
+
+static void set_ref(setting_ref *ref, value_kind kind, void *field, const named_value *names, int step_min, int step_max)
 {
+    ref->kind = kind;
+    ref->field = field;
+    ref->names = names;
+    ref->step_min = step_min;
+    ref->step_max = step_max;
+}
+
+/* Keys shared by [draft] and [reward]. Fewest and most copies step only as far as each other, so
+ * the screen cannot offer a range that is upside down. */
+static int find_offer_setting(sts_offer_settings *offer_settings, const sts_rules *rules, const char *key,
+                              setting_ref *ref)
+{
+    int copy_limit = rules->copy_limit < STS_GAME_COPY_LIMIT ? rules->copy_limit : STS_GAME_COPY_LIMIT;
+
     if (strcmp(key, "offers") == 0)
-        return set_int(value, 0, 1000, &offer_settings->offer_count);
-    if (strcmp(key, "copies_min") == 0)
-        return set_int(value, 0, 1000, &offer_settings->copies_min);
-    if (strcmp(key, "copies_max") == 0)
-        return set_int(value, 0, 1000, &offer_settings->copies_max);
-    if (strcmp(key, "types") == 0)
-        return set_types(value, &offer_settings->type_mask);
-    if (strcmp(key, "offer_style") == 0) {
-        int number;
-        int ok = find_named(value, g_styles, &number);
-        if (ok)
-            offer_settings->style = (sts_offer_style)number;
-        return ok;
+        set_ref(ref, KIND_INT, &offer_settings->offer_count, NULL, 1, STS_OFFER_MAX);
+    else if (strcmp(key, "copies_min") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->copies_min, NULL, 1, offer_settings->copies_max);
+    else if (strcmp(key, "copies_max") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->copies_max, NULL, offer_settings->copies_min, copy_limit);
+    else if (strcmp(key, "types") == 0)
+        set_ref(ref, KIND_TYPES, &offer_settings->type_mask, NULL, 0, 0);
+    else if (strcmp(key, "offer_style") == 0)
+        set_ref(ref, KIND_NAMED, &offer_settings->style, g_styles, 0, 0);
+    else if (strcmp(key, "system_weight") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->weights[STS_CARD_SYSTEM], NULL, 0, 20);
+    else if (strcmp(key, "skill_weight") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->weights[STS_CARD_SKILL], NULL, 0, 20);
+    else if (strcmp(key, "spell_weight") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->weights[STS_CARD_SPELL], NULL, 0, 20);
+    else
+        return 0;
+    return 1;
+}
+
+/* Finds a setting by its section and key. Returns 0 for an unknown one. */
+static int find_setting(sts_settings *settings, const char *section, const char *key, setting_ref *ref)
+{
+    memset(ref, 0, sizeof *ref);
+    if (strcmp(section, "deck") == 0) {
+        if (strcmp(key, "size_min") == 0)
+            set_ref(ref, KIND_INT, &settings->rules.deck_min, NULL, 1, STS_MAX_DECK);
+        else if (strcmp(key, "size_max") == 0)
+            set_ref(ref, KIND_INT, &settings->rules.deck_max, NULL, 1, STS_MAX_DECK);
+        else if (strcmp(key, "copy_limit") == 0)
+            set_ref(ref, KIND_INT, &settings->rules.copy_limit, NULL, 1, STS_GAME_COPY_LIMIT);
+        else
+            return 0;
+        return 1;
     }
-    if (strcmp(key, "system_weight") == 0)
-        return set_int(value, 0, 1000, &offer_settings->weights[STS_CARD_SYSTEM]);
-    if (strcmp(key, "skill_weight") == 0)
-        return set_int(value, 0, 1000, &offer_settings->weights[STS_CARD_SKILL]);
-    if (strcmp(key, "spell_weight") == 0)
-        return set_int(value, 0, 1000, &offer_settings->weights[STS_CARD_SPELL]);
-    return -1;
+    if (strcmp(section, "draft") == 0) {
+        /* The draft's copies are always 1. */
+        if (strcmp(key, "copies_min") == 0 || strcmp(key, "copies_max") == 0)
+            return 0;
+        if (strcmp(key, "show_deck") == 0)
+            set_ref(ref, KIND_BOOL, &settings->draft_show_deck, g_bool, 0, 0);
+        else
+            return find_offer_setting(&settings->draft, &settings->rules, key, ref);
+        return 1;
+    }
+    if (strcmp(section, "reward") == 0) {
+        if (strcmp(key, "mode") == 0)
+            set_ref(ref, KIND_NAMED, &settings->reward.mode, g_modes, 0, 0);
+        else if (strcmp(key, "who_picks") == 0)
+            set_ref(ref, KIND_NAMED, &settings->who_picks, g_who, 0, 0);
+        else if (strcmp(key, "replacement") == 0)
+            set_ref(ref, KIND_NAMED, &settings->reward.replace, g_replace, 0, 0);
+        else
+            return find_offer_setting(&settings->reward, &settings->rules, key, ref);
+        return 1;
+    }
+    if (strcmp(section, "netplay") == 0) {
+        if (strcmp(key, "pick_visibility") == 0)
+            set_ref(ref, KIND_NAMED, &settings->pick_visibility, g_visibility, 0, 0);
+        else if (strcmp(key, "opponent_deck") == 0)
+            set_ref(ref, KIND_NAMED, &settings->opponent_deck, g_opponent, 0, 0);
+        else
+            return 0;
+        return 1;
+    }
+    if (strcmp(section, "items") == 0) {
+        if (strcmp(key, "enabled") != 0)
+            return 0;
+        set_ref(ref, KIND_BOOL, &settings->items_enabled, g_bool, 0, 0);
+        return 1;
+    }
+    if (strcmp(section, "starter") == 0) {
+        if (strcmp(key, "enabled") != 0)
+            return 0;
+        set_ref(ref, KIND_BOOL, &settings->starter_enabled, g_bool, 0, 0);
+        return 1;
+    }
+    if (strcmp(section, "run") == 0) {
+        if (strcmp(key, "allow_rule_changes") != 0)
+            return 0;
+        set_ref(ref, KIND_BOOL, &settings->allow_rule_changes, g_bool, 0, 0);
+        return 1;
+    }
+    return 0;
+}
+
+static int read_number(const setting_ref *ref)
+{
+    int number;
+
+    memcpy(&number, ref->field, sizeof number);
+    return number;
+}
+
+static void write_number(const setting_ref *ref, int number)
+{
+    memcpy(ref->field, &number, sizeof number);
+}
+
+/* Sets a setting from its text in the file. The text may be changed. Returns 1, or 0 for a bad value. */
+static int set_from_text(const setting_ref *ref, char *value)
+{
+    int number;
+
+    switch (ref->kind) {
+    case KIND_INT:
+        if (!set_int(value, 0, 1000, &number))
+            return 0;
+        write_number(ref, number);
+        return 1;
+    case KIND_BOOL:
+    case KIND_NAMED:
+        if (!find_named(value, ref->names, &number))
+            return 0;
+        write_number(ref, number);
+        return 1;
+    case KIND_TYPES:
+        return set_types(value, (unsigned *)ref->field);
+    }
+    return 0;
+}
+
+static const char *const g_type_names[3] = {"system", "skill", "spell"};
+
+/* A setting's value as the file writes it. */
+static void format_value(const setting_ref *ref, char *out, size_t size)
+{
+    char text[VALUE_SIZE];
+    size_t used = 0;
+    int wau;
+
+    text[0] = 0;
+    switch (ref->kind) {
+    case KIND_INT:
+        sprintf(text, "%d", read_number(ref));
+        break;
+    case KIND_BOOL:
+    case KIND_NAMED: {
+        const named_value *entry;
+        int number = read_number(ref);
+
+        sprintf(text, "%d", number);
+        for (entry = ref->names; entry->name; entry++) {
+            if (entry->value == number) {
+                strcpy(text, entry->name);
+                break;
+            }
+        }
+        break;
+    }
+    case KIND_TYPES:
+        for (wau = 0; wau < 3; wau++) {
+            if (*(const unsigned *)ref->field & STS_TYPE_BIT(wau))
+                used += (size_t)sprintf(text + used, "%s%s", used ? "," : "", g_type_names[wau]);
+        }
+        break;
+    }
+    if (size > 0) {
+        strncpy(out, text, size - 1);
+        out[size - 1] = 0;
+    }
 }
 
 /* Returns -1 for an unknown key, else success (1) or a bad value (0). */
 static int set_key(sts_settings *settings, const char *section, const char *key, char *value)
 {
-    int number, ok;
+    setting_ref ref;
 
-    if (strcmp(section, "deck") == 0) {
-        if (strcmp(key, "size_min") == 0)
-            return set_int(value, 0, 1000, &settings->rules.deck_min);
-        if (strcmp(key, "size_max") == 0)
-            return set_int(value, 0, 1000, &settings->rules.deck_max);
-        if (strcmp(key, "copy_limit") == 0)
-            return set_int(value, 0, 1000, &settings->rules.copy_limit);
-    } else if (strcmp(section, "draft") == 0) {
-        if (strcmp(key, "picks") == 0)
-            return set_int(value, 0, 1000, &settings->draft_picks);
-        if (strcmp(key, "show_deck") == 0)
-            return find_named(value, g_bool, &settings->draft_show_deck);
-        return set_offer_key(&settings->draft, key, value);
-    } else if (strcmp(section, "reward") == 0) {
-        if (strcmp(key, "mode") == 0) {
-            ok = find_named(value, g_modes, &number);
-            if (ok) settings->reward.mode = (sts_reward_mode)number;
-            return ok;
-        }
-        if (strcmp(key, "who_picks") == 0) {
-            ok = find_named(value, g_who, &number);
-            if (ok) settings->who_picks = (sts_who_picks)number;
-            return ok;
-        }
-        if (strcmp(key, "replacement") == 0) {
-            ok = find_named(value, g_replace, &number);
-            if (ok) settings->reward.replace = (sts_replace_control)number;
-            return ok;
-        }
-        return set_offer_key(&settings->reward, key, value);
-    } else if (strcmp(section, "netplay") == 0) {
-        if (strcmp(key, "pick_visibility") == 0) {
-            ok = find_named(value, g_visibility, &number);
-            if (ok) settings->pick_visibility = (sts_pick_visibility)number;
-            return ok;
-        }
-        if (strcmp(key, "opponent_deck") == 0) {
-            ok = find_named(value, g_opponent, &number);
-            if (ok) settings->opponent_deck = (sts_opponent_deck)number;
-            return ok;
-        }
-    } else if (strcmp(section, "items") == 0) {
-        if (strcmp(key, "enabled") == 0)
-            return find_named(value, g_bool, &settings->items_enabled);
-    } else if (strcmp(section, "starter") == 0) {
-        int character = character_key(key);
+    if (!find_setting(settings, section, key, &ref))
+        return -1;
+    return set_from_text(&ref, value);
+}
 
-        if (strcmp(key, "enabled") == 0)
-            return find_named(value, g_bool, &settings->starter_enabled);
-        if (strcmp(key, "common") == 0)
-            return set_starter_list(value, &settings->starter_common);
-        if (character >= 0)
-            return set_starter_list(value, &settings->starter[character]);
-    } else if (strcmp(section, "run") == 0) {
-        if (strcmp(key, "allow_rule_changes") == 0)
-            return find_named(value, g_bool, &settings->allow_rule_changes);
-    }
-    return -1;
+/* Settings that versions up to 0.2 had and that are now fixed: the draft adds one copy per pick
+ * until the deck reaches size_min, and the starter's cards are built in. Files from those versions
+ * still list them, so they are read and ignored rather than refused as unknown. */
+static int obsolete_key(const char *section, const char *key)
+{
+    if (strcmp(section, "draft") == 0)
+        return strcmp(key, "picks") == 0 || strcmp(key, "copies_min") == 0 || strcmp(key, "copies_max") == 0;
+    if (strcmp(section, "starter") == 0)
+        return strcmp(key, "common") == 0 || character_key(key) >= 0;
+    return 0;
 }
 
 static int known_section(const char *name)
@@ -371,6 +471,8 @@ static sts_settings_status parse_line(char *line, char *section, size_t section_
     value = trim(equals + 1);
     if (!*section)
         return STS_SETTINGS_UNKNOWN_KEY;   /* a key before any section */
+    if (obsolete_key(section, key))
+        return STS_SETTINGS_OK;
     result = set_key(out, section, key, value);
     if (result < 0)
         return STS_SETTINGS_UNKNOWN_KEY;
@@ -450,16 +552,18 @@ const char *sts_settings_status_str(sts_settings_status status)
     return "unknown";
 }
 
-static const char *validate_offer(const sts_offer_settings *offer_settings, const sts_rules *rules)
+/* Problems with the offer settings, as offsets from STS_PROBLEM_DRAFT_OFFERS or
+ * STS_PROBLEM_REWARD_OFFERS, which list them in the same order. */
+static int check_offer(const sts_offer_settings *offer_settings, const sts_rules *rules)
 {
     if (offer_settings->offer_count < 1 || offer_settings->offer_count > STS_OFFER_MAX)
-        return "offers must be between 1 and 8";
+        return 0;
     if (offer_settings->copies_min < 1 || offer_settings->copies_max < offer_settings->copies_min)
-        return "copies_min must be at least 1 and not above copies_max";
+        return 1;
     if (offer_settings->copies_max > rules->copy_limit)
-        return "copies_max cannot be above copy_limit";
+        return 2;
     if (offer_settings->type_mask == 0 || (offer_settings->type_mask & ~(unsigned)STS_TYPE_ALL))
-        return "types must list at least one of system, skill, spell";
+        return 3;
     if (offer_settings->style == STS_OFFER_WEIGHTED) {
         int type, total = 0;
 
@@ -467,9 +571,9 @@ static const char *validate_offer(const sts_offer_settings *offer_settings, cons
             if (offer_settings->type_mask & STS_TYPE_BIT(type))
                 total += offer_settings->weights[type];
         if (total == 0)
-            return "weighted offers need a weight above 0 on a type that can be offered";
+            return 4;
     }
-    return NULL;
+    return -1;
 }
 
 void sts_settings_starter(const sts_settings *settings, int character, sts_deck *out)
@@ -491,79 +595,102 @@ int sts_settings_draft_length(const sts_settings *settings, int character)
     int room = 0;
 
     sts_settings_starter(settings, character, &starter);
-    if (settings->draft.copies_min > 0 && starter.count < settings->rules.deck_max)
-        room = (settings->rules.deck_max - starter.count) / settings->draft.copies_min;
-    return room < settings->draft_picks ? room : settings->draft_picks;
+    if (starter.count < settings->rules.deck_min)
+        room = settings->rules.deck_min - starter.count;
+    return room;
 }
 
-/* The draft must always be able to finish at a legal size, from this character's starter. With
- * copies_min 1 a pick fits whenever the deck has room, so enough picks always reach size_min.
- * Otherwise only a fixed count can be guaranteed: a varying one could stop just short, with no
- * room left for another minimum-sized pick. */
-static const char *validate_draft_size(const sts_settings *settings, int character)
+/* The draft must be able to finish at a legal size from this character's starter. It adds one
+ * copy per pick until the deck reaches size_min, so it does whenever the starter itself fits. */
+static sts_settings_problem check_draft_size(const sts_settings *settings, int character, sts_settings_problem_info *info)
 {
-    static char message[96];
     const sts_rules *rules = &settings->rules;
     sts_deck starter;
     int wau;
 
     sts_settings_starter(settings, character, &starter);
-    if (starter.count > rules->deck_max) {
-        sprintf(message, "%s's starter has more cards than size_max", sts_character_name(character));
-        return message;
-    }
+    info->character = character;
+    if (starter.count > rules->deck_max)
+        return STS_PROBLEM_STARTER_TOO_BIG;
     for (wau = 0; wau < starter.count; wau++) {
         if (sts_deck_count_of(&starter, starter.ids[wau]) > rules->copy_limit) {
-            sprintf(message, "%s's starter has more than copy_limit copies of card %d",
-                    sts_character_name(character), starter.ids[wau]);
-            return message;
+            info->number = starter.ids[wau];
+            return STS_PROBLEM_STARTER_COPIES;
         }
     }
-    if (settings->draft.copies_min == 1) {
-        if (starter.count + settings->draft_picks < rules->deck_min)
-            return "picks is too low to reach size_min";
-    } else {
-        int total = starter.count + settings->draft_picks * settings->draft.copies_min;
-        if (settings->draft.copies_min != settings->draft.copies_max)
-            return "a draft with copies_min above 1 needs copies_min equal to copies_max";
-        if (total < rules->deck_min || total > rules->deck_max)
-            return "the starter plus picks times copies must land between size_min and size_max";
+    info->character = -1;
+    return STS_PROBLEM_NONE;
+}
+
+sts_settings_problem sts_settings_check(const sts_settings *settings, sts_settings_problem_info *info)
+{
+    const sts_rules *rules = &settings->rules;
+    sts_settings_problem_info ignored;
+    sts_settings_problem problem;
+    int character, offer;
+
+    if (!info)
+        info = &ignored;
+    info->character = -1;
+    info->number = 0;
+    if (rules->deck_min < 1 || rules->deck_min > rules->deck_max)
+        return STS_PROBLEM_DECK_SIZE;
+    if (rules->deck_max > STS_MAX_DECK)
+        return STS_PROBLEM_DECK_TOO_BIG;
+    if (rules->copy_limit < 1 || rules->copy_limit > STS_GAME_COPY_LIMIT)
+        return STS_PROBLEM_COPY_LIMIT;
+
+    offer = check_offer(&settings->draft, rules);
+    if (offer >= 0)
+        return (sts_settings_problem)(STS_PROBLEM_DRAFT_OFFERS + offer);
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        problem = check_draft_size(settings, character, info);
+        if (problem != STS_PROBLEM_NONE)
+            return problem;
     }
-    return NULL;
+
+    if (settings->reward.mode != STS_REWARD_SKIP) {
+        offer = check_offer(&settings->reward, rules);
+        if (offer >= 0)
+            return (sts_settings_problem)(STS_PROBLEM_REWARD_OFFERS + offer);
+        if (settings->reward.mode != STS_REWARD_REPLACE && rules->deck_min == rules->deck_max)
+            return STS_PROBLEM_REWARD_SIZE;
+    }
+    return STS_PROBLEM_NONE;
 }
 
 const char *sts_settings_validate(const sts_settings *settings)
 {
-    const sts_rules *rules = &settings->rules;
-    const char *msg;
-    int character;
+    static char message[128];
+    sts_settings_problem_info info;
+    const char *name;
 
-    if (rules->deck_min < 1 || rules->deck_min > rules->deck_max)
-        return "size_min must be at least 1 and not above size_max";
-    if (rules->deck_max > STS_MAX_DECK)
-        return "size_max cannot be above 255";
-    if (rules->copy_limit < 1 || rules->copy_limit > STS_GAME_COPY_LIMIT)
-        return "copy_limit must be between 1 and 4";
-
-    if (settings->draft_picks < 1)
-        return "picks must be at least 1";
-    msg = validate_offer(&settings->draft, rules);
-    if (msg)
-        return msg;
-    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
-        msg = validate_draft_size(settings, character);
-        if (msg)
-            return msg;
+    switch (sts_settings_check(settings, &info)) {
+    case STS_PROBLEM_NONE:              return NULL;
+    case STS_PROBLEM_DECK_SIZE:         return "size_min must be at least 1 and not above size_max";
+    case STS_PROBLEM_DECK_TOO_BIG:      return "size_max cannot be above 255";
+    case STS_PROBLEM_COPY_LIMIT:        return "copy_limit must be between 1 and 4";
+    case STS_PROBLEM_DRAFT_OFFERS:
+    case STS_PROBLEM_REWARD_OFFERS:     return "offers must be between 1 and 8";
+    case STS_PROBLEM_DRAFT_COPIES:
+    case STS_PROBLEM_REWARD_COPIES:     return "copies_min must be at least 1 and not above copies_max";
+    case STS_PROBLEM_DRAFT_COPY_LIMIT:
+    case STS_PROBLEM_REWARD_COPY_LIMIT: return "copies_max cannot be above copy_limit";
+    case STS_PROBLEM_DRAFT_TYPES:
+    case STS_PROBLEM_REWARD_TYPES:      return "types must list at least one of system, skill, spell";
+    case STS_PROBLEM_DRAFT_WEIGHTS:
+    case STS_PROBLEM_REWARD_WEIGHTS:    return "weighted offers need a weight above 0 on a type that can be offered";
+    case STS_PROBLEM_REWARD_SIZE:       return "reward mode add or remove needs size_min below size_max";
+    case STS_PROBLEM_STARTER_TOO_BIG:
+        name = sts_character_name(info.character);
+        sprintf(message, "%s's starter has more cards than size_max", name);
+        return message;
+    case STS_PROBLEM_STARTER_COPIES:
+        name = sts_character_name(info.character);
+        sprintf(message, "%s's starter has more than copy_limit copies of card %d", name, info.number);
+        return message;
     }
-
-    if (settings->reward.mode != STS_REWARD_SKIP) {
-        msg = validate_offer(&settings->reward, rules);
-        if (msg)
-            return msg;
-        if (settings->reward.mode != STS_REWARD_REPLACE && rules->deck_min == rules->deck_max)
-            return "reward mode add or remove needs size_min below size_max";
-    }
-    return NULL;
+    return "unknown problem";
 }
 
 void sts_settings_force_compatible(sts_settings *settings)
@@ -577,10 +704,13 @@ void sts_settings_force_compatible(sts_settings *settings)
     /* Add and remove change the deck size, which a vanilla opponent cannot accept. */
     if (settings->reward.mode == STS_REWARD_ADD || settings->reward.mode == STS_REWARD_REMOVE)
         settings->reward.mode = STS_REWARD_REPLACE;
+    /* A random swap for both players needs both machines to agree on it, which takes the mod on
+     * both sides. Each player picks for themselves instead. */
+    if (settings->who_picks == STS_WHO_NOBODY)
+        settings->who_picks = STS_WHO_BOTH;
 
     /* Whatever the player configured for other sizes may not fit; fall back to defaults. */
     if (sts_settings_validate(settings)) {
-        settings->draft_picks = defaults.draft_picks;
         settings->draft = defaults.draft;
         settings->reward = defaults.reward;
     }
@@ -632,7 +762,8 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     hash = hash_int(hash, settings->rules.deck_min);
     hash = hash_int(hash, settings->rules.deck_max);
     hash = hash_int(hash, settings->rules.copy_limit);
-    hash = hash_int(hash, settings->draft_picks);
+    /* Once the picks setting; now always the smallest deck. Still hashed, so runs keep their fingerprint. */
+    hash = hash_int(hash, settings->rules.deck_min);
     hash = hash_offer(hash, &settings->draft);
     hash = hash_offer(hash, &settings->reward);
     hash = hash_int(hash, (int)settings->who_picks);
@@ -651,4 +782,385 @@ uint32_t sts_settings_hash(const sts_settings *settings)
             hash = hash_starter_list(hash, &settings->starter[character]);
     }
     return hash;
+}
+
+/* Every setting, in the order a new section lists them. */
+typedef struct {
+    const char *section;
+    const char *key;
+} setting_key;
+
+static const setting_key g_keys[] = {
+    {"deck", "size_min"}, {"deck", "size_max"}, {"deck", "copy_limit"},
+    {"draft", "offers"}, {"draft", "show_deck"}, {"draft", "types"}, {"draft", "offer_style"}, {"draft", "system_weight"},
+    {"draft", "skill_weight"}, {"draft", "spell_weight"},
+    {"starter", "enabled"},
+    {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "offers"}, {"reward", "copies_min"},
+    {"reward", "copies_max"}, {"reward", "types"}, {"reward", "offer_style"}, {"reward", "system_weight"},
+    {"reward", "skill_weight"}, {"reward", "spell_weight"}, {"reward", "replacement"},
+    {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
+    {"items", "enabled"},
+    {"run", "allow_rule_changes"},
+};
+#define KEY_COUNT ((int)(sizeof g_keys / sizeof g_keys[0]))
+#define KEY_NAME_SIZE 24
+
+static const char *const g_sections[] = {"deck", "draft", "starter", "reward", "netplay", "items", "run"};
+#define SECTION_COUNT ((int)(sizeof g_sections / sizeof g_sections[0]))
+
+/* The index-th setting: its section, and its key copied into key. */
+static const char *key_at(int index, char *key)
+{
+    strcpy(key, g_keys[index].key);
+    return g_keys[index].section;
+}
+
+static int section_index(const char *name)
+{
+    int wau;
+
+    for (wau = 0; wau < SECTION_COUNT; wau++)
+        if (strcmp(g_sections[wau], name) == 0)
+            return wau;
+    return -1;
+}
+
+int sts_settings_get(const sts_settings *settings, const char *section, const char *key, char *out, size_t size)
+{
+    setting_ref ref;
+
+    if (size > 0)
+        out[0] = 0;
+    /* Only read through ref. */
+    if (!find_setting((sts_settings *)settings, section, key, &ref))
+        return 0;
+    format_value(&ref, out, size);
+    return 1;
+}
+
+sts_settings_status sts_settings_set(sts_settings *settings, const char *section, const char *key, const char *value)
+{
+    char copy[MAX_LINE];
+    setting_ref ref;
+    sts_settings trial;
+
+    if (strlen(value) >= sizeof copy)
+        return STS_SETTINGS_BAD_VALUE;
+    strcpy(copy, value);
+    /* A bad value leaves the settings as they were, even one that failed part way. */
+    trial = *settings;
+    if (!find_setting(&trial, section, key, &ref))
+        return STS_SETTINGS_UNKNOWN_KEY;
+    if (!set_from_text(&ref, copy))
+        return STS_SETTINGS_BAD_VALUE;
+    *settings = trial;
+    return STS_SETTINGS_OK;
+}
+
+/* Type choices in the order the settings screen steps through them: all three first. */
+static const unsigned g_type_masks[] = {
+    STS_TYPE_ALL,
+    STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL),
+    STS_TYPE_BIT(STS_CARD_SYSTEM) | STS_TYPE_BIT(STS_CARD_SPELL),
+    STS_TYPE_BIT(STS_CARD_SYSTEM) | STS_TYPE_BIT(STS_CARD_SKILL),
+    STS_TYPE_BIT(STS_CARD_SPELL),
+    STS_TYPE_BIT(STS_CARD_SKILL),
+    STS_TYPE_BIT(STS_CARD_SYSTEM),
+};
+#define TYPE_CHOICES ((int)(sizeof g_type_masks / sizeof g_type_masks[0]))
+
+int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction)
+{
+    setting_ref ref;
+    int wau, count;
+
+    if (!find_setting(settings, section, key, &ref))
+        return 0;
+    direction = direction < 0 ? -1 : 1;
+    switch (ref.kind) {
+    case KIND_INT: {
+        int number = read_number(&ref) + direction;
+
+        if (number > ref.step_max)
+            number = ref.step_max;
+        if (number < ref.step_min)
+            number = ref.step_min;
+        write_number(&ref, number);
+        return 1;
+    }
+    case KIND_BOOL:
+    case KIND_NAMED: {
+        int number = read_number(&ref), current = 0;
+
+        for (count = 0; ref.names[count].name; count++)
+            if (ref.names[count].value == number)
+                current = count;
+        write_number(&ref, ref.names[(current + direction + count) % count].value);
+        return 1;
+    }
+    case KIND_TYPES: {
+        unsigned *mask = (unsigned *)ref.field;
+        int current = 0;
+
+        for (wau = 0; wau < TYPE_CHOICES; wau++)
+            if (g_type_masks[wau] == *mask)
+                current = wau;
+        *mask = g_type_masks[(current + direction + TYPE_CHOICES) % TYPE_CHOICES];
+        return 1;
+    }
+    }
+    return 0;
+}
+
+int sts_settings_equal(const sts_settings *first, const sts_settings *second)
+{
+    char key[KEY_NAME_SIZE], first_value[VALUE_SIZE], second_value[VALUE_SIZE];
+    int wau;
+
+    for (wau = 0; wau < KEY_COUNT; wau++) {
+        const char *section = key_at(wau, key);
+
+        sts_settings_get(first, section, key, first_value, sizeof first_value);
+        sts_settings_get(second, section, key, second_value, sizeof second_value);
+        if (strcmp(first_value, second_value) != 0)
+            return 0;
+    }
+    return 1;
+}
+
+/* One line of the text being rewritten: [start, end) without the newline, next is where the
+ * following line starts. */
+typedef struct {
+    size_t start, end, next;
+} text_line;
+
+static void line_at(const char *text, size_t len, size_t pos, text_line *line)
+{
+    line->start = pos;
+    while (pos < len && text[pos] != '\n')
+        pos++;
+    line->end = pos;
+    line->next = pos < len ? pos + 1 : len;
+}
+
+/* Reads a line as the parser does. Returns 1 for a section header (its index in *section, -1 if
+ * unknown), 2 for a key line (its key in key), 0 for anything else. */
+static int classify_line(const char *text, const text_line *line, int *section, char *key)
+{
+    char copy[MAX_LINE];
+    char *trimmed, *equals;
+    size_t length = line->end - line->start;
+
+    if (length >= MAX_LINE)
+        return 0;   /* only comments may be this long, or the text would not have parsed */
+    memcpy(copy, text + line->start, length);
+    copy[length] = 0;
+    trimmed = trim(copy);
+    if (!*trimmed || *trimmed == '#' || *trimmed == ';')
+        return 0;
+    if (*trimmed == '[') {
+        size_t count = strlen(trimmed);
+
+        trimmed[count - 1] = 0;
+        *section = section_index(trimmed + 1);
+        return 1;
+    }
+    equals = strchr(trimmed, '=');
+    if (!equals)
+        return 0;
+    *equals = 0;
+    strncpy(key, trim(trimmed), KEY_NAME_SIZE - 1);
+    key[KEY_NAME_SIZE - 1] = 0;
+    return 2;
+}
+
+/* Which of the KEY_COUNT settings a key line in this section is, or -1, matched by the field it
+ * sets. Obsolete settings are none of them, so their lines are left as they are. */
+static int key_index_of(sts_settings *scratch, const char *section, const char *key)
+{
+    setting_ref ref, other;
+    char name[KEY_NAME_SIZE];
+    int wau;
+
+    if (!find_setting(scratch, section, key, &ref))
+        return -1;
+    for (wau = 0; wau < KEY_COUNT; wau++) {
+        const char *other_section = key_at(wau, name);
+
+        if (strcmp(other_section, section) == 0 && find_setting(scratch, other_section, name, &other)
+            && other.field == ref.field)
+            return wau;
+    }
+    return -1;
+}
+
+typedef struct {
+    char *text;
+    size_t used;
+} output_text;
+
+static void put_bytes(output_text *out, const char *bytes, size_t count)
+{
+    memcpy(out->text + out->used, bytes, count);
+    out->used += count;
+}
+
+static void put_text(output_text *out, const char *text)
+{
+    put_bytes(out, text, strlen(text));
+}
+
+/* Adds the settings of one section that the file does not list and that differ from it. */
+static void put_missing_keys(output_text *out, int section, const int *present, const sts_settings *original,
+                             const sts_settings *settings, const char *newline)
+{
+    char key[KEY_NAME_SIZE], old_value[VALUE_SIZE], new_value[VALUE_SIZE];
+    int wau;
+
+    for (wau = 0; wau < KEY_COUNT; wau++) {
+        const char *key_section = key_at(wau, key);
+
+        if (present[wau] || strcmp(key_section, g_sections[section]) != 0)
+            continue;
+        sts_settings_get(original, key_section, key, old_value, sizeof old_value);
+        sts_settings_get(settings, key_section, key, new_value, sizeof new_value);
+        if (strcmp(old_value, new_value) == 0)
+            continue;
+        put_text(out, key);
+        put_text(out, "=");
+        put_text(out, new_value);
+        put_text(out, newline);
+    }
+}
+
+static int section_has_missing(int section, const int *present, const sts_settings *original,
+                               const sts_settings *settings)
+{
+    char key[KEY_NAME_SIZE], old_value[VALUE_SIZE], new_value[VALUE_SIZE];
+    int wau;
+
+    for (wau = 0; wau < KEY_COUNT; wau++) {
+        const char *key_section = key_at(wau, key);
+
+        if (present[wau] || strcmp(key_section, g_sections[section]) != 0)
+            continue;
+        sts_settings_get(original, key_section, key, old_value, sizeof old_value);
+        sts_settings_get(settings, key_section, key, new_value, sizeof new_value);
+        if (strcmp(old_value, new_value) != 0)
+            return 1;
+    }
+    return 0;
+}
+
+char *sts_settings_rewrite(const char *text, size_t len, const sts_settings *settings, size_t *out_len)
+{
+    static sts_settings original;
+    int present[KEY_COUNT];
+    size_t section_end[SECTION_COUNT];
+    int section_seen[SECTION_COUNT];
+    const char *newline;
+    output_text out;
+    size_t pos;
+    int section = -1, wau;
+
+    if (!text)
+        len = 0;
+    if (sts_settings_parse(text ? text : "", len, &original, NULL) != STS_SETTINGS_OK)
+        return NULL;
+    newline = len > 0 && memchr(text, '\r', len) ? "\r\n" : "\n";
+    memset(present, 0, sizeof present);
+    memset(section_seen, 0, sizeof section_seen);
+
+    /* First pass: which settings the file lists, and where each section's last setting ends. */
+    for (pos = 0; pos < len;) {
+        text_line line;
+        char key[KEY_NAME_SIZE];
+        int kind;
+
+        line_at(text, len, pos, &line);
+        kind = classify_line(text, &line, &section, key);
+        if (kind == 1 && section >= 0 && !section_seen[section]) {
+            section_seen[section] = 1;
+            section_end[section] = line.next;
+        } else if (kind == 2 && section >= 0) {
+            int index = key_index_of(&original, g_sections[section], key);
+
+            if (index >= 0)
+                present[index] = 1;
+            section_end[section] = line.next;
+        }
+        pos = line.next;
+    }
+
+    out.text = (char *)malloc(len + (size_t)KEY_COUNT * (MAX_LINE + 8) + (size_t)SECTION_COUNT * 32 + 16);
+    if (!out.text)
+        return NULL;
+    out.used = 0;
+
+    /* Second pass: copy the file, changing only values that differ, and add missing settings
+     * after the last setting of their section. */
+    section = -1;
+    for (pos = 0; pos < len;) {
+        text_line line;
+        char key[KEY_NAME_SIZE];
+        int kind, index = -1;
+
+        line_at(text, len, pos, &line);
+        kind = classify_line(text, &line, &section, key);
+        if (kind == 2 && section >= 0)
+            index = key_index_of(&original, g_sections[section], key);
+        if (index >= 0) {
+            char name[KEY_NAME_SIZE], old_value[VALUE_SIZE], new_value[VALUE_SIZE];
+            const char *key_section = key_at(index, name);
+
+            sts_settings_get(&original, key_section, name, old_value, sizeof old_value);
+            sts_settings_get(settings, key_section, name, new_value, sizeof new_value);
+            if (strcmp(old_value, new_value) != 0) {
+                /* Keep everything up to the value: indentation, the key as written, spaces. */
+                size_t value_start = line.start;
+
+                while (text[value_start] != '=')
+                    value_start++;
+                value_start++;
+                while (value_start < line.end && (text[value_start] == ' ' || text[value_start] == '\t'))
+                    value_start++;
+                put_bytes(&out, text + line.start, value_start - line.start);
+                put_text(&out, new_value);
+                if (line.end > line.start && text[line.end - 1] == '\r')
+                    put_text(&out, "\r");
+                put_bytes(&out, text + line.end, line.next - line.end);
+                index = -2;   /* written */
+            }
+        }
+        if (index != -2)
+            put_bytes(&out, text + line.start, line.next - line.start);
+        for (wau = 0; wau < SECTION_COUNT; wau++) {
+            if (section_seen[wau] && section_end[wau] == line.next
+                && section_has_missing(wau, present, &original, settings)) {
+                if (line.next == line.end)
+                    put_text(&out, newline);   /* the last line had no newline */
+                put_missing_keys(&out, wau, present, &original, settings, newline);
+            }
+        }
+        pos = line.next;
+    }
+
+    /* Sections the file does not have at all go at the end. */
+    for (wau = 0; wau < SECTION_COUNT; wau++) {
+        if (section_seen[wau] || !section_has_missing(wau, present, &original, settings))
+            continue;
+        if (out.used > 0 && out.text[out.used - 1] != '\n')
+            put_text(&out, newline);
+        if (out.used > 0)
+            put_text(&out, newline);
+        put_text(&out, "[");
+        put_text(&out, g_sections[wau]);
+        put_text(&out, "]");
+        put_text(&out, newline);
+        put_missing_keys(&out, wau, present, &original, settings, newline);
+    }
+    out.text[out.used] = 0;
+    if (out_len)
+        *out_len = out.used;
+    return out.text;
 }

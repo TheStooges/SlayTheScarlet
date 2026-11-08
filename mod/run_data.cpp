@@ -45,6 +45,8 @@ int load_data(void)
         return 0;
     }
     bad = sts_settings_validate(&g_settings);
+    if (!bad)
+        bad = offers_off_screen(&g_settings);
     if (bad) {
         set_error("settings.ini", bad);
         return 0;

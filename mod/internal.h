@@ -15,6 +15,7 @@ extern "C" {
 #include "pool.h"
 #include "run.h"
 #include "settings.h"
+#include "util.h"
 }
 
 using SokuLib::DrawUtils::RectangleShape;
@@ -30,6 +31,12 @@ using SokuLib::DrawUtils::Sprite;
 #define SCREEN_H 480
 #define COLS 5
 #define ROWS 4
+/* The character menu's last entry, after the characters: the settings screen. */
+#define CHOOSE_SETTINGS STS_NUM_CHARACTERS
+#define CHOOSE_SETTINGS_X 24
+#define CHOOSE_SETTINGS_Y 356
+/* How many cards the draft and reward screens fit side by side. */
+#define OFFERS_ON_SCREEN 3
 #define COLOR_WHITE  0xFFFFFFFFu
 #define COLOR_GREY   0xFFB0B0B0u
 #define COLOR_GOLD   0xFFFFE080u
@@ -47,7 +54,9 @@ typedef enum {
     ST_REWARD_TYPE,     /* REPLACE by type: which type leaves */
     ST_REWARD_REMOVE,   /* REPLACE by choice: which cards leave */
     ST_REWARD_CONFIRM,  /* REPLACE by choice: last check before the swap */
-    ST_RULES            /* the run was made under other rules: carry on or start over? */
+    ST_RULES,           /* the run was made under other rules: carry on or start over? */
+    ST_SETTINGS,        /* settings.ini as a list to change */
+    ST_SETTINGS_CONFIRM /* saving would change the rules of saved runs: save anyway? */
 } screen_state;
 typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
 
@@ -76,6 +85,22 @@ typedef struct {
 typedef enum { RULES_CARRY_ON, RULES_BACK, RULES_START_OVER } rules_option;
 #define RULES_ROW_Y 150
 #define RULES_ROW_PITCH 70
+
+/* One setting on the settings screen. Its help is a few lines, one for each value where the value
+ * needs explaining. */
+#define SETTINGS_HELP_LINES 3
+typedef struct {
+    const char *section, *key;
+    const char *label;
+    const char *help[SETTINGS_HELP_LINES];
+    int help_count;
+} settings_row;
+#define MAX_SETTINGS_ROWS 48
+/* The settings are split into menus, listed in this order and followed by Save changes. */
+enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_COUNT };
+#define SETTINGS_LIST_Y 56
+#define SETTINGS_ROW_H 19
+#define SETTINGS_VISIBLE_ROWS 15
 
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);
@@ -110,6 +135,7 @@ int activate_run_deck(void);
 int run_deck_in_use(void);
 void resume_active_run(void);
 void note_slot_change(const char *where);
+void suspend_run_deck_for_rules(void);
 extern int g_rules_changed_character;
 extern int g_active;
 extern int g_active_character;
@@ -128,6 +154,7 @@ typedef enum { TOGGLE_NONE, TOGGLE_USE, TOGGLE_STOP } choose_toggle;
 choose_toggle choose_toggle_for(int character);
 void set_error(const char *what, const char *detail);
 void maybe_start_reward(void);
+void go_to_chooser_at(int cursor);
 int rules_option_count(void);
 rules_option rules_option_at(int index);
 extern screen_state g_state;
@@ -140,6 +167,7 @@ extern sts_run_phase g_saved_phase[STS_NUM_CHARACTERS];
 extern int g_saved_picks[STS_NUM_CHARACTERS];
 extern int g_has_save[STS_NUM_CHARACTERS];
 extern int g_saved_rules_changed[STS_NUM_CHARACTERS];
+extern uint32_t g_saved_hash[STS_NUM_CHARACTERS];
 extern int g_rules_start_over_armed;
 extern char g_rules_problem[128];
 extern int g_pending_offer;
@@ -149,6 +177,23 @@ extern deck_change g_changes_removed[MAX_CHANGE_LINES];
 extern deck_change g_changes_added[MAX_CHANGE_LINES];
 extern int g_changes_removed_count;
 extern int g_changes_added_count;
+
+/* settings_screen.cpp */
+const char *offers_off_screen(const sts_settings *settings);
+void open_settings(void);
+void on_settings_event(screen_event event);
+void on_settings_confirm_event(screen_event event);
+void settings_value_text(const settings_row *row, char *out, size_t size);
+int settings_row_changed(const settings_row *row);
+const char *settings_menu_name(int menu);
+const char *settings_menu_help(int menu);
+int settings_menu_changed(int menu);
+extern settings_row g_settings_rows[MAX_SETTINGS_ROWS];
+extern int g_settings_row_count;
+extern int g_settings_top;
+extern int g_settings_leave_armed;
+extern int g_settings_menu;   /* the open menu, or -1 on the list of menus */
+extern char g_settings_affected[192];
 
 /* screen_draw.cpp */
 extern int g_deck_art_dirty;

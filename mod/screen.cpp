@@ -17,6 +17,7 @@ sts_run_phase g_saved_phase[STS_NUM_CHARACTERS];
 int g_saved_picks[STS_NUM_CHARACTERS];
 int g_has_save[STS_NUM_CHARACTERS];
 int g_saved_rules_changed[STS_NUM_CHARACTERS];
+uint32_t g_saved_hash[STS_NUM_CHARACTERS];
 static int g_rules_can_continue = 0;
 int g_rules_start_over_armed = 0;
 char g_rules_problem[128];
@@ -56,6 +57,7 @@ static void scan_saves(void)
         g_has_save[character] = sts_run_load(path, &tmp) == STS_RUN_OK;
         g_saved_phase[character] = tmp.phase;
         g_saved_picks[character] = tmp.picks_done;
+        g_saved_hash[character] = tmp.settings_hash;
         g_saved_rules_changed[character] = g_has_save[character] && tmp.settings_hash != sts_settings_hash(&g_settings);
     }
 }
@@ -400,13 +402,19 @@ static void open_character(int character)
     enter_phase();
 }
 
-static void go_to_chooser(void)
+void go_to_chooser_at(int cursor)
 {
-    scan_saves();
+    if (g_data_ok)
+        scan_saves();
     g_state = ST_CHOOSE;
-    g_cursor = g_character;
+    g_cursor = cursor;
     g_alt_armed = 0;
     g_dirty = 1;
+}
+
+static void go_to_chooser(void)
+{
+    go_to_chooser_at(g_character);
 }
 
 /* Pressing the third button twice gives up on a run, so one slip cannot lose it. Both presses make
@@ -438,7 +446,7 @@ static void move_offer_cursor(screen_event event)
  * start using it, or nothing (no finished deck, rules changed, or runs are off). */
 choose_toggle choose_toggle_for(int character)
 {
-    if (!g_data_ok || blocking_mod())
+    if (character < 0 || character >= STS_NUM_CHARACTERS || !g_data_ok || blocking_mod())
         return TOGGLE_NONE;
     if (g_active && g_active_character == character)
         return TOGGLE_STOP;
@@ -477,15 +485,37 @@ static void toggle_from_chooser(int character)
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
+/* The column the cursor had in the character grid, for coming back up from Settings. */
+static int g_choose_column = 0;
+
+/* Up and down go through the character rows and the Settings entry below them, wrapping round. */
+static void move_choose_vertically(int direction)
+{
+    int rows = STS_NUM_CHARACTERS / COLS + 1;   /* the last row is Settings */
+    int row = g_cursor == CHOOSE_SETTINGS ? rows - 1 : g_cursor / COLS;
+
+    if (g_cursor != CHOOSE_SETTINGS)
+        g_choose_column = g_cursor % COLS;
+    row = (row + direction + rows) % rows;
+    g_cursor = row == rows - 1 ? CHOOSE_SETTINGS : row * COLS + g_choose_column;
+}
+
 static void on_choose_event(screen_event event)
 {
+    /* Settings is one entry on its own row: only up, down, open and close do anything there. */
+    if (g_cursor == CHOOSE_SETTINGS && (event == EV_LEFT || event == EV_RIGHT || event == EV_ALT || event == EV_TOGGLE))
+        return;
     switch (event) {
     /* Left and right wrap around within a row, as up and down do within a column. */
     case EV_LEFT:  g_cursor = g_cursor - g_cursor % COLS + (g_cursor % COLS + COLS - 1) % COLS; break;
     case EV_RIGHT: g_cursor = g_cursor - g_cursor % COLS + (g_cursor % COLS + 1) % COLS; break;
-    case EV_UP:    g_cursor = (g_cursor + STS_NUM_CHARACTERS - COLS) % STS_NUM_CHARACTERS; break;
-    case EV_DOWN:  g_cursor = (g_cursor + COLS) % STS_NUM_CHARACTERS; break;
+    case EV_UP:    move_choose_vertically(-1); break;
+    case EV_DOWN:  move_choose_vertically(1); break;
     case EV_CONFIRM:
+        if (g_cursor == CHOOSE_SETTINGS) {
+            open_settings();
+            return;
+        }
         if (g_data_ok && !blocking_mod()) {
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
             open_character(g_cursor);
@@ -834,6 +864,8 @@ static void handle_event(screen_event event)
     case ST_REWARD_REMOVE:  on_reward_remove_event(event); break;
     case ST_REWARD_CONFIRM: on_reward_confirm_event(event); break;
     case ST_RULES:          on_rules_event(event); break;
+    case ST_SETTINGS:       on_settings_event(event); break;
+    case ST_SETTINGS_CONFIRM: on_settings_confirm_event(event); break;
     case ST_CLOSED:         break;
     }
 }

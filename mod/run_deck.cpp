@@ -259,6 +259,19 @@ void resume_active_run(void)
     remove(path);
 }
 
+/* New settings changed the rules of the run in use. As at start-up, the player's own deck goes back
+ * and active.txt keeps naming the run, so it comes back if the rules are changed back. */
+void suspend_run_deck_for_rules(void)
+{
+    if (!g_active)
+        return;
+    restore_real_deck();
+    g_active = 0;
+    g_slot_differs = 0;
+    g_rules_changed_character = g_active_character;
+    slog("the new settings changed the rules of the run for character %d, so it is no longer used", g_active_character);
+}
+
 void note_slot_change(const char *where)
 {
     if (!g_active)

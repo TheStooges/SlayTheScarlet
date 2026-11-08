@@ -13,6 +13,7 @@ add_library(SlayTheScarlet MODULE
   run_deck.cpp
   screen.cpp
   screen_draw.cpp
+  settings_screen.cpp
   text.cpp)
 set_target_properties(SlayTheScarlet PROPERTIES CXX_STANDARD 17)
 target_compile_options(SlayTheScarlet PRIVATE /Zi)

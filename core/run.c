@@ -34,11 +34,10 @@ static void roll_offers(sts_run *run, const sts_card_db *db, const sts_rules *ru
     run->offer_count = count > 0 ? count : 0;
 }
 
-/* Rolls the next draft offers or finishes the draft. A full deck ends it early, because
- * the generator then finds nothing eligible. */
+/* Rolls the next draft offers or finishes the draft, which ends when the deck reaches size_min. */
 static sts_run_status advance_draft(sts_run *run, const sts_card_db *db, const sts_settings *settings)
 {
-    if (run->picks_done < settings->draft_picks) {
+    if (run->deck.count < settings->rules.deck_min) {
         roll_offers(run, db, &settings->rules, &settings->draft);
         if (run->offer_count > 0)
             return STS_RUN_OK;
@@ -481,7 +480,7 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
         return STS_RUN_SETTINGS_CHANGED;
     if (run->character < 0 || run->character >= STS_NUM_CHARACTERS)
         return STS_RUN_ILLEGAL;
-    if (run->picks_done > settings->draft_picks)
+    if (run->picks_done > settings->rules.deck_min)
         return STS_RUN_ILLEGAL;
     if (!sts_deck_cards_legal(db, run->character, &run->deck, NULL))
         return STS_RUN_ILLEGAL;

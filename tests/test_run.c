@@ -39,7 +39,9 @@ static void test_run_starter(void)
 
     /* A card the character cannot use (no one has a card 299) is caught before any run starts,
      * and only that character's run is refused. */
-    CHECK(parse_ini("[starter]\nenabled=true\nmarisa=299\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_defaults(&settings);
+    settings.starter_enabled = 1;
+    settings.starter[1].ids[0] = 299;
     CHECK(sts_settings_validate(&settings) == NULL);
     CHECK(sts_run_check_starters(&g_db, &settings) != NULL);
     CHECK(sts_run_start(&run, &g_db, &settings, 1, 1) == STS_RUN_BAD_STARTER);
@@ -94,15 +96,12 @@ void test_run_draft(void)
     /* Other legal draft rules also always land on a legal deck, ending early when full. */
     {
         static const char *const inis[] = {
-            "[draft]\ncopies_min=1\ncopies_max=4\n",
-            "[draft]\ncopies_min=2\ncopies_max=2\npicks=10\n",
-            "[draft]\ncopies_min=4\ncopies_max=4\npicks=5\n",
             "[draft]\noffers=8\n",
             "[draft]\noffers=1\n",
             "[draft]\ntypes=spell\n",
             "[draft]\ntypes=skill\n",
-            "[deck]\nsize_min=10\nsize_max=40\n[draft]\npicks=25\n",
-            "[deck]\nsize_min=30\nsize_max=30\n[draft]\npicks=30\ncopies_max=3\n",
+            "[deck]\nsize_min=10\nsize_max=40\n",
+            "[deck]\nsize_min=30\nsize_max=30\n",
             "[deck]\ncopy_limit=1\n[draft]\ntypes=system,skill,spell\n",
         };
         size_t wau;
@@ -419,9 +418,18 @@ static void test_rewards_add_and_remove(void)
     CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     CHECK(run.phase == STS_PHASE_READY && run.deck.count == 23);
 
-    CHECK(parse_ini("[deck]\nsize_min=18\nsize_max=20\n[reward]\nmode=remove\n", &settings, &line) == STS_SETTINGS_OK);
+    /* The draft stops at the smallest deck, so add grows it to the largest first. */
+    CHECK(parse_ini("[deck]\nsize_min=18\nsize_max=20\n[reward]\nmode=add\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
     ready_run(&run, &settings, 4, 42);
+    CHECK(run.deck.count == 18);
+    for (j = 0; j < 2; j++) {
+        CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+    }
+    CHECK(run.deck.count == 20);
+    settings.reward.mode = STS_REWARD_REMOVE;
+    CHECK(sts_settings_validate(&settings) == NULL);
     for (j = 0; j < 2; j++) {
         CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         CHECK(sts_deck_count_of(&run.deck, run.offers[0].id) > 0);
@@ -825,7 +833,6 @@ void test_run_adopt_rules(void)
     changed = settings;
     changed.rules.deck_min = 25;
     changed.rules.deck_max = 25;
-    changed.draft_picks = 25;
     CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_ILLEGAL);
     CHECK(run.settings_hash == before.settings_hash);
 

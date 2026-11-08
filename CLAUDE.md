@@ -25,7 +25,8 @@ The community has not settled the rules, so every rule variant is a setting (mod
 defaults to be chosen after playtesting. Do not hardcode any of these:
 
 - Deck size (default 20; HandicapMod proves the engine accepts other sizes) and copy limit (default 4)
-- Draft length and number of offers per pick
+- Number of offers per draft pick (the draft itself is fixed: one card per pick until the deck
+  reaches `size_min`, so 20 picks, or 12 with the starter; decided for v0.3)
 - Reward mode: replace / add / skip / remove (deck size min/max as bounds)
 - Who picks after a match: both / winner only / loser only / nobody (pure RNG)
 - Replacement control: player chooses specific cards / chooses by type (system, skill, spell) / random
@@ -124,9 +125,12 @@ or `one_of_each` (system, skill, spell in turn), separately for the draft and re
 Rule interpretations in `core/` that may need revisiting with the community:
 
 - `who_picks`: a player left out (loser under `winner`, winner under `loser`) keeps their deck
-  unchanged. `nobody` rolls an offer and any removals at random for both players.
-- The draft ends early if the deck fills up. A draft with `copies_min` above 1 must use a fixed copy
-  count, because a varying one could stop just short of `size_min` with no room for another pick.
+  unchanged. `nobody` rolls an offer and any removals at random for both players. By decision (v0.3),
+  compatible mode turns `nobody` into `both` and the settings screen does not offer it: a random swap
+  for both players needs both machines to agree on the setting, so it waits for full mode.
+- The draft adds one copy per pick until the deck reaches `size_min` (by decision, v0.3: `picks`,
+  `copies_min` and `copies_max` left `[draft]`; older files still list them and they are ignored).
+  Rewards keep their copy range, and add/remove grow or shrink the deck towards `size_max`/`size_min`.
 - `copy_limit` is refused above 4 until the game's limit is patched (an illegal deck silently means
   no deck in game).
 - REPLACE counts the copy limit before removing anything, so it stays legal whatever is removed.
@@ -483,8 +487,10 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
 7. (done for v0.2, played in game) Starting deck, as in Slay the Spire: the draft starts
-   from the `[starter]` cards in `settings.ini` and the picks fill the rest. Off by default
-   (`enabled=false`). The developer's chosen starter, based on defensive options as a beginner's
+   from built-in starter cards (`default_starter` in `core/settings.c`) and the picks fill the rest.
+   Off by default (`[starter] enabled=false`). By decision (v0.3), the cards are not configurable,
+   in the file or in game: v0.2's `common` and per-character lists in `[starter]` are read and
+   ignored. The developer's chosen starter, based on defensive options as a beginner's
    crutch: 2x each of Spiritual Strike Talisman (0) and Divine Raiment of the Dragon Fish (13) for
    everyone (`common`), plus per character 2x a chosen default skill and 2x a cheap (cost 3 or less),
    useful but not game-changing spell, the kind worth swapping out later. 8 cards, so 12 picks. A
@@ -492,8 +498,8 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    card is in the character's default deck except Sakuya's Silver Bound and Yukari's Border Between
    2D and 3D, both deliberate (`reference/default.pf` has the default decks). The lists count
    towards the fingerprint only while the starter is on, so older runs keep their rules. Starter
-   cards are normal cards afterwards (copy limit, can be replaced). Per-character lists may be tuned
-   later by the community. Not chosen: per-player choice between starters (one option would
+   cards are normal cards afterwards (copy limit, can be replaced). The lists may be tuned later by
+   the community, in code. Not chosen: per-player choice between starters (one option would
    dominate), and all default skills (uneven for Patchouli, and fixes the whole skill set).
    A deck that starts small and grows over matches still needs the deck size patch.
 8. Card sounds on the offer screens (rewards, and the draft for consistency): highlighting an offer
@@ -524,18 +530,24 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    screen, never a blocking loop. Confirm skips to the result. Cosmetic setting, e.g.
    `reward_animation=true`, not in the fingerprint (like `show_deck`). Testable offline with
    `who_picks=nobody`.
-11. Settings screen (after v0.2): edit `settings.ini` in game, opened from the F7 character screen
-   with its own key, in the mod's usual style. Not an external tool, which would take players out
-   of the game and could drift from the mod's version. One row per setting, grouped by section;
-   left/right steps numbers and cycles choices; each row shows its `settings.ini` comment as help.
-   Run `sts_settings_validate` before saving and show its message instead of saving a bad file.
-   Before saving, list the runs the change would mark "Rules changed". Save by rewriting only the
-   value on each changed line, so comments and layout survive and the file can still be shared as
-   a rules file, then reload the settings (today they load once per session, `g_data_ok`). Grey out
-   or hide settings with no effect yet (size limits, pick visibility, opponent deck, items). First
-   version only toggles the starter; editing its lists needs a card picker (could reuse the deck
-   grid and card art). In full mode both players need one set of rules (probably the host's), and
-   the screen should show which rules are in force.
+11. (done for v0.3, not yet played in game) Settings screen: edit `settings.ini` in game, from a
+   Settings entry on its own row under the F7 character grid (chosen over a button). It opens a list
+   of menus (Draft, with the starter's on/off; Rewards; Runs, which the match limit of item 12 will
+   join) ending with Save changes; edits are
+   kept across menus until saved, and A also saves from inside a menu. Not an external
+   tool, which would take players out of the game and could drift from the mod's version. One row
+   per setting, grouped by section; up/down chooses, left/right steps numbers and cycles choices, A
+   saves, B leaves (twice with unsaved changes), C sets the default. Help lines are built into the
+   mod through `tr()` (translated), not read from the file's comments. Settings with no effect yet
+   (deck size and copy limit, forced by compatible mode; pick visibility, opponent deck, items) are
+   not shown, by decision: they join a menu when they do something. The reward mode only steps
+   between replace and skip, and who gets an offer leaves out nobody. Saving
+   runs `sts_settings_validate` and the starter check, lists the runs whose rules would change and
+   asks, refuses if the file changed on disk since the screen opened, then writes through
+   `sts_settings_rewrite` (only changed values; missing settings added to their section) to a
+   temporary file moved over the old one. The settings reload at once: a run in use whose rules
+   changed stops as at start-up (`active.txt` kept), and comes back if they are changed back.  In full mode both players need one set of rules (probably the host's), and the
+   screen should show which rules are in force.
 12. Match limit and score screen (after v0.2): `[run] matches`, 0 = endless and the default, part of
    the fingerprint. Counts finished VS matches with the run deck, as `matches_played` does now (a
    disconnect before the result screen does not count). The last match skips the offer, since the
@@ -559,6 +571,11 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 
 ## Open questions
 
+- Who gets an offer (`who_picks`): `both`, `winner` and `loser` are settled as fine client-side
+  (decided during v0.3): a match has one winner and one loser, each player's mod applies the rule to
+  its own result, and a player left out just sees the usual waiting screen, so nothing needs
+  checking with the other side. Still open: whether `nobody` (a random swap for both players) should
+  exist at all. It is off in compatible mode, as both machines would have to agree on it.
 - Which replacement rule is the default (community decision).
 - Starting card pool and offer pool per character (system vs character cards).
 - What happens if a player picks a different character mid-run (block / end run / plain match).

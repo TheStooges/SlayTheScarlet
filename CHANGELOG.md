@@ -3,6 +3,26 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## 0.3 - unreleased
+
+### New
+
+- A settings screen: press F7 and choose Settings under the characters to change `settings.ini` in
+  game. Only changed values are written, so the file keeps its comments. Saving checks the settings
+  work, and names any started runs whose rules would change before it saves. The new rules apply
+  straight away. The run in use stops if its rules changed, and comes back if they are changed back.
+
+### Changed
+
+- The draft always adds one card per pick until the deck is full: 20 picks, or 12 with the starting
+  deck. `picks`, `copies_min` and `copies_max` are no longer settings in `[draft]`; an older
+  `settings.ini` that lists them still loads, and they are ignored. Rewards keep their copy range.
+- Cards per pick and per offer go up to 3, as many as the offer screen fits.
+- The starting deck's cards are built in. The card lists in `[starter]` are no longer settings; an
+  older `settings.ini` that lists them still loads, and they are ignored. Only `enabled` remains.
+- `who_picks=nobody` (a random swap for both players) acts as `both` for now: it needs both players
+  to have the mod and agree on it.
+
 ## 0.2 - 2026-11-08
 
 ### New

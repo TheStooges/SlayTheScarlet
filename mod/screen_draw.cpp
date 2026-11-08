@@ -348,14 +348,15 @@ static void rebuild_choose(void)
 
     add_label(tr("Slay the Scarlet: choose a character"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_settings.starter_enabled)
-        add_label(tr("Starter decks are on: each draft begins with the [starter] cards from settings.ini."),
+        add_label(tr("Starting decks are on: each draft begins with set cards for the character."),
                   g_font_small, 20, 414, 600, 20, COLOR_GOLD);
     if (blocking_mod()) {
         sprintf(line, tr("%s can overwrite your real decks with a run deck, so runs are off."), blocking_mod());
-        add_label(line, g_font_small, 20, 372, 600, 20, COLOR_RED);
-        sprintf(line, tr("Disable it in SWRSToys.ini and restart the game to play runs."));
         add_label(line, g_font_small, 20, 392, 600, 20, COLOR_RED);
+        sprintf(line, tr("Disable it in SWRSToys.ini and restart the game to play runs."));
+        add_label(line, g_font_small, 20, 410, 600, 20, COLOR_RED);
     }
+    add_label(tr("Settings"), g_font_big, CHOOSE_SETTINGS_X + 6, CHOOSE_SETTINGS_Y + 4, 200, 26, COLOR_WHITE);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         int pos_x = 24 + (character % COLS) * 120;
         int pos_y = 80 + (character / COLS) * 70;
@@ -398,6 +399,8 @@ static void rebuild_choose(void)
     }
     if (g_alt_armed)
         sprintf(line, tr("Press %s again to discard this character's run and start over."), BUTTON_C);
+    else if (g_cursor == CHOOSE_SETTINGS)
+        sprintf(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
     else
         sprintf(line, tr("%s: open   %s: close   %s twice: start over"), BUTTON_A, BUTTON_B, BUTTON_C);
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
@@ -663,6 +666,133 @@ static void rebuild_deck(void)
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
+/* Help text wraps at this many bytes: 40 full-width characters in Japanese, which has no spaces
+ * to break at, or about 84 letters in English, broken at spaces. */
+#define HELP_COLUMNS (game_is_japanese() ? 80 : 78)
+
+/* How many lines add_wrapped takes for this text. */
+static int count_wrapped_lines(const char *text, int cols, int at_spaces)
+{
+    char line[DESC_SIZE];
+    int lines = 0;
+
+    while (*text) {
+        size_t used = take_line(text, cols, at_spaces, line);
+
+        if (used == 0)
+            break;
+        text += used;
+        while (at_spaces && *text == ' ')
+            text++;
+        lines++;
+    }
+    return lines;
+}
+
+/* A paragraph of help below the settings, from pos_y. Returns the y after it. */
+static int add_help(const char *text, int pos_y, int max_lines, unsigned color)
+{
+    int at_spaces = !game_is_japanese();
+    int lines;
+
+    if (!text || !*text || max_lines <= 0)
+        return pos_y;
+    lines = count_wrapped_lines(text, HELP_COLUMNS, at_spaces);
+    if (lines > max_lines)
+        lines = max_lines;
+    add_wrapped(text, g_font_small, 28, pos_y, 590, 17, HELP_COLUMNS, at_spaces, lines, color);
+    return pos_y + lines * 17;
+}
+
+/* Where each entry of the list of menus sits. Save changes stands a little apart from the menus. */
+static int settings_menu_y(int index)
+{
+    return 70 + index * 44 + (index == SETTINGS_MENU_COUNT ? 16 : 0);
+}
+
+/* The list of menus, or one menu's settings, with help for the entry under the cursor below. */
+static void rebuild_settings(void)
+{
+    char line[256], value[128];
+    /* Help runs from help_y down to help_bottom: three lines, or fewer above an error. */
+    int wau, unsaved = 0, help_y = 366, help_bottom = 366 + 3 * 17;
+
+    for (wau = 0; wau < SETTINGS_MENU_COUNT; wau++)
+        if (settings_menu_changed(wau))
+            unsaved = 1;
+    if (unsaved)
+        add_label(tr("Not saved yet"), g_font_small, 470, 22, 160, 20, COLOR_GOLD);
+
+    if (g_settings_menu < 0) {
+        add_label(tr("Slay the Scarlet: settings"), g_font_big, 20, 16, 440, 30, COLOR_WHITE);
+        for (wau = 0; wau <= SETTINGS_MENU_COUNT; wau++) {
+            int pos_y = settings_menu_y(wau);
+
+            add_label(settings_menu_name(wau), g_font_big, 56, pos_y, 400, 28, COLOR_WHITE);
+            if (wau < SETTINGS_MENU_COUNT && settings_menu_changed(wau))
+                add_label(tr("Changed"), g_font_small, 470, pos_y + 6, 140, 20, COLOR_GOLD);
+        }
+    } else {
+        sprintf(line, tr("Settings: %s"), settings_menu_name(g_settings_menu));
+        add_label(line, g_font_big, 20, 16, 440, 30, COLOR_WHITE);
+        for (wau = 0; wau < SETTINGS_VISIBLE_ROWS && g_settings_top + wau < g_settings_row_count; wau++) {
+            const settings_row *row = &g_settings_rows[g_settings_top + wau];
+            int pos_y = SETTINGS_LIST_Y + wau * SETTINGS_ROW_H;
+
+            add_label(row->label, g_font_small, 48, pos_y, 320, 20, COLOR_WHITE);
+            settings_value_text(row, value, sizeof value);
+            add_label(value, g_font_small, 380, pos_y, 226, 20, settings_row_changed(row) ? COLOR_GOLD : COLOR_WHITE);
+        }
+    }
+
+    if (g_state == ST_SETTINGS_CONFIRM) {
+        _snprintf(line, sizeof line - 1, tr("Saving changes the rules of: %s."), g_settings_affected);
+        line[sizeof line - 1] = 0;
+        add_help(line, 348, 2, COLOR_GOLD);
+        add_help(tr("Those runs will need to start over, or carry on if that is allowed."), 383, 2, COLOR_WHITE);
+        sprintf(line, tr("%s: save anyway   %s: keep editing"), BUTTON_A, BUTTON_B);
+        add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        return;
+    }
+    /* An error may take two lines, ending above the key prompts and lined up with the help, which
+     * gives up room for it. */
+    if (g_error[0]) {
+        int error_lines = count_wrapped_lines(g_error, HELP_COLUMNS, !game_is_japanese());
+
+        if (error_lines > 2)
+            error_lines = 2;
+        help_bottom = 416 - (error_lines - 1) * 17;
+        add_wrapped(g_error, g_font_small, 28, help_bottom, 590, 17, HELP_COLUMNS, !game_is_japanese(), 2,
+                    COLOR_RED);
+    } else {
+        add_label(g_status, g_font_small, 28, 416, 590, 20, COLOR_GREEN);
+    }
+
+    if (g_settings_menu < 0) {
+        add_help(settings_menu_help(g_cursor), 366, (help_bottom - 366) / 17, COLOR_WHITE);
+        if (g_settings_leave_armed)
+            sprintf(line, tr("Press %s again to leave without saving."), BUTTON_B);
+        else
+            sprintf(line, tr("Up/Down: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
+        add_label(line, g_font_small, 20, 440, 600, 20, g_settings_leave_armed ? COLOR_RED : COLOR_GREY);
+        return;
+    }
+
+    if (g_cursor < g_settings_row_count) {
+        const settings_row *current = &g_settings_rows[g_cursor];
+
+        sprintf(line, "settings.ini: [%s] %s", current->section, current->key);
+        add_label(line, g_font_small, 28, 348, 590, 20, COLOR_GREY);
+        /* Each value's line starts on a line of its own. Three lines fit above the status line. */
+        for (wau = 0; wau < current->help_count; wau++)
+            help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
+    }
+    sprintf(line, tr("Up/Down: choose   Left/Right: change   %s: save   %s: back"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, tr("%s: default value"), BUTTON_C);
+    add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+}
+
 static void rebuild(void)
 {
     int wau;
@@ -686,9 +816,15 @@ static void rebuild(void)
         break;
     case ST_REWARD_TYPE:   rebuild_reward_type(); break;
     case ST_RULES:         rebuild_rules(); break;
+    case ST_SETTINGS:
+    case ST_SETTINGS_CONFIRM:
+        rebuild_settings();
+        break;
     case ST_CLOSED:        break;
     }
-    add_label(g_error, g_font_small, 20, 416, 600, 20, COLOR_RED);
+    /* The settings screen draws its own errors, which can be long. */
+    if (g_state != ST_SETTINGS && g_state != ST_SETTINGS_CONFIRM)
+        add_label(g_error, g_font_small, 20, 416, 600, 20, COLOR_RED);
     g_dirty = 0;
 }
 
@@ -743,8 +879,8 @@ static void draw_background(int opaque)
     }
     g_background.draw();
 
-    /* The character menu is not about one character, so it has no portrait. */
-    if (g_state != ST_CHOOSE) {
+    /* The character menu and the settings are not about one character, so they have no portrait. */
+    if (g_state != ST_CHOOSE && g_state != ST_SETTINGS && g_state != ST_SETTINGS_CONFIRM) {
         if (g_portrait_character != g_run.character) {
             char path[96];
 
@@ -789,10 +925,28 @@ void screen_render(int opaque)
         rebuild();
 
     draw_background(opaque);
-    if (g_state == ST_CHOOSE) {
+    if (g_state == ST_CHOOSE && g_cursor == CHOOSE_SETTINGS) {
+        draw_box(CHOOSE_SETTINGS_X, CHOOSE_SETTINGS_Y, 116, 32, 0x60FFE080u, 0xFFFFE080u);
+    } else if (g_state == ST_CHOOSE) {
         int pos_x = 24 + (g_cursor % COLS) * 120;
         int pos_y = 80 + (g_cursor / COLS) * 70;
         draw_box(pos_x, pos_y, 116, 60, 0x60FFE080u, 0xFFFFE080u);
+    } else if ((g_state == ST_SETTINGS || g_state == ST_SETTINGS_CONFIRM) && g_settings_menu < 0) {
+        draw_box(44, settings_menu_y(g_cursor) - 6, 552, 38, 0x60FFE080u, 0xFFFFE080u);
+    } else if (g_state == ST_SETTINGS || g_state == ST_SETTINGS_CONFIRM) {
+        int row = g_cursor - g_settings_top;
+
+        if (row >= 0 && row < SETTINGS_VISIBLE_ROWS)
+            draw_box(40, SETTINGS_LIST_Y + row * SETTINGS_ROW_H - 1, 568, SETTINGS_ROW_H + 1, 0x60FFE080u, 0xFFFFE080u);
+        /* Where the visible rows are in the whole list. */
+        if (g_settings_row_count > SETTINGS_VISIBLE_ROWS) {
+            int track = SETTINGS_VISIBLE_ROWS * SETTINGS_ROW_H;
+            int thumb = track * SETTINGS_VISIBLE_ROWS / g_settings_row_count;
+            int offset = track * g_settings_top / g_settings_row_count;
+
+            draw_box(616, SETTINGS_LIST_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
+            draw_box(616, SETTINGS_LIST_Y + offset, 4, thumb, 0xC0FFE080u, 0xC0FFE080u);
+        }
     } else if (g_state == ST_REWARD_TYPE) {
         draw_box(44, 104 + g_cursor * 50, 552, 38, 0x60FFE080u, 0xFFFFE080u);
     } else if (g_state == ST_RULES) {

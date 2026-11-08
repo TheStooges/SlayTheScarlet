@@ -3,6 +3,24 @@
 
 static char g_text[512];
 
+/* Adds copies of a card to a starter list. */
+static void add_to_list(sts_starter_list *list, uint16_t id, int copies)
+{
+    while (copies-- > 0 && list->count < STS_STARTER_MAX)
+        list->ids[list->count++] = id;
+}
+
+/* Fills a starter list up to count cards, 4 copies of each new card, so no card goes over the copy
+ * limit. */
+static void fill_list(sts_starter_list *list, int count)
+{
+    int wau;
+
+    for (wau = list->count; wau < count && wau < STS_STARTER_MAX; wau++)
+        list->ids[wau] = (uint16_t)(1 + wau / 4);
+    list->count = wau;
+}
+
 static void test_settings_defaults(void)
 {
     sts_settings settings, defaults;
@@ -12,7 +30,9 @@ static void test_settings_defaults(void)
     sts_settings_defaults(&defaults);
     CHECK(sts_settings_validate(&defaults) == NULL);
     CHECK(defaults.rules.deck_min == 20 && defaults.rules.deck_max == 20 && defaults.rules.copy_limit == 4);
-    CHECK(defaults.draft_picks == 20 && defaults.draft.offer_count == 3 && defaults.draft.mode == STS_REWARD_ADD);
+    CHECK(defaults.draft.offer_count == 3 && defaults.draft.mode == STS_REWARD_ADD);
+    CHECK(defaults.draft.copies_min == 1 && defaults.draft.copies_max == 1);
+    CHECK(sts_settings_draft_length(&defaults, 0) == 20);
     CHECK(defaults.pick_visibility == STS_VISIBILITY_AFTER_CONFIRM && defaults.items_enabled == 0);
     CHECK(sts_settings_load(STS_SETTINGS_PATH, &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
@@ -31,13 +51,37 @@ static void test_settings_every_key(void)
 
     /* Every setting is reachable. */
     CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=25\ncopy_limit=3\n"
-                    "[draft]\npicks=22\noffers=4\ncopies_min=1\ncopies_max=2\ntypes=skill,spell\n"
+                    "[draft]\noffers=4\ntypes=skill,spell\n"
                     "[reward]\nmode=add\nwho_picks=loser\noffers=5\ncopies_min=2\ncopies_max=3\n"
                     "types=system\nreplacement=by_type\n"
                     "[netplay]\npick_visibility=live\nopponent_deck=full\n"
                     "[items]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(settings.rules.deck_min == 15 && settings.rules.deck_max == 25 && settings.rules.copy_limit == 3);
-    CHECK(settings.draft_picks == 22 && settings.draft.offer_count == 4 && settings.draft.copies_max == 2);
+    CHECK(settings.draft.offer_count == 4);
+    CHECK(sts_settings_validate(&settings) == NULL);
+
+    /* The draft's picks and copies are fixed now. Files from 0.2 and before list them, and they are
+     * read and ignored; they are not settings any more. */
+    CHECK(parse_ini("[draft]\npicks=15\ncopies_min=2\ncopies_max=3\n", &settings, &line) == STS_SETTINGS_OK);
+    {
+        sts_settings defaults;
+
+        sts_settings_defaults(&defaults);
+        CHECK(sts_settings_equal(&settings, &defaults) && sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+        CHECK(sts_settings_set(&settings, "draft", "picks", "15") == STS_SETTINGS_UNKNOWN_KEY);
+        CHECK(sts_settings_set(&settings, "draft", "copies_max", "2") == STS_SETTINGS_UNKNOWN_KEY);
+        CHECK(sts_settings_set(&settings, "reward", "picks", "15") == STS_SETTINGS_UNKNOWN_KEY);
+    }
+    CHECK(parse_ini("[reward]\npicks=15\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(parse_ini("[draft]\nsize_min=15\ncopies_min=2\ncopies_max=3\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
+
+    /* Every other setting is reachable. */
+    CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=25\ncopy_limit=3\n"
+                    "[draft]\noffers=4\ntypes=skill,spell\n"
+                    "[reward]\nmode=add\nwho_picks=loser\noffers=5\ncopies_min=2\ncopies_max=3\n"
+                    "types=system\nreplacement=by_type\n"
+                    "[netplay]\npick_visibility=live\nopponent_deck=full\n"
+                    "[items]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(settings.draft.type_mask == (STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL)));
     CHECK(settings.reward.mode == STS_REWARD_ADD && settings.who_picks == STS_WHO_LOSER
           && settings.reward.offer_count == 5);
@@ -128,14 +172,8 @@ static void test_settings_validation(void)
     BAD_INI("[deck]\nsize_max=300\n[draft]\npicks=300\n");
     BAD_INI("[deck]\ncopy_limit=5\n");
     BAD_INI("[deck]\ncopy_limit=0\n");
-    BAD_INI("[draft]\npicks=19\n");
-    BAD_INI("[draft]\npicks=0\n");
     BAD_INI("[draft]\noffers=0\n");
     BAD_INI("[draft]\noffers=9\n");
-    BAD_INI("[draft]\ncopies_max=5\n");
-    BAD_INI("[draft]\ncopies_min=2\ncopies_max=3\npicks=10\n");
-    BAD_INI("[draft]\ncopies_min=2\ncopies_max=2\npicks=9\n");
-    BAD_INI("[draft]\ncopies_min=2\ncopies_max=2\npicks=11\n");
     BAD_INI("[reward]\nmode=add\n");
     BAD_INI("[reward]\nmode=remove\n");
     BAD_INI("[reward]\noffers=0\n");
@@ -146,15 +184,45 @@ static void test_settings_validation(void)
     BAD_INI("[reward]\ntypes=spell\nspell_weight=0\n");
 #undef BAD_INI
 
+    /* The problem is named, for the settings screen to word it. */
+    {
+        sts_settings_problem_info info;
+#define PROBLEM(text, expected) do { \
+        CHECK(parse_ini(text, &settings, &line) == STS_SETTINGS_OK); \
+        CHECK(sts_settings_check(&settings, &info) == (expected)); \
+        CHECK(sts_settings_validate(&settings) != NULL); \
+    } while (0)
+        PROBLEM("[deck]\nsize_min=30\nsize_max=20\n", STS_PROBLEM_DECK_SIZE);
+        PROBLEM("[deck]\ncopy_limit=5\n", STS_PROBLEM_COPY_LIMIT);
+        PROBLEM("[draft]\noffers=9\n", STS_PROBLEM_DRAFT_OFFERS);
+        PROBLEM("[draft]\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n", STS_PROBLEM_DRAFT_WEIGHTS);
+        PROBLEM("[reward]\ncopies_min=3\ncopies_max=2\n", STS_PROBLEM_REWARD_COPIES);
+        PROBLEM("[reward]\ncopies_max=5\n", STS_PROBLEM_REWARD_COPY_LIMIT);
+        PROBLEM("[reward]\ntypes=spell\nspell_weight=0\n", STS_PROBLEM_REWARD_WEIGHTS);
+        PROBLEM("[reward]\nmode=add\n", STS_PROBLEM_REWARD_SIZE);
+#undef PROBLEM
+        /* Starter problems can only come from the built-in lists, so they are made by hand. */
+        sts_settings_defaults(&settings);
+        settings.starter_enabled = 1;
+        add_to_list(&settings.starter_common, 0, 3);   /* 5 Talismans */
+        CHECK(sts_settings_check(&settings, &info) == STS_PROBLEM_STARTER_COPIES);
+        CHECK(info.number == 0 && info.character == 0);
+        sts_settings_defaults(&settings);
+        settings.starter_enabled = 1;
+        settings.rules.deck_max = 21;
+        add_to_list(&settings.starter[0], 1, 14);   /* 22 cards in all */
+        CHECK(sts_settings_check(&settings, &info) == STS_PROBLEM_STARTER_TOO_BIG && info.character == 0);
+        sts_settings_defaults(&settings);
+        CHECK(sts_settings_check(&settings, NULL) == STS_PROBLEM_NONE);
+    }
+
     /* The weights only matter to the style that uses them. */
     CHECK(parse_ini("[reward]\noffer_style=one_of_each\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n",
                     &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
 
     /* Workable variations are accepted, including a skip with otherwise odd offers. */
-    CHECK(parse_ini("[draft]\ncopies_min=2\ncopies_max=2\npicks=10\n", &settings, &line) == STS_SETTINGS_OK);
-    CHECK(sts_settings_validate(&settings) == NULL);
-    CHECK(parse_ini("[draft]\ncopies_min=1\ncopies_max=4\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[reward]\ncopies_min=1\ncopies_max=4\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
     CHECK(parse_ini("[reward]\nmode=skip\noffers=0\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
@@ -178,7 +246,6 @@ static void test_settings_fingerprint(void)
     HASH_DIFFERS(rules.deck_min, 19);
     HASH_DIFFERS(rules.deck_max, 21);
     HASH_DIFFERS(rules.copy_limit, 3);
-    HASH_DIFFERS(draft_picks, 21);
     HASH_DIFFERS(draft.offer_count, 4);
     HASH_DIFFERS(draft.copies_max, 2);
     HASH_DIFFERS(draft.type_mask, 1u);
@@ -209,8 +276,8 @@ static void test_settings_compatible(void)
     static const char *const inis[] = {
         "",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=add\n",
-        "[deck]\nsize_min=10\nsize_max=10\n[draft]\npicks=10\n",
-        "[deck]\nsize_max=40\n[draft]\ncopies_min=2\ncopies_max=2\npicks=20\n",
+        "[deck]\nsize_min=10\nsize_max=10\n",
+        "[deck]\nsize_max=40\n[reward]\ncopies_min=2\ncopies_max=2\n",
         "[deck]\ncopy_limit=2\n[reward]\nmode=remove\ncopies_max=2\n[items]\nenabled=true\n",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=skip\n[netplay]\npick_visibility=live\n",
     };
@@ -224,7 +291,11 @@ static void test_settings_compatible(void)
         CHECK(settings.rules.deck_min == 20 && settings.rules.deck_max == 20 && settings.rules.copy_limit == 4);
         CHECK(settings.items_enabled == 0);
         CHECK(settings.reward.mode == STS_REWARD_REPLACE || settings.reward.mode == STS_REWARD_SKIP);
+        CHECK(settings.who_picks != STS_WHO_NOBODY);
     }
+    CHECK(parse_ini("[reward]\nwho_picks=nobody\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_force_compatible(&settings);
+    CHECK(settings.who_picks == STS_WHO_BOTH);
 
     /* Rules that are already compatible stay exactly as they were, so a run saved under the
      * defaults is not treated as made under different rules. */
@@ -274,7 +345,7 @@ static void test_settings_starter(void)
     sts_settings_starter(&defaults, 0, &starter);
     CHECK(starter.count == 0);
 
-    /* The shipped file states the default lists too, which the fingerprint only sees when on. */
+    /* The lists are built in, and the fingerprint only sees them when the starter is on. */
     CHECK(sts_settings_load(STS_SETTINGS_PATH, &settings, &line) == STS_SETTINGS_OK);
     settings.starter_enabled = 1;
     defaults.starter_enabled = 1;
@@ -283,9 +354,14 @@ static void test_settings_starter(void)
     CHECK(sts_settings_draft_length(&defaults, 0) == 20);
 
     /* Lists change nothing while the starter is off, so runs made before it keep their rules. */
-    CHECK(parse_ini("[starter]\nreimu=\ncommon=1\n", &settings, &line) == STS_SETTINGS_OK);
-    CHECK(settings.starter[0].count == 0 && settings.starter_common.count == 1);
+    settings = defaults;
+    settings.starter[0].count = 0;
+    settings.starter_common.count = 1;
     CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+
+    /* Files from 0.2 list the cards. They are read and ignored: the lists are not settings now. */
+    CHECK(parse_ini("[starter]\nreimu=\ncommon=1\nSuwako=201\nmarisa=abc,\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_equal(&settings, &defaults) && settings.starter[0].count == 4);
 
     /* On, it is part of the rules, and so is every list. Patchouli's default skill on 421 is 104,
      * and A Penny Saved (12) is not in it. */
@@ -299,46 +375,258 @@ static void test_settings_starter(void)
     CHECK(sts_settings_draft_length(&settings, 4) == 12);
     {
         uint32_t enabled_hash = sts_settings_hash(&settings);
-        CHECK(parse_ini("[starter]\nenabled=true\nSuwako=201\n", &settings, &line) == STS_SETTINGS_OK);
-        CHECK(settings.starter[19].count == 1);
+        settings.starter[19].count = 1;
         CHECK(sts_settings_hash(&settings) != enabled_hash);
     }
 
-    /* Bad lists and unknown names are refused. */
-    CHECK(parse_ini("[starter]\nreimu=200,\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
-    CHECK(parse_ini("[starter]\nreimu=200,,201\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
-    CHECK(parse_ini("[starter]\nreimu=abc\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
-    CHECK(parse_ini("[starter]\nreimu=70000\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    /* Only character names and common are old list keys; anything else is still unknown. */
     CHECK(parse_ini("[starter]\nrumia=200\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(parse_ini("[starter]\nreimux=200\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
-    CHECK(parse_ini("[starter]\ncommon=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,"
-                    "1,2,3,4,5,6,7,8,9,10,11,12,13\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
 
     /* The starter must leave a legal deck in reach. */
-    CHECK(parse_ini("[starter]\nenabled=true\ncommon=0,0,0,0,0\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_defaults(&settings);
+    settings.starter_enabled = 1;
+    add_to_list(&settings.starter_common, 0, 3);
     CHECK(sts_settings_validate(&settings) != NULL);
-    CHECK(parse_ini("[starter]\nenabled=true\ncommon=0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4\n",
-                    &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_defaults(&settings);
+    settings.starter_enabled = 1;
+    fill_list(&settings.starter_common, 20);   /* 24 cards with Reimu's own */
     CHECK(sts_settings_validate(&settings) != NULL);
-    CHECK(parse_ini("[starter]\nenabled=true\n[draft]\ncopies_min=2\ncopies_max=2\npicks=10\n",
-                    &settings, &line) == STS_SETTINGS_OK);
-    CHECK(sts_settings_validate(&settings) != NULL);
-    CHECK(parse_ini("[starter]\nenabled=true\n[draft]\ncopies_min=2\ncopies_max=2\npicks=6\n",
-                    &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
-    CHECK(sts_settings_draft_length(&settings, 0) == 6);
-    CHECK(parse_ini("[starter]\nenabled=true\n[draft]\npicks=11\n", &settings, &line) == STS_SETTINGS_OK);
-    CHECK(sts_settings_validate(&settings) != NULL);
+    CHECK(sts_settings_draft_length(&settings, 0) == 12);
+    settings.starter[0].count = 0;
+    CHECK(sts_settings_draft_length(&settings, 0) == 16 && sts_settings_draft_length(&settings, 1) == 12);
 
     /* Compatible mode keeps a starter that fits, and turns off one that cannot. */
     CHECK(parse_ini("[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
     sts_settings_force_compatible(&settings);
     CHECK(settings.starter_enabled == 1);
-    CHECK(parse_ini("[deck]\nsize_min=30\nsize_max=30\n[draft]\npicks=30\n[starter]\nenabled=true\n"
-                    "common=0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[deck]\nsize_min=30\nsize_max=30\n[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
+    fill_list(&settings.starter_common, 22);
     CHECK(sts_settings_validate(&settings) == NULL);
     sts_settings_force_compatible(&settings);
     CHECK(settings.starter_enabled == 0 && sts_settings_validate(&settings) == NULL);
+}
+
+/* Reading, setting and stepping one setting, as the settings screen does. */
+static void test_settings_one_value(void)
+{
+    sts_settings settings, before;
+    char value[256];
+    int wau;
+
+    sts_settings_defaults(&settings);
+    CHECK(sts_settings_get(&settings, "draft", "offers", value, sizeof value) && strcmp(value, "3") == 0);
+    CHECK(!sts_settings_get(&settings, "draft", "picks", value, sizeof value));
+    CHECK(sts_settings_get(&settings, "reward", "copies_max", value, sizeof value) && strcmp(value, "1") == 0);
+    CHECK(sts_settings_get(&settings, "draft", "show_deck", value, sizeof value) && strcmp(value, "true") == 0);
+    CHECK(sts_settings_get(&settings, "draft", "types", value, sizeof value) && strcmp(value, "system,skill,spell") == 0);
+    CHECK(sts_settings_get(&settings, "reward", "who_picks", value, sizeof value) && strcmp(value, "both") == 0);
+    CHECK(sts_settings_get(&settings, "reward", "replacement", value, sizeof value) && strcmp(value, "choose") == 0);
+    CHECK(sts_settings_get(&settings, "netplay", "pick_visibility", value, sizeof value)
+          && strcmp(value, "after_confirm") == 0);
+    CHECK(sts_settings_get(&settings, "starter", "enabled", value, sizeof value) && strcmp(value, "false") == 0);
+    CHECK(!sts_settings_get(&settings, "starter", "common", value, sizeof value));
+    CHECK(!sts_settings_get(&settings, "starter", "reimu", value, sizeof value));
+    CHECK(!sts_settings_get(&settings, "draft", "nonsense", value, sizeof value) && value[0] == 0);
+    CHECK(!sts_settings_get(&settings, "nonsense", "picks", value, sizeof value));
+
+    /* Set takes the file's text; a bad value or unknown key changes nothing. */
+    CHECK(sts_settings_set(&settings, "reward", "who_picks", "loser") == STS_SETTINGS_OK
+          && settings.who_picks == STS_WHO_LOSER);
+    CHECK(sts_settings_set(&settings, "draft", "types", "spell,skill") == STS_SETTINGS_OK
+          && settings.draft.type_mask == (STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL)));
+    CHECK(sts_settings_get(&settings, "draft", "types", value, sizeof value) && strcmp(value, "skill,spell") == 0);
+    before = settings;
+    CHECK(sts_settings_set(&settings, "reward", "who_picks", "everyone") == STS_SETTINGS_BAD_VALUE);
+    CHECK(sts_settings_set(&settings, "draft", "types", "system,dragon") == STS_SETTINGS_BAD_VALUE);
+    CHECK(sts_settings_set(&settings, "starter", "common", "1,2") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_set(&settings, "draft", "colour", "red") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_equal(&settings, &before));
+
+    /* Numbers step within the screen's range. */
+    sts_settings_defaults(&settings);
+    CHECK(sts_settings_step(&settings, "draft", "offers", 1) && settings.draft.offer_count == 4);
+    for (wau = 0; wau < 20; wau++)
+        sts_settings_step(&settings, "draft", "offers", 1);
+    CHECK(settings.draft.offer_count == STS_OFFER_MAX);
+    for (wau = 0; wau < 20; wau++)
+        sts_settings_step(&settings, "reward", "copies_max", -1);
+    CHECK(settings.reward.copies_max == 1);
+    for (wau = 0; wau < 30; wau++)
+        sts_settings_step(&settings, "reward", "spell_weight", 1);
+    CHECK(settings.reward.weights[STS_CARD_SPELL] == 20);
+    settings.reward.weights[STS_CARD_SPELL] = 50;   /* above the range, from the file */
+    CHECK(sts_settings_step(&settings, "reward", "spell_weight", -1) && settings.reward.weights[STS_CARD_SPELL] == 20);
+
+    /* Choices go round in order, both ways. */
+    CHECK(sts_settings_step(&settings, "reward", "who_picks", -1) && settings.who_picks == STS_WHO_NOBODY);
+    CHECK(sts_settings_step(&settings, "reward", "who_picks", 1) && settings.who_picks == STS_WHO_BOTH);
+    CHECK(sts_settings_step(&settings, "draft", "show_deck", 1) && settings.draft_show_deck == 0);
+    CHECK(sts_settings_step(&settings, "draft", "show_deck", 1) && settings.draft_show_deck == 1);
+    for (wau = 0; wau < 7; wau++) {
+        CHECK(sts_settings_step(&settings, "reward", "types", 1));
+        CHECK(settings.reward.type_mask != 0 && (settings.reward.type_mask & ~(unsigned)STS_TYPE_ALL) == 0);
+    }
+    CHECK(settings.reward.type_mask == STS_TYPE_ALL);
+    CHECK(sts_settings_step(&settings, "reward", "types", 1) && sts_settings_step(&settings, "reward", "types", -1)
+          && settings.reward.type_mask == STS_TYPE_ALL);
+
+    /* The card lists are not settings. */
+    before = settings;
+    CHECK(!sts_settings_step(&settings, "starter", "common", 1));
+    CHECK(!sts_settings_step(&settings, "draft", "nonsense", 1));
+    CHECK(sts_settings_equal(&settings, &before));
+
+    /* Fewest and most copies cannot pass each other. The draft's copies are not settings. */
+    sts_settings_defaults(&settings);
+    CHECK(!sts_settings_step(&settings, "draft", "copies_max", 1) && settings.draft.copies_max == 1);
+    CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 1);
+    CHECK(sts_settings_step(&settings, "reward", "copies_max", 1) && settings.reward.copies_max == 2);
+    CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 2);
+    CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 2);
+    CHECK(sts_settings_step(&settings, "reward", "copies_max", -1) && settings.reward.copies_max == 2);
+    for (wau = 0; wau < 5; wau++)
+        sts_settings_step(&settings, "reward", "copies_max", 1);
+    CHECK(settings.reward.copies_max == STS_GAME_COPY_LIMIT);
+    settings.reward.copies_min = 3;   /* upside down, from the file */
+    settings.reward.copies_max = 2;
+    CHECK(sts_settings_step(&settings, "reward", "copies_min", -1) && settings.reward.copies_min == 2);
+
+    /* Equal covers settings outside the fingerprint too. */
+    sts_settings_defaults(&settings);
+    before = settings;
+    settings.allow_rule_changes = !settings.allow_rule_changes;
+    CHECK(!sts_settings_equal(&settings, &before));
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before));
+}
+
+/* Rewrites text with changed settings, checking the result parses back to them. */
+static char *rewrite_checked(const char *text, const sts_settings *settings)
+{
+    sts_settings parsed;
+    size_t length = 0;
+    char *result = sts_settings_rewrite(text, text ? strlen(text) : 0, settings, &length);
+
+    CHECK(result != NULL);
+    if (!result)
+        return NULL;
+    CHECK(length == strlen(result));
+    CHECK(sts_settings_parse(result, length, &parsed, NULL) == STS_SETTINGS_OK);
+    CHECK(sts_settings_equal(&parsed, settings));
+    return result;
+}
+
+static void test_settings_rewrite(void)
+{
+    sts_settings settings;
+    size_t length = 0;
+    char *shipped = sts_read_file(STS_SETTINGS_PATH, &length);
+    char *result;
+    int wau;
+
+    /* Unchanged settings give back the file exactly. */
+    CHECK(shipped != NULL);
+    if (!shipped)
+        return;
+    sts_settings_defaults(&settings);
+    result = rewrite_checked(shipped, &settings);
+    CHECK(result && strcmp(result, shipped) == 0);
+    free(result);
+
+    /* Changes rewrite only their own lines; every comment stays. */
+    CHECK(sts_settings_set(&settings, "draft", "offers", "2") == STS_SETTINGS_OK);
+    CHECK(sts_settings_set(&settings, "starter", "enabled", "true") == STS_SETTINGS_OK);
+    CHECK(sts_settings_set(&settings, "reward", "who_picks", "winner") == STS_SETTINGS_OK);
+    result = rewrite_checked(shipped, &settings);
+    if (result) {
+        CHECK(strstr(result, "\noffers=2\n") && strstr(result, "\nenabled=true\n") && strstr(result, "\nwho_picks=winner\n"));
+        CHECK(strstr(result, "\nwho_picks=both\n") == NULL);
+        /* 3 to 2 keeps the length, false to true is one shorter, both to winner two longer. */
+        CHECK(strlen(result) == strlen(shipped) - 1 + 2);
+        CHECK(strstr(result, "# How many cards each pick offers. The screen fits up to 3.\noffers=2\n") != NULL);
+        free(result);
+    }
+
+    /* Missing settings go after the last setting of their section, or into a new section at the end. */
+    sts_settings_defaults(&settings);
+    settings.draft_show_deck = 0;
+    settings.reward.offer_count = 4;
+    settings.starter_enabled = 1;
+    result = rewrite_checked("[draft]\npicks=20\n\n# rewards\n[reward]\nmode=replace\n", &settings);
+    if (result) {
+        CHECK(strcmp(result, "[draft]\npicks=20\nshow_deck=false\n\n# rewards\n[reward]\nmode=replace\noffers=4\n"
+                             "\n[starter]\nenabled=true\n") == 0);
+        free(result);
+    }
+
+    /* Windows line endings are kept, for changed and added lines alike. */
+    result = rewrite_checked("[draft]\r\npicks = 20\r\n[reward]\r\noffers=3\r\n", &settings);
+    if (result) {
+        CHECK(strcmp(result, "[draft]\r\npicks = 20\r\nshow_deck=false\r\n[reward]\r\noffers=4\r\n"
+                             "\r\n[starter]\r\nenabled=true\r\n") == 0);
+        free(result);
+    }
+
+    /* A last line without a newline, and spacing around the value. */
+    sts_settings_defaults(&settings);
+    settings.rules.deck_max = 25;
+    settings.draft.offer_count = 4;
+    result = rewrite_checked("[deck]\n  size_max =  30\n[draft]\npicks=20", &settings);
+    if (result) {
+        CHECK(strcmp(result, "[deck]\n  size_max =  25\n[draft]\npicks=20\noffers=4\n") == 0);
+        free(result);
+    }
+
+    /* Old card lists in a file are left as they are, and new settings go after them. */
+    sts_settings_defaults(&settings);
+    settings.starter_enabled = 1;
+    result = rewrite_checked("[starter]\nReimu=101,101\n", &settings);
+    if (result) {
+        CHECK(strcmp(result, "[starter]\nReimu=101,101\nenabled=true\n") == 0);
+        free(result);
+    }
+
+    /* No file at all: only what differs from the defaults is written. */
+    sts_settings_defaults(&settings);
+    result = rewrite_checked(NULL, &settings);
+    if (result) {
+        CHECK(result[0] == 0);
+        free(result);
+    }
+    settings.allow_rule_changes = 1;
+    result = rewrite_checked("", &settings);
+    if (result) {
+        CHECK(strcmp(result, "[run]\nallow_rule_changes=true\n") == 0);
+        free(result);
+    }
+
+    /* Text that does not parse is not rewritten. */
+    CHECK(sts_settings_rewrite("[draft]\noffers=many\n", strlen("[draft]\noffers=many\n"), &settings, NULL) == NULL);
+    CHECK(sts_settings_rewrite("[nowhere]\n", strlen("[nowhere]\n"), &settings, NULL) == NULL);
+
+    /* Every steppable setting, changed at once, survives a rewrite of the shipped file. */
+    sts_settings_defaults(&settings);
+    for (wau = 0; wau < 2; wau++) {
+        static const char *const keys[][2] = {
+            {"deck", "size_min"}, {"deck", "size_max"}, {"deck", "copy_limit"},
+            {"draft", "offers"}, {"draft", "show_deck"},
+            {"draft", "types"}, {"draft", "offer_style"}, {"draft", "system_weight"}, {"draft", "skill_weight"},
+            {"draft", "spell_weight"}, {"starter", "enabled"}, {"reward", "mode"}, {"reward", "who_picks"},
+            {"reward", "offers"}, {"reward", "copies_min"}, {"reward", "copies_max"}, {"reward", "types"},
+            {"reward", "offer_style"}, {"reward", "system_weight"}, {"reward", "skill_weight"},
+            {"reward", "spell_weight"}, {"reward", "replacement"}, {"netplay", "pick_visibility"},
+            {"netplay", "opponent_deck"}, {"items", "enabled"}, {"run", "allow_rule_changes"},
+        };
+        int key;
+
+        for (key = 0; key < (int)(sizeof keys / sizeof keys[0]); key++)
+            CHECK(sts_settings_step(&settings, keys[key][0], keys[key][1], wau == 0 ? -1 : 1));
+        result = rewrite_checked(shipped, &settings);
+        free(result);
+    }
+    free(shipped);
 }
 
 void test_settings(void)
@@ -353,4 +641,6 @@ void test_settings(void)
     test_settings_fingerprint();
     test_settings_compatible();
     test_settings_starter();
+    test_settings_one_value();
+    test_settings_rewrite();
 }

@@ -83,16 +83,23 @@ Offline, only player 1 uses the run deck.
 
 ## Settings
 
-Rules are set in `settings.ini`, which lists and explains every option. You can change the draft
-length, how many cards are offered, which card types appear and how often, who gets an offer after a
-match (both players, winner, loser, or nobody for a random change), and whether you replace chosen
+Rules are set in `settings.ini`, which lists and explains every option. You can also change them in
+game: press F7 and choose **Settings** under the characters. The settings are split into menus (Draft,
+Rewards, Runs). In a menu, up and down choose a setting, left and right change it, and the line below
+explains it. Changes are kept across menus until you save them. Saving writes only the values you
+changed, so the file keeps its comments and can still be shared as a set of rules. If the change
+affects runs you have already started, the screen names them and asks before saving. Settings that
+do nothing yet are only in the file.
+
+The draft always adds one card per pick until the deck is full. You can change how many cards are
+offered (up to 3), which card types appear and how often, who gets an offer after a
+match (both players, the winner or the loser), and whether you replace chosen
 cards, a card type, or random cards. Setting `show_deck=false` makes the draft blind, hiding the
 cards you have picked so far.
 
 A starting deck is available and off by default. With `[starter] enabled=true`, each draft starts
 from 2 copies each of Spiritual Strike Talisman and Divine Raiment of the Dragon Fish, plus 2 copies
 each of a default skill and a cheap spell card chosen for each character, and 12 picks fill the rest.
-The cards can be changed in the same section.
 
 The defaults are provisional, until the community has played with them.
 
