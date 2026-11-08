@@ -359,9 +359,11 @@ static void go_to_chooser(void)
     g_dirty = 1;
 }
 
-/* Pressing the third button twice gives up on a run, so one slip cannot lose it. */
+/* Pressing the third button twice gives up on a run, so one slip cannot lose it. Both presses make
+ * a sound, as on the rule change screen, so the first one is noticed. */
 static int alt_twice(void)
 {
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     if (!g_alt_armed) {
         g_alt_armed = 1;
         g_dirty = 1;
