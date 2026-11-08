@@ -478,6 +478,18 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    screen, never a blocking loop. Confirm skips to the result. Cosmetic setting, e.g.
    `reward_animation=true`, not in the fingerprint (like `show_deck`). Testable offline with
    `who_picks=nobody`.
+11. Settings screen (after v0.2): edit `settings.ini` in game, opened from the F7 character screen
+   with its own key, in the mod's usual style. Not an external tool, which would take players out
+   of the game and could drift from the mod's version. One row per setting, grouped by section;
+   left/right steps numbers and cycles choices; each row shows its `settings.ini` comment as help.
+   Run `sts_settings_validate` before saving and show its message instead of saving a bad file.
+   Before saving, list the runs the change would mark "Rules changed". Save by rewriting only the
+   value on each changed line, so comments and layout survive and the file can still be shared as
+   a rules file, then reload the settings (today they load once per session, `g_data_ok`). Grey out
+   or hide settings with no effect yet (size limits, pick visibility, opponent deck, items). First
+   version only toggles the starter; editing its lists needs a card picker (could reuse the deck
+   grid and card art). In full mode both players need one set of rules (probably the host's), and
+   the screen should show which rules are in force.
 
 ## Open questions
 
