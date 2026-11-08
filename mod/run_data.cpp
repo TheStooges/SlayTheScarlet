@@ -20,6 +20,15 @@ void run_path(char *out, size_t size, int character)
     out[size - 1] = 0;
 }
 
+/* Whether a save file is there at all, even a damaged one that will not load. */
+int run_file_exists(int character)
+{
+    char path[MAX_PATH + 32];
+
+    run_path(path, sizeof path, character);
+    return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+}
+
 int load_data(void)
 {
     char path[MAX_PATH + 32];

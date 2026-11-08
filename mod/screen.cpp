@@ -500,6 +500,29 @@ static void move_choose_vertically(int direction)
     g_cursor = row == rows - 1 ? CHOOSE_SETTINGS : row * COLS + g_choose_column;
 }
 
+/* Deletes a character's run from the character menu. Opening the character afterwards starts a new
+ * draft. A run in use stops first, which puts the player's own deck back. */
+static void delete_run(int character)
+{
+    char path[MAX_PATH + 32];
+
+    if (g_active && g_active_character == character)
+        deactivate_run_deck();
+    if (g_rules_changed_character == character) {
+        g_rules_changed_character = -1;
+        save_active_file();
+    }
+    run_path(path, sizeof path, character);
+    if (remove(path) != 0) {
+        set_error(character_label(character), tr("the run could not be deleted"));
+        return;
+    }
+    slog("deleted the run for character %d", character);
+    g_error[0] = 0;
+    g_character = character;
+    scan_saves();
+}
+
 static void on_choose_event(screen_event event)
 {
     /* Settings is one entry on its own row: only up, down, open and close do anything there. */
@@ -527,13 +550,9 @@ static void on_choose_event(screen_event event)
         g_state = ST_CLOSED;
         return;
     case EV_ALT:
-        if (g_data_ok && !blocking_mod() && alt_twice()) {
-            g_character = g_cursor;
-            g_error[0] = 0;
-            g_status[0] = 0;
-            load_card_text(g_cursor);
-            start_new_run(g_cursor);
-        }
+        /* Nothing to delete on a character with no run. */
+        if (g_data_ok && !blocking_mod() && run_file_exists(g_cursor) && alt_twice())
+            delete_run(g_cursor);
         g_dirty = 1;
         return;
     case EV_TOGGLE:

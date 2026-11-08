@@ -104,6 +104,7 @@ enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_ME
 
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);
+int run_file_exists(int character);
 int load_data(void);
 void save_run(void);
 extern char g_dir[MAX_PATH];

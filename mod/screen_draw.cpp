@@ -398,11 +398,11 @@ static void rebuild_choose(void)
         break;
     }
     if (g_alt_armed)
-        sprintf(line, tr("Press %s again to discard this character's run and start over."), BUTTON_C);
-    else if (g_cursor == CHOOSE_SETTINGS)
+        sprintf(line, tr("Press %s again to delete this character's run."), BUTTON_C);
+    else if (g_cursor == CHOOSE_SETTINGS || !run_file_exists(g_cursor))
         sprintf(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
     else
-        sprintf(line, tr("%s: open   %s: close   %s twice: start over"), BUTTON_A, BUTTON_B, BUTTON_C);
+        sprintf(line, tr("%s: open   %s: close   %s twice: delete run"), BUTTON_A, BUTTON_B, BUTTON_C);
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
