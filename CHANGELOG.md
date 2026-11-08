@@ -3,6 +3,47 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## 0.2 - unreleased
+
+### New
+
+- Japanese menus on the Japanese game (`th123`). The mod's text follows the game's language, and the
+  translation is in `lang/ja.txt`. Under the English translation (`th123e`) the menus stay English.
+- An optional starting deck, off by default. With `[starter] enabled=true` in `settings.ini`, each
+  draft starts from 2 copies each of Spiritual Strike Talisman and Divine Raiment of the Dragon Fish,
+  plus 2 copies each of a default skill and a cheap spell card chosen for each character, and 12 picks
+  fill the rest. The cards can be changed in the same section. The character screen says when it is on.
+- The character screen can start or stop using the selected character's run, with the same button as
+  the deck screen.
+- The mod's screens have a background: the game's gear backdrop, with the run character's portrait
+  faded in, instead of plain black or the title menu showing through.
+
+### Changed
+
+- Left and right wrap around within a row on the character screen and in the deck grid, as up and
+  down already did within a column.
+- Starting over makes a sound on the first press as well as the second, so it is noticed.
+- Card descriptions follow the line breaks the game uses, in English and Japanese, and the text of
+  every card type now starts at the same height (skill text sat lower).
+- The list of deck changes shows card names only.
+
+### Fixed
+
+- A disconnect during an offer no longer loses anything. The offer waits under the game's network menu
+  and comes back after it, without reacting to buttons pressed in the menu. A match played after
+  reconnecting straight from the menu has its offer queued behind the waiting one.
+
+### Online
+
+- Tested between two players who both have the mod, as host and as client. Each plays their own run.
+
+### Upgrading
+
+- Replace `SlayTheScarlet.dll` and `cards.csv`, and add the `lang` folder. Keep `settings.ini` and the
+  `runs` folder. To use the starting deck, copy the `[starter]` section from the new `settings.ini`
+  into yours.
+- Runs from 0.1 carry on. Runs saved by 0.2 do not load in 0.1.
+
 ## 0.1 - 2026-11-07
 
 The first test release.

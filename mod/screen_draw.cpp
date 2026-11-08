@@ -387,11 +387,11 @@ static void rebuild_choose(void)
     switch (choose_toggle_for(g_cursor)) {
     case TOGGLE_USE:
         sprintf(line, tr("%s: use %s's run"), BUTTON_D, character_label(g_cursor));
-        add_label(line, g_font_small, 20, 392, 600, 20, COLOR_GREY);
+        add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
         break;
     case TOGGLE_STOP:
         sprintf(line, tr("%s: stop using %s's run"), BUTTON_D, character_label(g_cursor));
-        add_label(line, g_font_small, 20, 392, 600, 20, COLOR_GREY);
+        add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
         break;
     case TOGGLE_NONE:
         break;
@@ -651,8 +651,9 @@ static void rebuild_deck(void)
         add_card_details(g_run.deck.ids[g_cursor], pos_y);
     add_change_list(pos_y, tr("Removed"), tr("Added"));
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
+    /* With the other key prompts at the bottom, not the status line above. */
     sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
-    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GREY);
+    add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
     if (g_run.phase == STS_PHASE_REWARD)
         sprintf(line, tr("Arrows: inspect   %s: next offer"), BUTTON_A);
     else if (g_alt_armed)

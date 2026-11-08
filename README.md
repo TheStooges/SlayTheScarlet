@@ -6,8 +6,9 @@ Hisoutensoku community's "Slay the Scarlet" wauvent.
 You draft a starting deck for one character, one card at a time. After each match you are offered
 new cards to swap in, so the deck changes as the "run" goes on.
 
-**This is an early test release.** Online play has only been tested on one PC so far, between a
-player with the mod and a player without it, so expect rough edges and please report problems.
+**This is an early test release.** Online play has been tested over a real network, against a player
+without the mod and between two players who both have it. Spectating has not been tested yet. Expect
+rough edges, and please report problems.
 
 ## Requirements
 
@@ -56,19 +57,29 @@ The buttons for each screen are listed at the bottom of that screen, using your 
    replaces. You cannot replace a card with another copy of itself.
 5. **Back to character select.** Your next match uses the changed deck.
 
-Only one run can be in use at a time. Use the deck screen, under F7, to look through your deck, stop
-or resume using a run, or start over. Starting over needs two presses, so one slip cannot lose a run.
+Only one run can be in use at a time. On the character screen, under F7, the button shown at the
+bottom starts using the selected character's run, or stops using it. The deck screen does the same,
+and lets you look through your deck or start over. Starting over needs two presses, so one slip cannot
+lose a run.
 
 A match on a different character or deck slot is a normal match: no offer, and your run is unchanged.
 
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
 new ones. There is no time limit for now.
 
+If the connection drops during an offer, the game goes back to its network menu, and the offer waits
+underneath. It comes back when you leave the menu. If you reconnect straight from the menu instead, it
+comes back after your next match, and that match's own offer follows once you have taken it, so no
+reward is lost.
+
 ### Online
 
 Only you need the mod. Your opponent sees a normal deck, and after a match sees the usual black
 screen while you choose. Each machine sends its own deck when the next match starts, so nothing about
 the online protocol changes.
+
+If your opponent also has the mod, each of you plays your own run and chooses your own offers. Neither
+of you sees the other's offers yet.
 
 Offline, only player 1 uses the run deck.
 
@@ -96,8 +107,8 @@ on under the new rules when their deck is still legal, set `allow_rule_changes=t
   The size_min, size_max and copy_limit settings have no effect for now.
 - The `add` and `remove` reward modes act as `replace`, because the game rejects decks of other sizes.
 - Pick visibility, opponent deck display and items are planned, and have no effect yet.
-- Two players who both have the mod have not been tested together yet. Each should simply manage their
-  own deck.
+- Spectating has not been tested. A spectator with the mod should see the matches as normal, without
+  offers.
 
 ## Reporting problems
 

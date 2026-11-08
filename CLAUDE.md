@@ -370,6 +370,12 @@ Netplay is a primary requirement. Each machine simulates both players from share
   for Y" fallback can work on a spectator from the decks alone. The spectator also sends each
   `GAME_MATCH` on with the same decks and a deck byte counting up (5, 6, 7, 8), presumably relaying
   to spectators connected through it. Mind this before sending custom messages to spectators.
+- **Both players modded (v0.1, a real network, both with runs in use, 6 matches with each side as
+  host):** each side sent its run deck and the other loaded exactly that deck in every match. Both got
+  offers (`who_picks=both`), and the changed deck reached the opponent in the next match, including
+  after a restart. Closing the game or disconnecting during an offer kept it, and it came back on
+  restart or could still be taken. Matches on another character or deck slot gave no offer, and
+  stopping a run put the profile's real deck back. Spectating with two modded players is not tested.
 
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
 
@@ -470,7 +476,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    deck size, the mod only overwrites a slot of the same size, and the game rejects non-20 decks.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
-7. (done in core/, not yet played in game) Starting deck, as in Slay the Spire: the draft starts
+7. (done for v0.2, played in game) Starting deck, as in Slay the Spire: the draft starts
    from the `[starter]` cards in `settings.ini` and the picks fill the rest. Off by default
    (`enabled=false`). The developer's chosen starter, based on defensive options as a beginner's
    crutch: 2x each of Spiritual Strike Talisman (0) and Divine Raiment of the Dragon Fish (13) for

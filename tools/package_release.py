@@ -22,6 +22,7 @@ CONTENTS = {
     "settings.ini": os.path.join(ROOT, "data", "settings.ini"),
     "lang/ja.txt": os.path.join(ROOT, "data", "lang", "ja.txt"),
     "README.md": os.path.join(ROOT, "README.md"),
+    "CHANGELOG.md": os.path.join(ROOT, "CHANGELOG.md"),
     "LICENSE.txt": os.path.join(ROOT, "LICENSE"),
     "LICENSE-SokuLib.txt": os.path.join(ROOT, "lib", "SokuLib", "LICENSE"),
 }
