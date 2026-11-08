@@ -77,6 +77,11 @@ match (both players, winner, loser, or nobody for a random change), and whether 
 cards, a card type, or random cards. Setting `show_deck=false` makes the draft blind, hiding the
 cards you have picked so far.
 
+A starting deck is available and off by default. With `[starter] enabled=true`, each draft starts
+from 2 copies each of Spiritual Strike Talisman and Divine Raiment of the Dragon Fish, plus 2 copies
+each of a default skill and a cheap spell card chosen for each character, and 12 picks fill the rest.
+The cards can be changed in the same section.
+
 The defaults are provisional, until the community has played with them.
 
 If you change the rules, a run made under the old rules can only be started over. To let runs carry

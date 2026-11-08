@@ -10,6 +10,42 @@ static sts_run_status finish_draft(sts_run *run, const sts_settings *settings)
     return status;
 }
 
+/* A draft with the starter on begins from the starter cards, and the picks fill the rest. */
+static void test_run_starter(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    int character, seed, line = 0;
+
+    CHECK(parse_ini("[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_run_check_starters(&g_db, &settings) == NULL);
+    for (seed = 0; seed < 10; seed++) {
+        for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+            sts_deck starter;
+            int wau;
+
+            sts_settings_starter(&settings, character, &starter);
+            CHECK(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
+            CHECK(run.phase == STS_PHASE_DRAFT && decks_equal(&run.deck, &starter) && run.offer_count == 3);
+            CHECK(sts_run_validate(&run, &g_db, &settings) == STS_RUN_OK);
+            CHECK(finish_draft(&run, &settings) == STS_RUN_OK);
+            CHECK(run.phase == STS_PHASE_READY && run.picks_done == 12);
+            CHECK(run.picks_done == sts_settings_draft_length(&settings, character));
+            CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+            for (wau = 0; wau < starter.count; wau++)
+                CHECK(sts_deck_count_of(&run.deck, starter.ids[wau]) >= sts_deck_count_of(&starter, starter.ids[wau]));
+        }
+    }
+
+    /* A card the character cannot use (no one has a card 299) is caught before any run starts,
+     * and only that character's run is refused. */
+    CHECK(parse_ini("[starter]\nenabled=true\nmarisa=299\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) == NULL);
+    CHECK(sts_run_check_starters(&g_db, &settings) != NULL);
+    CHECK(sts_run_start(&run, &g_db, &settings, 1, 1) == STS_RUN_BAD_STARTER);
+    CHECK(sts_run_start(&run, &g_db, &settings, 0, 1) == STS_RUN_OK);
+}
+
 void test_run_draft(void)
 {
     static sts_run run, run2;
@@ -91,6 +127,8 @@ void test_run_draft(void)
     CHECK(sts_run_start(&run, &g_db, &settings, 12, 1) == STS_RUN_OK);
     CHECK(finish_draft(&run, &settings) == STS_RUN_STUCK);
     CHECK(run.phase == STS_PHASE_DRAFT && run.offer_count == 0 && run.deck.count == 9);
+
+    test_run_starter();
 }
 
 /* Starts a finished draft under the given rules. */

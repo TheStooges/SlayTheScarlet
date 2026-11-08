@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "settings.h"
@@ -44,6 +45,58 @@ static void default_offer_style(sts_offer_settings *offer_settings)
     offer_settings->weights[STS_CARD_SPELL] = 1;
 }
 
+/* The starter's defaults: two defensive system cards for everyone, as a beginner's crutch, then
+ * for each character a default skill and a cheap, useful spell that is worth swapping out later.
+ * A Penny Saved is left out on purpose: it is one of the strongest cards in the game. */
+static const uint16_t g_starter_common[] = {0, 0, 13, 13};
+
+typedef struct {
+    uint16_t skill;
+    uint16_t spell;
+} starter_cards;
+
+static const starter_cards g_starter_cards[STS_NUM_CHARACTERS] = {
+    {100, 200},    /* Reimu: d236 Hakurei Amulet, Spirit Sign "Fantasy Orb" */
+    {102, 208},    /* Marisa: d22 Grand Stardust, Star Sign "Meteonic Shower" */
+    {102, 206},    /* Sakuya: d236 Magic Star Sword, Silver Sign "Silver Bound" */
+    {101, 202},    /* Alice: d623 Volatile Doll, Curse Sign "Shanghai Doll" */
+    {104, 200},    /* Patchouli: d421 Dew Spear, Fire Metal Sign "St Elmo's Pillar" */
+    {103, 200},    /* Youmu: d22 Medium's Bind, Human Sign "Slash of Present" */
+    {100, 201},    /* Remilia: d236 Demon Lord Walk, Critical "Heart Break" */
+    {101, 200},    /* Yuyuko: d236 Light of the Undead, Death Sign "Ghastly Dream" */
+    {100, 202},    /* Yukari: d236 Open, Lamented Box of Urashima, Boundary "Border Between 2D and 3D" */
+    {101, 200},    /* Suika: d623 Gnome -Dense-, Gather Sign "Throwing Mt. Togakushi" */
+    {101, 200},    /* Reisen: d214 Illusionary Blast, Charming Look "Corolla Vision" */
+    {101, 200},    /* Aya: d214 Domination Dash, Whirl Sign "Maple Leaf Fan" */
+    {101, 200},    /* Komachi: d623 Bound Spirits of the Earth, Nautical Sign "Flow of the River" */
+    {103, 200},    /* Iku: d214 Electrostatic Guided Missile, Electric Sign "Thunder Drum Shot" */
+    {102, 200},    /* Tenshi: d236 Beams of Non-Perception, Earth Sign "Sword of Unletting Soil" */
+    {100, 203},    /* Sanae: d236 Wind-Call, Omikuji "Random Omikuji Barrage" */
+    {102, 200},    /* Cirno: d22 Little Iceberg, Ice Sign "Icicle Machine Gun" */
+    {103, 200},    /* Meiling: d236 Fragrant Wave, Color Sign "Colorful Windchime" */
+    {101, 203},    /* Utsuho: d236 Ground Melt, Burning Star "Fixed Star" */
+    {100, 201},    /* Suwako: d214 Ancient Geyser, Spring Sign "Moriya Clear Water" */
+};
+
+static void default_starter(sts_settings *settings)
+{
+    int wau, character;
+
+    settings->starter_enabled = 0;
+    settings->starter_common.count = 0;
+    for (wau = 0; wau < (int)(sizeof g_starter_common / sizeof g_starter_common[0]); wau++)
+        settings->starter_common.ids[settings->starter_common.count++] = g_starter_common[wau];
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        sts_starter_list *list = &settings->starter[character];
+
+        list->ids[0] = g_starter_cards[character].skill;
+        list->ids[1] = g_starter_cards[character].skill;
+        list->ids[2] = g_starter_cards[character].spell;
+        list->ids[3] = g_starter_cards[character].spell;
+        list->count = 4;
+    }
+}
+
 void sts_settings_defaults(sts_settings *settings)
 {
     memset(settings, 0, sizeof *settings);
@@ -72,6 +125,7 @@ void sts_settings_defaults(sts_settings *settings)
     settings->items_enabled = 0;
     settings->allow_rule_changes = 0;
     settings->draft_show_deck = 1;
+    default_starter(settings);
 }
 
 static int set_int(const char *value, int min, int max, int *out)
@@ -128,6 +182,53 @@ static int set_types(char *value, unsigned *out)
     }
     *out = mask;
     return 1;
+}
+
+/* "0,0,12" lists card IDs, a card listed twice being two copies. An empty value is no cards. */
+static int set_starter_list(char *value, sts_starter_list *out)
+{
+    sts_starter_list list;
+
+    list.count = 0;
+    while (*value) {
+        char *comma = strchr(value, ',');
+        int id;
+
+        if (comma)
+            *comma = 0;
+        if (list.count >= STS_STARTER_MAX || !set_int(value, 0, 0xFFFF, &id))
+            return 0;
+        list.ids[list.count++] = (uint16_t)id;
+        if (!comma)
+            break;
+        value = comma + 1;
+        if (!*value)
+            return 0;   /* a trailing comma */
+    }
+    *out = list;
+    return 1;
+}
+
+static char lower_case(char letter)
+{
+    return letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
+}
+
+/* Matches a key to a character's name, ignoring case: "reimu" or "Reimu". Returns -1 if none. */
+static int character_key(const char *key)
+{
+    int character;
+
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        const char *name = sts_character_name(character);
+        size_t wau = 0;
+
+        while (key[wau] && lower_case(key[wau]) == lower_case(name[wau]))
+            wau++;
+        if (!key[wau] && !name[wau])
+            return character;
+    }
+    return -1;
 }
 
 /* Keys shared by [draft] and [reward]. Returns -1 for an unknown key, else success. */
@@ -206,6 +307,15 @@ static int set_key(sts_settings *settings, const char *section, const char *key,
     } else if (strcmp(section, "items") == 0) {
         if (strcmp(key, "enabled") == 0)
             return find_named(value, g_bool, &settings->items_enabled);
+    } else if (strcmp(section, "starter") == 0) {
+        int character = character_key(key);
+
+        if (strcmp(key, "enabled") == 0)
+            return find_named(value, g_bool, &settings->starter_enabled);
+        if (strcmp(key, "common") == 0)
+            return set_starter_list(value, &settings->starter_common);
+        if (character >= 0)
+            return set_starter_list(value, &settings->starter[character]);
     } else if (strcmp(section, "run") == 0) {
         if (strcmp(key, "allow_rule_changes") == 0)
             return find_named(value, g_bool, &settings->allow_rule_changes);
@@ -216,7 +326,8 @@ static int set_key(sts_settings *settings, const char *section, const char *key,
 static int known_section(const char *name)
 {
     return strcmp(name, "deck") == 0 || strcmp(name, "draft") == 0 || strcmp(name, "reward") == 0
-        || strcmp(name, "netplay") == 0 || strcmp(name, "items") == 0 || strcmp(name, "run") == 0;
+        || strcmp(name, "netplay") == 0 || strcmp(name, "items") == 0 || strcmp(name, "starter") == 0
+        || strcmp(name, "run") == 0;
 }
 
 static char *trim(char *text)
@@ -361,10 +472,71 @@ static const char *validate_offer(const sts_offer_settings *offer_settings, cons
     return NULL;
 }
 
+void sts_settings_starter(const sts_settings *settings, int character, sts_deck *out)
+{
+    int wau;
+
+    sts_deck_clear(out);
+    if (!settings->starter_enabled || character < 0 || character >= STS_NUM_CHARACTERS)
+        return;
+    for (wau = 0; wau < settings->starter_common.count; wau++)
+        sts_deck_add(out, settings->starter_common.ids[wau]);
+    for (wau = 0; wau < settings->starter[character].count; wau++)
+        sts_deck_add(out, settings->starter[character].ids[wau]);
+}
+
+int sts_settings_draft_length(const sts_settings *settings, int character)
+{
+    sts_deck starter;
+    int room = 0;
+
+    sts_settings_starter(settings, character, &starter);
+    if (settings->draft.copies_min > 0 && starter.count < settings->rules.deck_max)
+        room = (settings->rules.deck_max - starter.count) / settings->draft.copies_min;
+    return room < settings->draft_picks ? room : settings->draft_picks;
+}
+
+/* The draft must always be able to finish at a legal size, from this character's starter. With
+ * copies_min 1 a pick fits whenever the deck has room, so enough picks always reach size_min.
+ * Otherwise only a fixed count can be guaranteed: a varying one could stop just short, with no
+ * room left for another minimum-sized pick. */
+static const char *validate_draft_size(const sts_settings *settings, int character)
+{
+    static char message[96];
+    const sts_rules *rules = &settings->rules;
+    sts_deck starter;
+    int wau;
+
+    sts_settings_starter(settings, character, &starter);
+    if (starter.count > rules->deck_max) {
+        sprintf(message, "%s's starter has more cards than size_max", sts_character_name(character));
+        return message;
+    }
+    for (wau = 0; wau < starter.count; wau++) {
+        if (sts_deck_count_of(&starter, starter.ids[wau]) > rules->copy_limit) {
+            sprintf(message, "%s's starter has more than copy_limit copies of card %d",
+                    sts_character_name(character), starter.ids[wau]);
+            return message;
+        }
+    }
+    if (settings->draft.copies_min == 1) {
+        if (starter.count + settings->draft_picks < rules->deck_min)
+            return "picks is too low to reach size_min";
+    } else {
+        int total = starter.count + settings->draft_picks * settings->draft.copies_min;
+        if (settings->draft.copies_min != settings->draft.copies_max)
+            return "a draft with copies_min above 1 needs copies_min equal to copies_max";
+        if (total < rules->deck_min || total > rules->deck_max)
+            return "the starter plus picks times copies must land between size_min and size_max";
+    }
+    return NULL;
+}
+
 const char *sts_settings_validate(const sts_settings *settings)
 {
     const sts_rules *rules = &settings->rules;
     const char *msg;
+    int character;
 
     if (rules->deck_min < 1 || rules->deck_min > rules->deck_max)
         return "size_min must be at least 1 and not above size_max";
@@ -378,19 +550,10 @@ const char *sts_settings_validate(const sts_settings *settings)
     msg = validate_offer(&settings->draft, rules);
     if (msg)
         return msg;
-    /* The draft must always be able to finish at a legal size. With copies_min 1 a pick
-     * fits whenever the deck has room, so enough picks always reach size_min. Otherwise
-     * only a fixed count can be guaranteed: a varying one could stop just short, with
-     * no room left for another minimum-sized pick. */
-    if (settings->draft.copies_min == 1) {
-        if (settings->draft_picks < rules->deck_min)
-            return "picks is too low to reach size_min";
-    } else {
-        int total = settings->draft_picks * settings->draft.copies_min;
-        if (settings->draft.copies_min != settings->draft.copies_max)
-            return "a draft with copies_min above 1 needs copies_min equal to copies_max";
-        if (total < rules->deck_min || total > rules->deck_max)
-            return "picks times copies must land between size_min and size_max";
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        msg = validate_draft_size(settings, character);
+        if (msg)
+            return msg;
     }
 
     if (settings->reward.mode != STS_REWARD_SKIP) {
@@ -421,6 +584,9 @@ void sts_settings_force_compatible(sts_settings *settings)
         settings->draft = defaults.draft;
         settings->reward = defaults.reward;
     }
+    /* A starter made for another deck size may not fit either. */
+    if (sts_settings_validate(settings))
+        settings->starter_enabled = 0;
 }
 
 static uint32_t hash_int(uint32_t hash, int number)
@@ -449,6 +615,16 @@ static uint32_t hash_offer(uint32_t hash, const sts_offer_settings *offer_settin
     return hash_int(hash, offer_settings->weights[STS_CARD_SPELL]);
 }
 
+static uint32_t hash_starter_list(uint32_t hash, const sts_starter_list *list)
+{
+    int wau;
+
+    hash = hash_int(hash, list->count);
+    for (wau = 0; wau < list->count; wau++)
+        hash = hash_int(hash, list->ids[wau]);
+    return hash;
+}
+
 uint32_t sts_settings_hash(const sts_settings *settings)
 {
     uint32_t hash = STS_FNV_START;
@@ -462,5 +638,17 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     hash = hash_int(hash, (int)settings->who_picks);
     hash = hash_int(hash, (int)settings->pick_visibility);
     hash = hash_int(hash, (int)settings->opponent_deck);
-    return hash_int(hash, settings->items_enabled);
+    hash = hash_int(hash, settings->items_enabled);
+
+    /* The lists only matter while the starter is on. Leaving them out otherwise keeps the
+     * fingerprint of runs made before the starter existed. */
+    if (settings->starter_enabled) {
+        int character;
+
+        hash = hash_int(hash, settings->starter_enabled);
+        hash = hash_starter_list(hash, &settings->starter_common);
+        for (character = 0; character < STS_NUM_CHARACTERS; character++)
+            hash = hash_starter_list(hash, &settings->starter[character]);
+    }
+    return hash;
 }

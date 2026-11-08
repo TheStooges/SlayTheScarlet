@@ -57,6 +57,11 @@ int load_data(void)
         if (sts_settings_hash(&g_settings) != before)
             slog("settings.ini asks for rules that need full mode, using compatible rules instead");
     }
+    bad = sts_run_check_starters(&g_db, &g_settings);
+    if (bad) {
+        set_error("settings.ini", bad);
+        return 0;
+    }
     g_data_ok = 1;
     return 1;
 }

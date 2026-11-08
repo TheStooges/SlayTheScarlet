@@ -6,7 +6,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "deck.h"
 #include "offer.h"
+#include "pf.h"
 #include "rules.h"
 
 /* The game drops a 5th copy and then silently starts with no deck, and raising the
@@ -32,6 +34,14 @@ typedef enum {
     STS_OPPONENT_DECK_FULL
 } sts_opponent_deck;
 
+/* Cards a draft starts from, before the first pick. A card listed twice is two copies. */
+#define STS_STARTER_MAX 32
+
+typedef struct {
+    uint16_t ids[STS_STARTER_MAX];
+    int count;
+} sts_starter_list;
+
 typedef struct {
     sts_rules rules;
     int draft_picks;
@@ -41,6 +51,11 @@ typedef struct {
     sts_pick_visibility pick_visibility;
     sts_opponent_deck opponent_deck;
     int items_enabled;
+    /* The starting deck: every character gets starter_common, plus their own list. A draft
+     * starts from these cards and the picks fill the rest. */
+    int starter_enabled;
+    sts_starter_list starter_common;
+    sts_starter_list starter[STS_NUM_CHARACTERS];
     /* May a run made under other rules carry on under these? This says how to treat a
      * rule change rather than being a rule, so it is not part of the fingerprint. */
     int allow_rule_changes;
@@ -70,8 +85,16 @@ sts_settings_status sts_settings_load(const char *path, sts_settings *out, int *
 
 const char *sts_settings_status_str(sts_settings_status status);
 
-/* Returns NULL if the settings can work, or a message saying why they cannot. */
+/* Returns NULL if the settings can work, or a message saying why they cannot. Starter cards
+ * are only counted here; sts_run_check_starters checks each character can use them. */
 const char *sts_settings_validate(const sts_settings *settings);
+
+/* The cards this character's draft starts from: none unless the starter is enabled. */
+void sts_settings_starter(const sts_settings *settings, int character, sts_deck *out);
+
+/* How many picks this character's draft can take at most: the picks setting, or fewer when the
+ * starter leaves less room. With a varying copy count the draft may still end sooner. */
+int sts_settings_draft_length(const sts_settings *settings, int character);
 
 /* Compatible mode (opponent is vanilla): 20 cards, 4 copies, no items, and no rule that needs
  * another deck size. The result always passes sts_settings_validate. Visibility settings are

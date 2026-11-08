@@ -22,6 +22,7 @@ const char *sts_run_status_str(sts_run_status status)
     case STS_RUN_BAD_VERSION:      return "save file is from a different version";
     case STS_RUN_SETTINGS_CHANGED: return "save file was made under different rules";
     case STS_RUN_ILLEGAL:          return "save file breaks the rules";
+    case STS_RUN_BAD_STARTER:      return "the starter has a card this character cannot use";
     }
     return "unknown";
 }
@@ -59,8 +60,29 @@ sts_run_status sts_run_start(sts_run *run, const sts_card_db *db, const sts_sett
     run->character = character;
     run->phase = STS_PHASE_DRAFT;
     sts_rng_seed(&run->rng, seed, (uint64_t)character);
-    sts_deck_clear(&run->deck);
+    sts_settings_starter(settings, character, &run->deck);
+    if (!sts_deck_cards_legal(db, character, &run->deck, NULL))
+        return STS_RUN_BAD_STARTER;
     return advance_draft(run, db, settings);
+}
+
+const char *sts_run_check_starters(const sts_card_db *db, const sts_settings *settings)
+{
+    static char message[96];
+    int character;
+
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        sts_deck starter;
+        uint16_t bad_id;
+
+        sts_settings_starter(settings, character, &starter);
+        if (!sts_deck_cards_legal(db, character, &starter, &bad_id)) {
+            sprintf(message, "%s's starter has card %d, which %s cannot use", sts_character_name(character),
+                    bad_id, sts_character_name(character));
+            return message;
+        }
+    }
+    return NULL;
 }
 
 sts_run_status sts_run_draft_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings, int index)

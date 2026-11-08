@@ -44,17 +44,22 @@ typedef enum {
     STS_RUN_DAMAGED,           /* failed the checksum or could not be parsed */
     STS_RUN_BAD_VERSION,       /* written by a different save format version */
     STS_RUN_SETTINGS_CHANGED,  /* the save was made under different rules */
-    STS_RUN_ILLEGAL            /* intact, but its deck or offers break the rules */
+    STS_RUN_ILLEGAL,           /* intact, but its deck or offers break the rules */
+    STS_RUN_BAD_STARTER        /* the starter has a card this character cannot use */
 } sts_run_status;
 
 const char *sts_run_status_str(sts_run_status status);
 
 /* ---------- draft ---------- */
 
-/* Starts a run in the draft phase with the first offers ready. Offers only reach the
- * local player, so the seed may be local. */
+/* Starts a run in the draft phase with the first offers ready, the deck holding the starter
+ * if it is enabled. Offers only reach the local player, so the seed may be local. */
 sts_run_status sts_run_start(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                              int character, uint64_t seed);
+
+/* Returns NULL if every character can use every card of their starter, or a message naming the
+ * first one who cannot. sts_settings_validate checks the starter's size and copies. */
+const char *sts_run_check_starters(const sts_card_db *db, const sts_settings *settings);
 
 /* Takes offer `index`. Rolls the next offers, or moves to READY when the picks are used
  * up or the deck is full. */

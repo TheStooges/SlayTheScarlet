@@ -436,15 +436,20 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    deck size, the mod only overwrites a slot of the same size, and the game rejects non-20 decks.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
-7. Starting deck, as in Slay the Spire: a run starts from predetermined cards and the draft fills the
-   rest (the draft already stops when the deck is full). A rule, so a setting, e.g. `[draft]
-   starter=none / default_skills / list`, part of the fingerprint (with `list`, so is the list file's
-   content). Suggested first version: `default_skills`, 2 copies of each default (`d`) skill, 8 cards
-   for most characters and 10 for Patchouli, derived from `cards.csv` with no data file or new
-   screen. Later: a per-character starter list file, or choosing one of several starters. Starter
-   cards are normal cards afterwards (copy limit, can be replaced). A deck that starts small and
-   grows needs the deck size patch first. Open: 1 or 2 copies, system cards in the starter, and
-   whether the default is `none` until playtesting.
+7. (done in core/, not yet played in game) Starting deck, as in Slay the Spire: the draft starts
+   from the `[starter]` cards in `settings.ini` and the picks fill the rest. Off by default
+   (`enabled=false`). The developer's chosen starter, based on defensive options as a beginner's
+   crutch: 2x each of Spiritual Strike Talisman (0) and Divine Raiment of the Dragon Fish (13) for
+   everyone (`common`), plus per character 2x a chosen default skill and 2x a cheap (cost 3 or less),
+   useful but not game-changing spell, the kind worth swapping out later. 8 cards, so 12 picks. A
+   Penny Saved (12) is left out on purpose, as one of the strongest cards in the game. Every chosen
+   card is in the character's default deck except Sakuya's Silver Bound and Yukari's Border Between
+   2D and 3D, both deliberate (`reference/default.pf` has the default decks). The lists count
+   towards the fingerprint only while the starter is on, so older runs keep their rules. Starter
+   cards are normal cards afterwards (copy limit, can be replaced). Per-character lists may be tuned
+   later by the community. Not chosen: per-player choice between starters (one option would
+   dominate), and all default skills (uneven for Patchouli, and fixes the whole skill set).
+   A deck that starts small and grows over matches still needs the deck size patch.
 8. Card sounds on the offer screens (rewards, and the draft for consistency): highlighting an offer
    plays the sound that card makes in a match, e.g. the sound of the spell itself. Feasible in part:
    SokuLib exposes the game's sound load/play functions (`ADDR_LOAD_SOUND` 0x401AF0, `ADDR_PLAY_SOUND`

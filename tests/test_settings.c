@@ -258,6 +258,89 @@ static void test_settings_show_deck(void)
     CHECK(defaults.draft_show_deck == 1);
 }
 
+/* The starter: off by default, with the lists left out of the fingerprint until it is on. */
+static void test_settings_starter(void)
+{
+    sts_settings settings, defaults;
+    sts_deck starter;
+    int character, line = 0;
+
+    sts_settings_defaults(&defaults);
+    CHECK(defaults.starter_enabled == 0 && defaults.starter_common.count == 4);
+    for (character = 0; character < STS_NUM_CHARACTERS; character++)
+        CHECK(defaults.starter[character].count == 4);
+    CHECK(defaults.starter[1].ids[0] == 102 && defaults.starter[1].ids[2] == 208);
+    CHECK(defaults.starter[18].ids[1] == 101 && defaults.starter[18].ids[3] == 203);
+    sts_settings_starter(&defaults, 0, &starter);
+    CHECK(starter.count == 0);
+
+    /* The shipped file states the default lists too, which the fingerprint only sees when on. */
+    CHECK(sts_settings_load(STS_SETTINGS_PATH, &settings, &line) == STS_SETTINGS_OK);
+    settings.starter_enabled = 1;
+    defaults.starter_enabled = 1;
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+    defaults.starter_enabled = 0;
+    CHECK(sts_settings_draft_length(&defaults, 0) == 20);
+
+    /* Lists change nothing while the starter is off, so runs made before it keep their rules. */
+    CHECK(parse_ini("[starter]\nreimu=\ncommon=1\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(settings.starter[0].count == 0 && settings.starter_common.count == 1);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+
+    /* On, it is part of the rules, and so is every list. Patchouli's default skill on 421 is 104,
+     * and A Penny Saved (12) is not in it. */
+    CHECK(parse_ini("[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) == NULL);
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&defaults));
+    sts_settings_starter(&settings, 4, &starter);
+    CHECK(starter.count == 8 && sts_deck_count_of(&starter, 0) == 2 && sts_deck_count_of(&starter, 12) == 0
+          && sts_deck_count_of(&starter, 13) == 2 && sts_deck_count_of(&starter, 104) == 2
+          && sts_deck_count_of(&starter, 200) == 2);
+    CHECK(sts_settings_draft_length(&settings, 4) == 12);
+    {
+        uint32_t enabled_hash = sts_settings_hash(&settings);
+        CHECK(parse_ini("[starter]\nenabled=true\nSuwako=201\n", &settings, &line) == STS_SETTINGS_OK);
+        CHECK(settings.starter[19].count == 1);
+        CHECK(sts_settings_hash(&settings) != enabled_hash);
+    }
+
+    /* Bad lists and unknown names are refused. */
+    CHECK(parse_ini("[starter]\nreimu=200,\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[starter]\nreimu=200,,201\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[starter]\nreimu=abc\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[starter]\nreimu=70000\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[starter]\nrumia=200\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(parse_ini("[starter]\nreimux=200\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(parse_ini("[starter]\ncommon=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,"
+                    "1,2,3,4,5,6,7,8,9,10,11,12,13\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+
+    /* The starter must leave a legal deck in reach. */
+    CHECK(parse_ini("[starter]\nenabled=true\ncommon=0,0,0,0,0\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) != NULL);
+    CHECK(parse_ini("[starter]\nenabled=true\ncommon=0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4\n",
+                    &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) != NULL);
+    CHECK(parse_ini("[starter]\nenabled=true\n[draft]\ncopies_min=2\ncopies_max=2\npicks=10\n",
+                    &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) != NULL);
+    CHECK(parse_ini("[starter]\nenabled=true\n[draft]\ncopies_min=2\ncopies_max=2\npicks=6\n",
+                    &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) == NULL);
+    CHECK(sts_settings_draft_length(&settings, 0) == 6);
+    CHECK(parse_ini("[starter]\nenabled=true\n[draft]\npicks=11\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) != NULL);
+
+    /* Compatible mode keeps a starter that fits, and turns off one that cannot. */
+    CHECK(parse_ini("[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_force_compatible(&settings);
+    CHECK(settings.starter_enabled == 1);
+    CHECK(parse_ini("[deck]\nsize_min=30\nsize_max=30\n[draft]\npicks=30\n[starter]\nenabled=true\n"
+                    "common=0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_validate(&settings) == NULL);
+    sts_settings_force_compatible(&settings);
+    CHECK(settings.starter_enabled == 0 && sts_settings_validate(&settings) == NULL);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -269,4 +352,5 @@ void test_settings(void)
     test_settings_validation();
     test_settings_fingerprint();
     test_settings_compatible();
+    test_settings_starter();
 }

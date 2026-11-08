@@ -339,6 +339,9 @@ static void rebuild_choose(void)
     char line[128];
 
     add_label("Slay the Scarlet: choose a character", g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    if (g_settings.starter_enabled)
+        add_label("Starter decks are on: each draft begins with the [starter] cards from settings.ini.",
+                  g_font_small, 20, 414, 600, 20, COLOR_GOLD);
     if (blocking_mod()) {
         sprintf(line, "%s can overwrite your real decks with a run deck, so runs are off.", blocking_mod());
         add_label(line, g_font_small, 20, 372, 600, 20, COLOR_RED);
@@ -357,7 +360,8 @@ static void rebuild_choose(void)
                 sprintf(line, "Rules changed");
                 color = COLOR_RED;
             } else if (g_saved_phase[character] == STS_PHASE_DRAFT) {
-                sprintf(line, "Draft %d/%d", g_saved_picks[character], g_settings.draft_picks);
+                sprintf(line, "Draft %d/%d", g_saved_picks[character],
+                        sts_settings_draft_length(&g_settings, character));
                 color = COLOR_GOLD;
             } else if (g_saved_phase[character] == STS_PHASE_REWARD) {
                 sprintf(line, "Reward waiting");
@@ -420,7 +424,7 @@ static void rebuild_draft(void)
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     } else {
         sprintf(line, "%s: pick %d of %d", sts_character_name(g_run.character),
-                g_run.picks_done + 1, g_settings.draft_picks);
+                g_run.picks_done + 1, sts_settings_draft_length(&g_settings, g_run.character));
         add_label(line, g_font_big, 20, 16, 400, 30, COLOR_WHITE);
         sprintf(line, "Deck %d/%d", g_run.deck.count, g_settings.rules.deck_min);
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
