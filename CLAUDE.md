@@ -490,6 +490,20 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    version only toggles the starter; editing its lists needs a card picker (could reuse the deck
    grid and card art). In full mode both players need one set of rules (probably the host's), and
    the screen should show which rules are in force.
+12. Match limit and score screen (after v0.2): `[run] matches`, 0 = endless and the default, part of
+   the fingerprint. Counts finished VS matches with the run deck, as `matches_played` does now (a
+   disconnect before the result screen does not count). The last match skips the offer, since the
+   card would never be played, and goes to a score screen. The run then enters a new finished phase
+   (save format change): no longer in use, Deck 1 back to normal, final deck still viewable, only
+   start over continues. Score screen: wins and losses plus rounds, the final deck, and the deck's
+   history ("Match 3: Silver Bound for Killing Doll"). Neither results nor history are saved yet,
+   so each match's outcome and change must be recorded (bounded by the limit). A single score
+   number is a community rule, so start with the record and add a formula setting later if wanted.
+   Optional: a short summary per finished run in a `runs/history` file. Online: in compatible mode
+   runs are independent (the opponent may not be on a run); in full mode the players could share
+   the limit and see each other's score screen (custom messages). Opponent names stay local only.
+   Open: a "first to N wins" limit instead, and ending a run early after N losses (like dying in
+   Slay the Spire); both would be settings beside `matches`.
 
 ## Open questions
 
