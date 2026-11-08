@@ -112,7 +112,10 @@ static int __fastcall on_title_process(SokuLib::Title *This)
     if (pressed && !screen_is_open() && game_has_focus() && SokuLib::menuManager.empty())
         screen_open();
 
-    if (screen_is_open()) {
+    /* A game menu over the title, such as the network menu the game opens after a disconnect
+     * during an offer, is drawn on top of the screen and hides it. The screen waits under it,
+     * reading no buttons, so presses meant for the menu cannot take an offer unseen. */
+    if (screen_is_open() && SokuLib::menuManager.empty()) {
         /* The menu keeps running but sees no input. The real values go back afterwards,
          * because the game counts how long buttons are held in these same fields. */
         SokuLib::KeyInput saved = SokuLib::inputMgrs.input;
@@ -131,9 +134,11 @@ static int __fastcall on_title_render(SokuLib::Title *This)
 {
     int result = (This->*g_og_title_render)();
 
+    if (!SokuLib::menuManager.empty())
+        return result;
     if (screen_is_open())
         screen_render(0);
-    else if (SokuLib::menuManager.empty())
+    else
         screen_render_title_hint();
     return result;
 }
