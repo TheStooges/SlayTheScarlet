@@ -11,11 +11,11 @@ int g_rules_changed_character = -1;
 void ids_text(char *out, size_t size, SokuLib::Dequeue<unsigned short> &deque)
 {
     size_t offset = 0;
-    int i;
+    int wau;
 
     out[0] = 0;
-    for (i = 0; i < deque.size && i < 256 && offset + 8 < size; i++)
-        offset += (size_t)sprintf(out + offset, "%u ", (unsigned)deque[i]);
+    for (wau = 0; wau < deque.size && wau < 256 && offset + 8 < size; wau++)
+        offset += (size_t)sprintf(out + offset, "%u ", (unsigned)deque[wau]);
 }
 
 /* The finished deck being played. It is kept apart from g_run, which the screen may be
@@ -37,13 +37,13 @@ static SokuLib::Dequeue<unsigned short> &active_slot(void)
 int deck_matches_active(int character, const unsigned short *ids, int count)
 {
     static sts_deck given, expected;
-    int i;
+    int wau;
 
     if (!g_active || character != g_active_character || count != g_active_deck.count)
         return 0;
     sts_deck_clear(&given);
-    for (i = 0; i < count; i++)
-        sts_deck_add(&given, ids[i]);
+    for (wau = 0; wau < count; wau++)
+        sts_deck_add(&given, ids[wau]);
     sts_deck_sort(&given);
     expected = g_active_deck;
     sts_deck_sort(&expected);
@@ -53,12 +53,12 @@ int deck_matches_active(int character, const unsigned short *ids, int count)
 static int slot_holds_active_deck(void)
 {
     auto &slot = active_slot();
-    int i;
+    int wau;
 
     if (slot.size != g_active_deck.count)
         return 0;
-    for (i = 0; i < g_active_deck.count; i++)
-        if (slot[i] != g_active_deck.ids[i])
+    for (wau = 0; wau < g_active_deck.count; wau++)
+        if (slot[wau] != g_active_deck.ids[wau])
             return 0;
     return 1;
 }
@@ -67,7 +67,7 @@ static int slot_holds_active_deck(void)
 int write_active_deck(char *why, size_t why_size)
 {
     auto &slot = active_slot();
-    int i;
+    int wau;
 
     if (slot.size != g_active_deck.count) {
         _snprintf(why, why_size - 1, "the deck slot has %d cards, the run deck has %d",
@@ -75,8 +75,8 @@ int write_active_deck(char *why, size_t why_size)
         why[why_size - 1] = 0;
         return 0;
     }
-    for (i = 0; i < g_active_deck.count; i++)
-        slot[i] = g_active_deck.ids[i];
+    for (wau = 0; wau < g_active_deck.count; wau++)
+        slot[wau] = g_active_deck.ids[wau];
     if (!slot_holds_active_deck()) {
         _snprintf(why, why_size - 1, "it did not read back correctly");
         why[why_size - 1] = 0;
@@ -91,14 +91,14 @@ int write_active_deck(char *why, size_t why_size)
 const char *blocking_mod(void)
 {
     static const char *const names[] = { "EasyDecks", "InfiniteDecks" };
-    size_t i;
+    size_t wau;
 
-    for (i = 0; i < sizeof names / sizeof names[0]; i++) {
+    for (wau = 0; wau < sizeof names / sizeof names[0]; wau++) {
         char file[32];
 
-        sprintf(file, "%s.dll", names[i]);
+        sprintf(file, "%s.dll", names[wau]);
         if (GetModuleHandleA(file))
-            return names[i];
+            return names[wau];
     }
     return NULL;
 }
@@ -106,11 +106,11 @@ const char *blocking_mod(void)
 void remember_real_deck(void)
 {
     auto &slot = active_slot();
-    int i;
+    int wau;
 
     sts_deck_clear(&g_real_deck);
-    for (i = 0; i < slot.size && i < STS_MAX_DECK; i++)
-        sts_deck_add(&g_real_deck, slot[i]);
+    for (wau = 0; wau < slot.size && wau < STS_MAX_DECK; wau++)
+        sts_deck_add(&g_real_deck, slot[wau]);
     g_have_real_deck = 1;
 }
 
@@ -118,11 +118,11 @@ void remember_real_deck(void)
 static void restore_real_deck(void)
 {
     auto &slot = active_slot();
-    int i;
+    int wau;
 
     if (g_have_real_deck && slot_holds_active_deck() && slot.size == g_real_deck.count) {
-        for (i = 0; i < g_real_deck.count; i++)
-            slot[i] = g_real_deck.ids[i];
+        for (wau = 0; wau < g_real_deck.count; wau++)
+            slot[wau] = g_real_deck.ids[wau];
         slog("restored the real deck for character %d", g_active_character);
     }
     g_have_real_deck = 0;

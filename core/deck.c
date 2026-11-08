@@ -15,19 +15,19 @@ int sts_deck_add(sts_deck *deck, uint16_t id)
 
 int sts_deck_count_of(const sts_deck *deck, uint16_t id)
 {
-    int i, count = 0;
-    for (i = 0; i < deck->count; i++)
-        if (deck->ids[i] == id)
+    int wau, count = 0;
+    for (wau = 0; wau < deck->count; wau++)
+        if (deck->ids[wau] == id)
             count++;
     return count;
 }
 
 void sts_deck_sort(sts_deck *deck)
 {
-    int i, j;
-    for (i = 1; i < deck->count; i++) {
-        uint16_t key = deck->ids[i];
-        for (j = i - 1; j >= 0 && deck->ids[j] > key; j--)
+    int wau, j;
+    for (wau = 1; wau < deck->count; wau++) {
+        uint16_t key = deck->ids[wau];
+        for (j = wau - 1; j >= 0 && deck->ids[j] > key; j--)
             deck->ids[j + 1] = deck->ids[j];
         deck->ids[j + 1] = key;
     }
@@ -35,15 +35,15 @@ void sts_deck_sort(sts_deck *deck)
 
 sts_deck_status sts_deck_validate(const sts_deck *deck, const sts_rules *rules, uint16_t *bad_id)
 {
-    int i;
+    int wau;
     if (deck->count < rules->deck_min)
         return STS_DECK_TOO_FEW;
     if (deck->count > rules->deck_max)
         return STS_DECK_TOO_MANY;
-    for (i = 0; i < deck->count; i++) {
-        if (sts_deck_count_of(deck, deck->ids[i]) > rules->copy_limit) {
+    for (wau = 0; wau < deck->count; wau++) {
+        if (sts_deck_count_of(deck, deck->ids[wau]) > rules->copy_limit) {
             if (bad_id)
-                *bad_id = deck->ids[i];
+                *bad_id = deck->ids[wau];
             return STS_DECK_COPY_LIMIT;
         }
     }

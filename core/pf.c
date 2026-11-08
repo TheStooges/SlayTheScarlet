@@ -19,7 +19,7 @@ const char *sts_character_name(int index)
 sts_pf_status sts_pf_parse(const uint8_t *data, size_t len, sts_profile *out, size_t *consumed)
 {
     size_t pos = STS_PF_HEADER_SIZE;
-    int character, slot, i;
+    int character, slot, wau;
 
     if (len < STS_PF_HEADER_SIZE)
         return STS_PF_TRUNCATED;
@@ -35,8 +35,8 @@ sts_pf_status sts_pf_parse(const uint8_t *data, size_t len, sts_profile *out, si
             if (len - pos < (size_t)count * 2)
                 return STS_PF_TRUNCATED;
             deck->count = count;
-            for (i = 0; i < count; i++) {
-                deck->ids[i] = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+            for (wau = 0; wau < count; wau++) {
+                deck->ids[wau] = (uint16_t)(data[pos] | (data[pos + 1] << 8));
                 pos += 2;
             }
         }
@@ -59,7 +59,7 @@ size_t sts_pf_size(const sts_profile *profile)
 size_t sts_pf_serialize(const sts_profile *profile, uint8_t *buf, size_t cap)
 {
     size_t pos = STS_PF_HEADER_SIZE;
-    int character, slot, i;
+    int character, slot, wau;
 
     if (cap < sts_pf_size(profile))
         return 0;
@@ -70,9 +70,9 @@ size_t sts_pf_serialize(const sts_profile *profile, uint8_t *buf, size_t cap)
             sts_deck tmp = profile->decks[character][slot];
             sts_deck_sort(&tmp);
             buf[pos++] = (uint8_t)tmp.count;
-            for (i = 0; i < tmp.count; i++) {
-                buf[pos++] = (uint8_t)(tmp.ids[i] & 0xFF);
-                buf[pos++] = (uint8_t)(tmp.ids[i] >> 8);
+            for (wau = 0; wau < tmp.count; wau++) {
+                buf[pos++] = (uint8_t)(tmp.ids[wau] & 0xFF);
+                buf[pos++] = (uint8_t)(tmp.ids[wau] >> 8);
             }
         }
     }

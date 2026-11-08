@@ -133,8 +133,8 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
         cfg.replace = STS_REPLACE_RANDOM;
         roll_offers(run, db, &settings->rules, &cfg);
         if (run->offer_count > 0) {
-            int i = (int)sts_rng_below(&run->rng, (uint32_t)run->offer_count);
-            sts_offer offer = run->offers[i];
+            int wau = (int)sts_rng_below(&run->rng, (uint32_t)run->offer_count);
+            sts_offer offer = run->offers[wau];
 
             run->offer_count = 0;
             if (apply_reward(run, db, settings, &offer, STS_REPLACE_RANDOM, NULL) == STS_APPLY_OK)
@@ -181,7 +181,7 @@ size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
 {
     size_t offset = 0;
     uint32_t check;
-    int i;
+    int wau;
 
 #define PUT(...) do { \
         int written = snprintf(buf + offset, cap - offset, __VA_ARGS__); \
@@ -201,12 +201,12 @@ size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
         (unsigned)(run->rng.state >> 32), (unsigned)(run->rng.state & 0xFFFFFFFFu),
         (unsigned)(run->rng.inc >> 32), (unsigned)(run->rng.inc & 0xFFFFFFFFu));
     PUT("deck %d", run->deck.count);
-    for (i = 0; i < run->deck.count; i++)
-        PUT(" %u", (unsigned)run->deck.ids[i]);
+    for (wau = 0; wau < run->deck.count; wau++)
+        PUT(" %u", (unsigned)run->deck.ids[wau]);
     PUT("\n");
     PUT("offers %d", run->offer_count);
-    for (i = 0; i < run->offer_count; i++)
-        PUT(" %u %u %d", (unsigned)run->offers[i].id, (unsigned)run->offers[i].type, run->offers[i].copies);
+    for (wau = 0; wau < run->offer_count; wau++)
+        PUT(" %u %u %d", (unsigned)run->offers[wau].id, (unsigned)run->offers[wau].type, run->offers[wau].copies);
     PUT("\n");
     check = sts_fnv1a(STS_FNV_START, buf, offset);
     PUT("check %08x\n", (unsigned)check);
@@ -289,7 +289,7 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
     char line[CHECK_LINE_SIZE + 1];
     reader stream;
     uint32_t stored, state_high, state_low, inc_high, inc_low;
-    int version, count, i, value;
+    int version, count, wau, value;
     size_t body;
 
     /* The checksum goes first: nothing below can then be trusted to be merely damaged. */
@@ -326,22 +326,22 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
 
     if (!expect(&stream, "deck") || !read_int(&stream, STS_MAX_DECK, &count))
         return STS_RUN_DAMAGED;
-    for (i = 0; i < count; i++) {
+    for (wau = 0; wau < count; wau++) {
         if (!read_int(&stream, 0xFFFF, &value))
             return STS_RUN_DAMAGED;
-        out->deck.ids[i] = (uint16_t)value;
+        out->deck.ids[wau] = (uint16_t)value;
     }
     out->deck.count = count;
 
     if (!expect(&stream, "offers") || !read_int(&stream, STS_OFFER_MAX, &count))
         return STS_RUN_DAMAGED;
-    for (i = 0; i < count; i++) {
+    for (wau = 0; wau < count; wau++) {
         int type;
         if (!read_int(&stream, 0xFFFF, &value) || !read_int(&stream, STS_CARD_SPELL, &type)
-            || !read_int(&stream, STS_MAX_DECK, &out->offers[i].copies))
+            || !read_int(&stream, STS_MAX_DECK, &out->offers[wau].copies))
             return STS_RUN_DAMAGED;
-        out->offers[i].id = (uint16_t)value;
-        out->offers[i].type = (uint8_t)type;
+        out->offers[wau].id = (uint16_t)value;
+        out->offers[wau].type = (uint8_t)type;
     }
     out->offer_count = count;
     return STS_RUN_OK;
@@ -407,7 +407,7 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
 {
     const sts_rules *rules = &settings->rules;
     sts_rules partial = *rules;
-    int i;
+    int wau;
 
     if (run->settings_hash != sts_settings_hash(settings))
         return STS_RUN_SETTINGS_CHANGED;
@@ -428,9 +428,9 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
         return STS_RUN_ILLEGAL;
     if (run->phase != STS_PHASE_READY && run->offer_count == 0)
         return STS_RUN_ILLEGAL;
-    for (i = 0; i < run->offer_count; i++) {
-        const sts_card *card = sts_card_db_find(db, run->character, run->offers[i].id);
-        if (!card || card->type != run->offers[i].type || run->offers[i].copies < 1)
+    for (wau = 0; wau < run->offer_count; wau++) {
+        const sts_card *card = sts_card_db_find(db, run->character, run->offers[wau].id);
+        if (!card || card->type != run->offers[wau].type || run->offers[wau].copies < 1)
             return STS_RUN_ILLEGAL;
     }
     return STS_RUN_OK;
@@ -441,15 +441,15 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
     const sts_offer_settings *cfg = run->phase == STS_PHASE_DRAFT ? &settings->draft : &settings->reward;
     sts_run updated = *run;
     sts_run_status status;
-    int i, offers_valid = 1;
+    int wau, offers_valid = 1;
 
     updated.settings_hash = sts_settings_hash(settings);
     status = sts_run_validate(&updated, db, settings);
     if (status != STS_RUN_OK)
         return status;
 
-    for (i = 0; i < updated.offer_count; i++)
-        if (!sts_offer_is_valid(db, updated.character, &updated.deck, &settings->rules, cfg, &updated.offers[i]))
+    for (wau = 0; wau < updated.offer_count; wau++)
+        if (!sts_offer_is_valid(db, updated.character, &updated.deck, &settings->rules, cfg, &updated.offers[wau]))
             offers_valid = 0;
 
     if (!offers_valid) {

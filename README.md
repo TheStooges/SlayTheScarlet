@@ -84,7 +84,7 @@ on under the new rules when their deck is still legal, set `allow_rule_changes=t
 
 ## Current limits
 
-- Decks are always 20 cards with at most 4 copies of a card. 
+- Decks are always 20 cards with at most 4 copies of a card.
   The size_min, size_max and copy_limit settings have no effect for now.
 - The `add` and `remove` reward modes act as `replace`, because the game rejects decks of other sizes.
 - Pick visibility, opponent deck display and items are planned, and have no effect yet.

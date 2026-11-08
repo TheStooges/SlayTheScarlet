@@ -33,10 +33,10 @@ char *sts_read_file(const char *path, size_t *len)
 uint32_t sts_fnv1a(uint32_t hash, const void *data, size_t len)
 {
     const unsigned char *bytes = (const unsigned char *)data;
-    size_t i;
+    size_t wau;
 
-    for (i = 0; i < len; i++) {
-        hash ^= bytes[i];
+    for (wau = 0; wau < len; wau++) {
+        hash ^= bytes[wau];
         hash *= 16777619u;
     }
     return hash;

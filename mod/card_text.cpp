@@ -26,7 +26,7 @@ static void load_text_file(const char *path)
 
     for (auto &line : parser.data) {
         card_text *entry;
-        int i = 0;
+        int wau = 0;
 
         if (g_text_count >= MAX_CARD_TEXT)
             return;
@@ -34,13 +34,13 @@ static void load_text_file(const char *path)
         memset(entry, 0, sizeof *entry);
         for (auto &cell : line) {
             const char *cell_text = (const char *)cell;
-            if (i == 0)
+            if (wau == 0)
                 entry->id = (uint16_t)atoi(cell_text);
-            else if (i == 1)
+            else if (wau == 1)
                 strncpy(entry->name, cell_text, NAME_SIZE - 1);
-            else if (i == 4)
+            else if (wau == 4)
                 strncpy(entry->desc, cell_text, DESC_SIZE - 1);
-            i++;
+            wau++;
         }
         clean_name(entry->name);
         g_text_count++;
@@ -59,10 +59,10 @@ void load_card_text(int character)
 
 const card_text *find_text(uint16_t id)
 {
-    int i;
+    int wau;
 
-    for (i = 0; i < g_text_count; i++)
-        if (g_texts[i].id == id)
-            return &g_texts[i];
+    for (wau = 0; wau < g_text_count; wau++)
+        if (g_texts[wau].id == id)
+            return &g_texts[wau];
     return NULL;
 }

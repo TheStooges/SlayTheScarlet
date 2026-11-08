@@ -30,7 +30,7 @@ static int compare_ids(const void *first, const void *second)
 static int profile_slot_matches(int profile, int character, int slot, const unsigned short *ids, int count)
 {
     unsigned short sorted[256], other[256];
-    int i;
+    int wau;
 
     if (character < 0 || character >= 20 || slot < 0 || slot >= 4 || count > 256)
         return 0;
@@ -41,8 +41,8 @@ static int profile_slot_matches(int profile, int character, int slot, const unsi
 
         if (deque.size != count)
             return 0;
-        for (i = 0; i < count; i++)
-            other[i] = deque[i];
+        for (wau = 0; wau < count; wau++)
+            other[wau] = deque[wau];
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         return 0;
@@ -57,7 +57,7 @@ static int log_match_player(const char *dir, const char *who, const unsigned cha
     unsigned short ids[256];
     char text[1100];
     size_t used = 0;
-    int character, skin, slot, count, i;
+    int character, skin, slot, count, wau;
 
     if (offset + 4 > len)
         return -1;
@@ -69,9 +69,9 @@ static int log_match_player(const char *dir, const char *who, const unsigned cha
     if (offset + count * 2 + 1 > len)
         return -1;
     text[0] = 0;
-    for (i = 0; i < count; i++) {
-        ids[i] = (unsigned short)(packet[offset + i * 2] | (packet[offset + i * 2 + 1] << 8));
-        used += (size_t)sprintf(text + used, "%u ", (unsigned)ids[i]);
+    for (wau = 0; wau < count; wau++) {
+        ids[wau] = (unsigned short)(packet[offset + wau * 2] | (packet[offset + wau * 2 + 1] << 8));
+        used += (size_t)sprintf(text + used, "%u ", (unsigned)ids[wau]);
     }
     slog("%s GAME_MATCH %s: character %d skin %d deck %d, %d cards: %s", dir, who, character, skin, slot, count, text);
     slog("   in profile1 slot: %s. in profile2 slot: %s. the run deck in use: %s",
@@ -84,10 +84,10 @@ static int log_match_player(const char *dir, const char *who, const unsigned cha
 static uint32_t hash_bytes(const unsigned char *bytes, int len)
 {
     uint32_t hash = 2166136261u;
-    int i;
+    int wau;
 
-    for (i = 0; i < len; i++) {
-        hash ^= bytes[i];
+    for (wau = 0; wau < len; wau++) {
+        hash ^= bytes[wau];
         hash *= 16777619u;
     }
     return hash;
@@ -99,7 +99,7 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
     static int seen_count = 0;
     static uint32_t last_match[2] = {0, 0};
     int sending = dir[0] == 'S';
-    int type, inner = -1, i;
+    int type, inner = -1, wau;
     unsigned key;
 
     if (len < 1)
@@ -112,8 +112,8 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
 
     /* The first of each kind of packet: which kinds exist, and which are free for a mod to use. */
     key = (unsigned)sending << 16 | (unsigned)type << 8 | (unsigned)(inner & 0xFF);
-    for (i = 0; i < seen_count && seen[i] != key; i++) {}
-    if (i == seen_count && seen_count < 128) {
+    for (wau = 0; wau < seen_count && seen[wau] != key; wau++) {}
+    if (wau == seen_count && seen_count < 128) {
         seen[seen_count++] = key;
         if (inner >= 0)
             slog("%s first packet of type 0x%02X, event 0x%02X, length %d", dir, type, inner, len);

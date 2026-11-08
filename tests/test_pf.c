@@ -7,10 +7,10 @@ static uint8_t g_buf[64 * 1024];
 void test_pf_synthetic_roundtrip(void)
 {
     size_t consumed = 0, size, written;
-    int character, slot, i;
+    int character, slot, wau;
 
     memset(&g_a, 0, sizeof g_a);
-    for (i = 0; i < STS_PF_HEADER_SIZE; i++) g_a.header[i] = (uint8_t)(i * 3);
+    for (wau = 0; wau < STS_PF_HEADER_SIZE; wau++) g_a.header[wau] = (uint8_t)(wau * 3);
     for (character = 0; character < STS_NUM_CHARACTERS; character++)
         for (slot = 0; slot < STS_NUM_SLOTS; slot++)
             fill_legal_deck(&g_a.decks[character][slot], 100 + character);

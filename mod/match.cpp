@@ -119,7 +119,7 @@ static int log_battle_side(const char *name, int character, int deck_slot, SokuL
         reinterpret_cast<char *>(&player) + 0x57C + 0x20);
     static sts_deck loaded, expected;
     char text[1100];
-    int i;
+    int wau;
 
     ids_text(text, sizeof text, *original);
     slog("match %s: character %d, deck choice %d, loaded %d cards: %s",
@@ -128,8 +128,8 @@ static int log_battle_side(const char *name, int character, int deck_slot, SokuL
         return 0;
 
     sts_deck_clear(&loaded);
-    for (i = 0; i < original->size && i < STS_MAX_DECK; i++)
-        sts_deck_add(&loaded, (*original)[i]);
+    for (wau = 0; wau < original->size && wau < STS_MAX_DECK; wau++)
+        sts_deck_add(&loaded, (*original)[wau]);
     sts_deck_sort(&loaded);
     expected = g_active_deck;
     sts_deck_sort(&expected);

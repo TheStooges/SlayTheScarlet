@@ -69,9 +69,9 @@ void test_run_draft(void)
             "[deck]\nsize_min=30\nsize_max=30\n[draft]\npicks=30\ncopies_max=3\n",
             "[deck]\ncopy_limit=1\n[draft]\ntypes=system,skill,spell\n",
         };
-        size_t i;
-        for (i = 0; i < sizeof inis / sizeof inis[0]; i++) {
-            CHECK(parse_ini(inis[i], &settings, &line) == STS_SETTINGS_OK);
+        size_t wau;
+        for (wau = 0; wau < sizeof inis / sizeof inis[0]; wau++) {
+            CHECK(parse_ini(inis[wau], &settings, &line) == STS_SETTINGS_OK);
             CHECK(sts_settings_validate(&settings) == NULL);
             for (character = 0; character < STS_NUM_CHARACTERS; character++) {
                 for (seed = 0; seed < 5; seed++) {
@@ -109,7 +109,7 @@ static void test_rewards_replace_choose(void)
     sts_reward_outcome out;
     sts_replace_choice choice;
     uint16_t remove[4];
-    int i;
+    int wau;
 
     sts_settings_defaults(&settings);
     ready_run(&run, &settings, 0, 7);
@@ -135,8 +135,8 @@ static void test_rewards_replace_choose(void)
         int had = sts_deck_count_of(&run.deck, taken);
 
         /* Any card but the one coming in. */
-        for (i = 0; run.deck.ids[i] == taken; i++) {}
-        remove[0] = run.deck.ids[i];
+        for (wau = 0; run.deck.ids[wau] == taken; wau++) {}
+        remove[0] = run.deck.ids[wau];
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 1, &choice) == STS_RUN_OK);
         CHECK(run.phase == STS_PHASE_READY && run.offer_count == 0 && run.deck.count == 20);
         CHECK(sts_deck_count_of(&run.deck, taken) >= had);
@@ -175,16 +175,16 @@ static void test_rewards_nobody(void)
     static sts_run run, before;
     sts_settings settings;
     sts_reward_outcome out;
-    int i, j;
+    int wau, j;
 
     sts_settings_defaults(&settings);
     settings.who_picks = STS_WHO_NOBODY;
-    for (i = 0; i < 2; i++) {
+    for (wau = 0; wau < 2; wau++) {
         int changed = 0;
         ready_run(&run, &settings, 9, 21);
         for (j = 0; j < 100; j++) {
             before = run;
-            CHECK(sts_run_begin_reward(&run, &g_db, &settings, i, &out) == STS_RUN_OK);
+            CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau, &out) == STS_RUN_OK);
             CHECK(out == STS_REWARD_AUTO && run.phase == STS_PHASE_READY && run.offer_count == 0);
             CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
             if (!decks_equal(&run.deck, &before.deck)) changed++;
@@ -347,16 +347,16 @@ void test_run_rewards(void)
 
 static int runs_equal(const sts_run *first, const sts_run *second)
 {
-    int i;
+    int wau;
     if (first->settings_hash != second->settings_hash || first->character != second->character
         || first->phase != second->phase
         || first->picks_done != second->picks_done || first->matches_played != second->matches_played
         || first->rng.state != second->rng.state || first->rng.inc != second->rng.inc
         || !decks_equal(&first->deck, &second->deck) || first->offer_count != second->offer_count)
         return 0;
-    for (i = 0; i < first->offer_count; i++)
-        if (first->offers[i].id != second->offers[i].id || first->offers[i].type != second->offers[i].type
-            || first->offers[i].copies != second->offers[i].copies)
+    for (wau = 0; wau < first->offer_count; wau++)
+        if (first->offers[wau].id != second->offers[wau].id || first->offers[wau].type != second->offers[wau].type
+            || first->offers[wau].copies != second->offers[wau].copies)
             return 0;
     return 1;
 }
@@ -433,27 +433,27 @@ static void test_save_text(const sts_run *run)
 {
     static sts_run loaded;
     static char text[STS_RUN_TEXT_MAX], broken[STS_RUN_TEXT_MAX];
-    size_t count, i;
+    size_t count, wau;
     int bad;
 
     /* The output is plain ASCII. */
     count = sts_run_serialize(run, text, sizeof text);
     bad = 0;
-    for (i = 0; i < count; i++)
-        if ((unsigned char)text[i] > 127) bad++;
+    for (wau = 0; wau < count; wau++)
+        if ((unsigned char)text[wau] > 127) bad++;
     CHECK(bad == 0);
 
     /* Flipping any single byte, or cutting the file anywhere, is detected. */
     bad = 0;
-    for (i = 0; i < count; i++) {
+    for (wau = 0; wau < count; wau++) {
         memcpy(broken, text, count);
-        broken[i] ^= 0x01;
+        broken[wau] ^= 0x01;
         if (sts_run_parse(broken, count, &loaded) != STS_RUN_DAMAGED) bad++;
     }
     CHECK(bad == 0);
     bad = 0;
-    for (i = 0; i < count; i++)
-        if (sts_run_parse(text, i, &loaded) != STS_RUN_DAMAGED) bad++;
+    for (wau = 0; wau < count; wau++)
+        if (sts_run_parse(text, wau, &loaded) != STS_RUN_DAMAGED) bad++;
     CHECK(bad == 0);
 
     /* An intact file from another format version is identified as such. */
@@ -592,16 +592,16 @@ void test_run_endurance(void)
     static char text[STS_RUN_TEXT_MAX];
     sts_settings settings;
     sts_rng dice;
-    size_t i;
+    size_t wau;
     int character, match, line = 0, violations = 0, stuck = 0;
 
     sts_rng_seed(&dice, 77, 77);
-    for (i = 0; i < sizeof inis / sizeof inis[0]; i++) {
-        CHECK(parse_ini(inis[i], &settings, &line) == STS_SETTINGS_OK);
+    for (wau = 0; wau < sizeof inis / sizeof inis[0]; wau++) {
+        CHECK(parse_ini(inis[wau], &settings, &line) == STS_SETTINGS_OK);
         CHECK(sts_settings_validate(&settings) == NULL);
         for (character = 0; character < STS_NUM_CHARACTERS; character++) {
             size_t count;
-            if (sts_run_start(&run, &g_db, &settings, character, (uint64_t)(i * 100 + (size_t)character)) != STS_RUN_OK)
+            if (sts_run_start(&run, &g_db, &settings, character, (uint64_t)(wau * 100 + (size_t)character)) != STS_RUN_OK)
                 stuck++;
             if (finish_draft(&run, &settings) != STS_RUN_OK) stuck++;
             for (match = 0; match < 60; match++) {
@@ -652,7 +652,7 @@ void test_run_adopt_rules(void)
     static sts_run run, before;
     sts_settings settings, changed;
     sts_reward_outcome out;
-    int i, line = 0;
+    int wau, line = 0;
 
     sts_settings_defaults(&settings);
     CHECK(settings.allow_rule_changes == 0);
@@ -691,8 +691,8 @@ void test_run_adopt_rules(void)
     changed.reward.replace = STS_REPLACE_RANDOM;
     CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
     CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == before.offer_count);
-    for (i = 0; i < run.offer_count; i++)
-        CHECK(run.offers[i].id == before.offers[i].id && run.offers[i].copies == before.offers[i].copies);
+    for (wau = 0; wau < run.offer_count; wau++)
+        CHECK(run.offers[wau].id == before.offers[wau].id && run.offers[wau].copies == before.offers[wau].copies);
     CHECK(run.rng.state == before.rng.state);
 
     /* Offers that are no longer possible are rolled again under the new rules. */
@@ -702,16 +702,16 @@ void test_run_adopt_rules(void)
     changed.reward.copies_max = 2;
     CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
     CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == 3);
-    for (i = 0; i < run.offer_count; i++)
-        CHECK(run.offers[i].copies == 2);
+    for (wau = 0; wau < run.offer_count; wau++)
+        CHECK(run.offers[wau].copies == 2);
 
     /* A type no longer allowed also rolls again. */
     run = before;
     changed = settings;
     changed.reward.type_mask = STS_TYPE_BIT(STS_CARD_SPELL);
     CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
-    for (i = 0; i < run.offer_count; i++)
-        CHECK(run.offers[i].type == STS_CARD_SPELL);
+    for (wau = 0; wau < run.offer_count; wau++)
+        CHECK(run.offers[wau].type == STS_CARD_SPELL);
 
     /* A waiting reward under rules with no rewards at all simply ends. */
     run = before;
@@ -723,15 +723,15 @@ void test_run_adopt_rules(void)
 
     /* A draft in progress follows the new draft rules. */
     CHECK(sts_run_start(&run, &g_db, &settings, 3, 61) == STS_RUN_OK);
-    for (i = 0; i < 5; i++)
+    for (wau = 0; wau < 5; wau++)
         CHECK(sts_run_draft_pick(&run, &g_db, &settings, 0) == STS_RUN_OK);
     changed = settings;
     changed.draft.offer_count = 3;
     changed.draft.type_mask = STS_TYPE_BIT(STS_CARD_SKILL);
     CHECK(sts_run_adopt_rules(&run, &g_db, &changed) == STS_RUN_OK);
     CHECK(run.phase == STS_PHASE_DRAFT && run.picks_done == 5);
-    for (i = 0; i < run.offer_count; i++)
-        CHECK(run.offers[i].type == STS_CARD_SKILL);
+    for (wau = 0; wau < run.offer_count; wau++)
+        CHECK(run.offers[wau].type == STS_CARD_SKILL);
     CHECK(finish_draft(&run, &changed) == STS_RUN_OK);
     CHECK(sts_deck_validate(&run.deck, &changed.rules, NULL) == STS_DECK_OK);
 }

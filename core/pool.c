@@ -27,13 +27,13 @@ static int parse_uint(const char *text, int max, int *out)
 
 static sts_card_list *list_for_owner(sts_card_db *db, const char *owner)
 {
-    int i;
+    int wau;
 
     if (strcmp(owner, "system") == 0)
         return &db->system;
-    for (i = 0; i < STS_NUM_CHARACTERS; i++)
-        if (strcmp(owner, sts_character_name(i)) == 0)
-            return &db->characters[i];
+    for (wau = 0; wau < STS_NUM_CHARACTERS; wau++)
+        if (strcmp(owner, sts_character_name(wau)) == 0)
+            return &db->characters[wau];
     return NULL;
 }
 
@@ -73,7 +73,7 @@ static sts_db_status parse_line(char *line, sts_card_db *db)
     char *fields[NUM_FIELDS];
     sts_card_list *list;
     sts_card card;
-    int id, cost, i;
+    int id, cost, wau;
 
     if (split_fields(line, fields) != NUM_FIELDS)
         return STS_DB_BAD_LINE;
@@ -84,8 +84,8 @@ static sts_db_status parse_line(char *line, sts_card_db *db)
     card.id = (uint16_t)id;
     card.cost_or_slot = (uint8_t)cost;
 
-    for (i = 0; i < list->count; i++)
-        if (list->cards[i].id == card.id)
+    for (wau = 0; wau < list->count; wau++)
+        if (list->cards[wau].id == card.id)
             return STS_DB_DUPLICATE;
     if (list->count >= STS_POOL_MAX_CARDS)
         return STS_DB_OVERFLOW;
@@ -96,7 +96,7 @@ static sts_db_status parse_line(char *line, sts_card_db *db)
 sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, int *err_line)
 {
     size_t pos = 0;
-    int line_no = 0, i;
+    int line_no = 0, wau;
 
     memset(out, 0, sizeof *out);
     if (err_line)
@@ -133,8 +133,8 @@ sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, 
 
     if (out->system.count == 0)
         return STS_DB_INCOMPLETE;
-    for (i = 0; i < STS_NUM_CHARACTERS; i++)
-        if (out->characters[i].count == 0)
+    for (wau = 0; wau < STS_NUM_CHARACTERS; wau++)
+        if (out->characters[wau].count == 0)
             return STS_DB_INCOMPLETE;
     return STS_DB_OK;
 }
@@ -169,11 +169,11 @@ const char *sts_db_status_str(sts_db_status status)
 
 static const sts_card *find_in_list(const sts_card_list *list, uint16_t id)
 {
-    int i;
+    int wau;
 
-    for (i = 0; i < list->count; i++)
-        if (list->cards[i].id == id)
-            return &list->cards[i];
+    for (wau = 0; wau < list->count; wau++)
+        if (list->cards[wau].id == id)
+            return &list->cards[wau];
     return NULL;
 }
 
@@ -193,7 +193,7 @@ int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out
     static const char *const inputs[] = { "236", "214", "623", "421", "22" };
     const sts_card *card = sts_card_db_find(db, character, id);
     const sts_card_list *list;
-    int i, is_default = 1;
+    int wau, is_default = 1;
 
     out[0] = 0;
     if (!card || card->type != STS_CARD_SKILL)
@@ -203,8 +203,8 @@ int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out
 
     /* The default skill is the lowest ID on its input. */
     list = &db->characters[character];
-    for (i = 0; i < list->count; i++) {
-        const sts_card *other = &list->cards[i];
+    for (wau = 0; wau < list->count; wau++) {
+        const sts_card *other = &list->cards[wau];
         if (other->type == STS_CARD_SKILL && other->cost_or_slot == card->cost_or_slot && other->id < id)
             is_default = 0;
     }
@@ -214,12 +214,12 @@ int sts_skill_label(const sts_card_db *db, int character, uint16_t id, char *out
 
 int sts_deck_cards_legal(const sts_card_db *db, int character, const sts_deck *deck, uint16_t *bad_id)
 {
-    int i;
+    int wau;
 
-    for (i = 0; i < deck->count; i++) {
-        if (!sts_card_db_find(db, character, deck->ids[i])) {
+    for (wau = 0; wau < deck->count; wau++) {
+        if (!sts_card_db_find(db, character, deck->ids[wau])) {
             if (bad_id)
-                *bad_id = deck->ids[i];
+                *bad_id = deck->ids[wau];
             return 0;
         }
     }

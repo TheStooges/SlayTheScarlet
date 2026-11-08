@@ -141,20 +141,20 @@ void maybe_start_reward(void)
 static void describe_deck_change(const sts_deck *before)
 {
     const sts_deck *decks[2];
-    int which, i;
+    int which, wau;
 
     clear_deck_change();
     decks[0] = before;
     decks[1] = &g_run.deck;
     for (which = 0; which < 2; which++) {
-        for (i = 0; i < decks[which]->count; i++) {
-            uint16_t id = decks[which]->ids[i];
+        for (wau = 0; wau < decks[which]->count; wau++) {
+            uint16_t id = decks[which]->ids[wau];
             int difference = sts_deck_count_of(&g_run.deck, id) - sts_deck_count_of(before, id);
             deck_change *list = which == 0 ? g_changes_removed : g_changes_added;
             int *count = which == 0 ? &g_changes_removed_count : &g_changes_added_count;
 
             /* Each distinct card once: at its first position in the deck being scanned. */
-            if (i > 0 && decks[which]->ids[i - 1] == id)
+            if (wau > 0 && decks[which]->ids[wau - 1] == id)
                 continue;
             if (which == 0)
                 difference = -difference;
@@ -196,11 +196,11 @@ static void commit_selected_removals(void)
 {
     uint16_t ids[MAX_DECK_ART];
     sts_replace_choice choice;
-    int i, count = 0;
+    int wau, count = 0;
 
-    for (i = 0; i < g_run.deck.count && i < MAX_DECK_ART; i++)
-        if (g_selected[i])
-            ids[count++] = g_run.deck.ids[i];
+    for (wau = 0; wau < g_run.deck.count && wau < MAX_DECK_ART; wau++)
+        if (g_selected[wau])
+            ids[count++] = g_run.deck.ids[wau];
     choice.remove_ids = ids;
     choice.remove_count = count;
     choice.type = 0;
@@ -211,16 +211,16 @@ static void commit_selected_removals(void)
 static void preview_selected_swap(void)
 {
     const sts_offer *offer = &g_run.offers[g_pending_offer];
-    int i;
+    int wau;
 
     clear_deck_change();
-    for (i = 0; i < g_run.deck.count && i < MAX_DECK_ART; i++) {
+    for (wau = 0; wau < g_run.deck.count && wau < MAX_DECK_ART; wau++) {
         uint16_t id;
         int count;
 
-        if (!g_selected[i])
+        if (!g_selected[wau])
             continue;
-        id = g_run.deck.ids[i];
+        id = g_run.deck.ids[wau];
         /* The deck is sorted, so copies of a card are together. */
         count = g_changes_removed_count - 1;
         if (count >= 0 && g_changes_removed[count].id == id) {
@@ -254,9 +254,9 @@ static void next_available_type(int direction)
 {
     const sts_offer *offer = &g_run.offers[g_pending_offer];
     unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, offer->id, offer->copies);
-    int i;
+    int wau;
 
-    for (i = 0; i < 3; i++) {
+    for (wau = 0; wau < 3; wau++) {
         g_cursor = (g_cursor + direction + 3) % 3;
         if (mask & STS_TYPE_BIT(g_cursor))
             break;

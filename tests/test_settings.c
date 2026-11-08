@@ -214,11 +214,11 @@ static void test_settings_compatible(void)
         "[deck]\ncopy_limit=2\n[reward]\nmode=remove\ncopies_max=2\n[items]\nenabled=true\n",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=skip\n[netplay]\npick_visibility=live\n",
     };
-    size_t i;
+    size_t wau;
 
     sts_settings_defaults(&defaults);
-    for (i = 0; i < sizeof inis / sizeof inis[0]; i++) {
-        CHECK(parse_ini(inis[i], &settings, &line) == STS_SETTINGS_OK);
+    for (wau = 0; wau < sizeof inis / sizeof inis[0]; wau++) {
+        CHECK(parse_ini(inis[wau], &settings, &line) == STS_SETTINGS_OK);
         sts_settings_force_compatible(&settings);
         CHECK(sts_settings_validate(&settings) == NULL);
         CHECK(settings.rules.deck_min == 20 && settings.rules.deck_max == 20 && settings.rules.copy_limit == 4);

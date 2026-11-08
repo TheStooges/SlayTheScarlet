@@ -8,18 +8,18 @@ void test_offer_basics(void)
     sts_offer offer[8], second_offers[8];
     sts_deck deck;
     sts_rng rng, rng2;
-    int count, i, j;
+    int count, wau, j;
 
     /* Three distinct offers the character can actually use. */
     sts_deck_clear(&deck);
     sts_rng_seed(&rng, 1, 1);
     count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
     CHECK(count == 3);
-    for (i = 0; i < count; i++) {
-        const sts_card *card = sts_card_db_find(&g_db, 0, offer[i].id);
-        CHECK(card != NULL && card->type == offer[i].type && offer[i].copies == 1);
-        for (j = 0; j < i; j++)
-            CHECK(offer[i].id != offer[j].id);
+    for (wau = 0; wau < count; wau++) {
+        const sts_card *card = sts_card_db_find(&g_db, 0, offer[wau].id);
+        CHECK(card != NULL && card->type == offer[wau].type && offer[wau].copies == 1);
+        for (j = 0; j < wau; j++)
+            CHECK(offer[wau].id != offer[j].id);
     }
 
     /* The same seed gives the same offers. */
@@ -27,8 +27,8 @@ void test_offer_basics(void)
     sts_rng_seed(&rng2, 99, 3);
     CHECK(sts_offer_generate(&g_db, 7, &deck, &rules, &offer_settings, &rng, offer, 8) == 3);
     CHECK(sts_offer_generate(&g_db, 7, &deck, &rules, &offer_settings, &rng2, second_offers, 8) == 3);
-    for (i = 0; i < 3; i++)
-        CHECK(offer[i].id == second_offers[i].id && offer[i].copies == second_offers[i].copies);
+    for (wau = 0; wau < 3; wau++)
+        CHECK(offer[wau].id == second_offers[wau].id && offer[wau].copies == second_offers[wau].copies);
 
     /* The output buffer limit is respected. */
     sts_rng_seed(&rng, 1, 1);
@@ -60,8 +60,8 @@ void test_offer_basics(void)
     for (j = 0; j < 200; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
         CHECK(count == 3);
-        for (i = 0; i < count; i++)
-            CHECK(offer[i].type == STS_CARD_SPELL);
+        for (wau = 0; wau < count; wau++)
+            CHECK(offer[wau].type == STS_CARD_SPELL);
     }
     offer_settings.type_mask = 0;
     CHECK(sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8) == 0);
@@ -73,17 +73,17 @@ void test_offer_basics(void)
         int spells = 0;
         sts_rules open = open_rules();
         sts_deck_clear(&deck);
-        for (i = 0; i < list->count && spells < 8; i++) {
-            if (list->cards[i].type == STS_CARD_SPELL) {
-                add_copies(&deck, list->cards[i].id, open.copy_limit);
+        for (wau = 0; wau < list->count && spells < 8; wau++) {
+            if (list->cards[wau].type == STS_CARD_SPELL) {
+                add_copies(&deck, list->cards[wau].id, open.copy_limit);
                 spells++;
             }
         }
         offer_settings = add_settings();
         offer_settings.type_mask = STS_TYPE_BIT(STS_CARD_SPELL);
         CHECK(sts_offer_generate(&g_db, 0, &deck, &open, &offer_settings, &rng, offer, 8) == 2);
-        for (i = 0; i < 2; i++)
-            CHECK(sts_deck_count_of(&deck, offer[i].id) == 0);
+        for (wau = 0; wau < 2; wau++)
+            CHECK(sts_deck_count_of(&deck, offer[wau].id) == 0);
     }
 }
 
@@ -95,7 +95,7 @@ void test_offer_limits(void)
     sts_offer offer[8];
     sts_deck deck;
     sts_rng rng;
-    int i, j, count;
+    int wau, j, count;
 
     sts_rng_seed(&rng, 5, 5);
 
@@ -104,8 +104,8 @@ void test_offer_limits(void)
     add_copies(&deck, 100, rules.copy_limit);
     for (j = 0; j < 500; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
-        for (i = 0; i < count; i++)
-            CHECK(offer[i].id != 100);
+        for (wau = 0; wau < count; wau++)
+            CHECK(offer[wau].id != 100);
     }
     rules.deck_max = deck.count;
     CHECK(sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8) == 0);
@@ -114,15 +114,15 @@ void test_offer_limits(void)
     rules = open_rules();
     rules.deck_max = 21;
     sts_deck_clear(&deck);
-    for (i = 0; i < 20; i++) sts_deck_add(&deck, 0);    /* deliberately over the copy limit */
+    for (wau = 0; wau < 20; wau++) sts_deck_add(&deck, 0);    /* deliberately over the copy limit */
     offer_settings.copies_min = 1;
     offer_settings.copies_max = 4;
     for (j = 0; j < 200; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
         CHECK(count == 3);
-        for (i = 0; i < count; i++) {
-            CHECK(offer[i].copies == 1);
-            CHECK(offer[i].id != 0);
+        for (wau = 0; wau < count; wau++) {
+            CHECK(offer[wau].copies == 1);
+            CHECK(offer[wau].id != 0);
         }
     }
 
@@ -138,9 +138,9 @@ void test_offer_limits(void)
     offer_settings.copies_max = 2;
     for (j = 0; j < 500; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
-        for (i = 0; i < count; i++) {
-            CHECK(offer[i].id != 100);
-            CHECK(offer[i].copies == 2);
+        for (wau = 0; wau < count; wau++) {
+            CHECK(offer[wau].id != 100);
+            CHECK(offer[wau].copies == 2);
         }
     }
 
@@ -152,9 +152,9 @@ void test_offer_limits(void)
         offer_settings.copies_max = 4;
         for (j = 0; j < 200; j++) {
             count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
-            for (i = 0; i < count; i++) {
-                CHECK(offer[i].copies >= 1 && offer[i].copies <= 4);
-                if (offer[i].copies >= 1 && offer[i].copies <= 4) seen[offer[i].copies] = 1;
+            for (wau = 0; wau < count; wau++) {
+                CHECK(offer[wau].copies >= 1 && offer[wau].copies <= 4);
+                if (offer[wau].copies >= 1 && offer[wau].copies <= 4) seen[offer[wau].copies] = 1;
             }
         }
         CHECK(seen[1] && seen[2] && seen[3] && seen[4]);
@@ -171,8 +171,8 @@ void test_offer_limits(void)
     for (j = 0; j < 200; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
         CHECK(count == 3);
-        for (i = 0; i < count; i++)
-            CHECK(offer[i].copies <= 2);
+        for (wau = 0; wau < count; wau++)
+            CHECK(offer[wau].copies <= 2);
     }
 
     /* REMOVE: only cards in the deck, and never below deck_min. */
@@ -187,9 +187,9 @@ void test_offer_limits(void)
     for (j = 0; j < 200; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
         CHECK(count == 2);
-        for (i = 0; i < count; i++) {
-            CHECK(offer[i].id == 100 || offer[i].id == 200);
-            CHECK(offer[i].copies == 1);     /* 4 cards, deck_min 3: only 1 may go */
+        for (wau = 0; wau < count; wau++) {
+            CHECK(offer[wau].id == 100 || offer[wau].id == 200);
+            CHECK(offer[wau].copies == 1);     /* 4 cards, deck_min 3: only 1 may go */
         }
     }
     rules.deck_min = 4;
@@ -209,7 +209,7 @@ void test_offer_fairness(void)
     int type_hits[3];
     int type_cards[3];
     int character = 12;                  /* Komachi: 21 system, 12 skill, 9 spell */
-    int expected, i, j, count, type;
+    int expected, wau, j, count, type;
     const sts_card_list *list = &g_db.characters[character];
 
     memset(hits, 0, sizeof hits);
@@ -218,9 +218,9 @@ void test_offer_fairness(void)
     sts_rng_seed(&rng, 2024, 11);
     for (j = 0; j < ROLLS; j++) {
         count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
-        for (i = 0; i < count; i++) {
-            hits[offer[i].id]++;
-            type_hits[offer[i].type]++;
+        for (wau = 0; wau < count; wau++) {
+            hits[offer[wau].id]++;
+            type_hits[offer[wau].type]++;
         }
     }
 
@@ -232,14 +232,14 @@ void test_offer_fairness(void)
     type_cards[STS_CARD_SYSTEM] = g_db.system.count;
     type_cards[STS_CARD_SKILL] = 12;
     type_cards[STS_CARD_SPELL] = 9;
-    for (i = 0; i < g_db.system.count; i++) {
-        int card_hits = hits[g_db.system.cards[i].id];
+    for (wau = 0; wau < g_db.system.count; wau++) {
+        int card_hits = hits[g_db.system.cards[wau].id];
         expected = type_hits[STS_CARD_SYSTEM] / type_cards[STS_CARD_SYSTEM];
         CHECK(card_hits > expected * 8 / 10 && card_hits < expected * 12 / 10);
     }
-    for (i = 0; i < list->count; i++) {
-        int card_hits = hits[list->cards[i].id];
-        expected = type_hits[list->cards[i].type] / type_cards[list->cards[i].type];
+    for (wau = 0; wau < list->count; wau++) {
+        int card_hits = hits[list->cards[wau].id];
+        expected = type_hits[list->cards[wau].type] / type_cards[list->cards[wau].type];
         CHECK(card_hits > expected * 8 / 10 && card_hits < expected * 12 / 10);
     }
 
@@ -248,8 +248,8 @@ void test_offer_fairness(void)
     memset(type_hits, 0, sizeof type_hits);
     for (j = 0; j < ROLLS; j++) {
         count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
-        for (i = 0; i < count; i++)
-            type_hits[offer[i].type]++;
+        for (wau = 0; wau < count; wau++)
+            type_hits[offer[wau].type]++;
     }
     CHECK(type_hits[STS_CARD_SYSTEM] > ROLLS * 3 / 2 * 9 / 10 && type_hits[STS_CARD_SYSTEM] < ROLLS * 3 / 2 * 11 / 10);
     CHECK(type_hits[STS_CARD_SKILL] > ROLLS * 3 / 4 * 9 / 10 && type_hits[STS_CARD_SKILL] < ROLLS * 3 / 4 * 11 / 10);
@@ -259,8 +259,8 @@ void test_offer_fairness(void)
     for (j = 0; j < 500; j++) {
         count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
         CHECK(count == 3);
-        for (i = 0; i < count; i++)
-            CHECK(offer[i].type != STS_CARD_SYSTEM);
+        for (wau = 0; wau < count; wau++)
+            CHECK(offer[wau].type != STS_CARD_SYSTEM);
     }
     offer_settings.weights[STS_CARD_SKILL] = 0;
     offer_settings.weights[STS_CARD_SPELL] = 0;
@@ -281,7 +281,7 @@ void test_offer_no_self_replace(void)
     sts_deck deck, before;
     sts_rng rng;
     uint16_t ids[2];
-    int i, j, count;
+    int wau, j, count;
 
     sts_rng_seed(&rng, 13, 13);
     sts_deck_clear(&deck);
@@ -339,8 +339,8 @@ void test_offer_no_self_replace(void)
     for (j = 0; j < 500; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, out, 8);
         CHECK(count == 3);
-        for (i = 0; i < count; i++)
-            CHECK(out[i].id != 100);
+        for (wau = 0; wau < count; wau++)
+            CHECK(out[wau].id != 100);
     }
 
     /* Copies shrink to what can really leave: 100 has only one other card to swap for, and
@@ -351,13 +351,13 @@ void test_offer_no_self_replace(void)
     offer_settings.type_mask = STS_TYPE_ALL;
     for (j = 0; j < 500; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, out, 8);
-        for (i = 0; i < count; i++) {
-            if (out[i].id == 100)
-                CHECK(out[i].copies == 1);
-            else if (out[i].id == 101)
-                CHECK(out[i].copies <= 2);
+        for (wau = 0; wau < count; wau++) {
+            if (out[wau].id == 100)
+                CHECK(out[wau].copies == 1);
+            else if (out[wau].id == 101)
+                CHECK(out[wau].copies <= 2);
             else
-                CHECK(out[i].copies <= 3);
+                CHECK(out[wau].copies <= 3);
         }
     }
 
@@ -366,8 +366,8 @@ void test_offer_no_self_replace(void)
     offer_settings.copies_max = 2;
     for (j = 0; j < 500; j++) {
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, out, 8);
-        for (i = 0; i < count; i++)
-            CHECK(out[i].id != 100);
+        for (wau = 0; wau < count; wau++)
+            CHECK(out[wau].id != 100);
     }
 
     /* A saved offer is judged by the same rule. */
@@ -388,7 +388,7 @@ void test_offer_one_of_each(void)
     sts_offer offer[8];
     sts_deck deck;
     sts_rng rng;
-    int character, i, j, count;
+    int character, wau, j, count;
 
     offer_settings.style = STS_OFFER_ONE_OF_EACH;
     /* The weights play no part in this style. */
@@ -414,8 +414,8 @@ void test_offer_one_of_each(void)
         int first, second;
         count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
         CHECK(count == 6);
-        for (i = 0; i < 6; i++)
-            CHECK(offer[i].type == i % 3);
+        for (wau = 0; wau < 6; wau++)
+            CHECK(offer[wau].type == wau % 3);
         for (first = 0; first < count; first++)
             for (second = 0; second < first; second++)
                 CHECK(offer[first].id != offer[second].id);
@@ -431,17 +431,17 @@ void test_offer_one_of_each(void)
     offer_settings.type_mask = STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL);
     count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
     CHECK(count == 3);
-    for (i = 0; i < count; i++)
-        CHECK(offer[i].type != STS_CARD_SYSTEM);
+    for (wau = 0; wau < count; wau++)
+        CHECK(offer[wau].type != STS_CARD_SYSTEM);
 
     /* So does one with nothing eligible: Reimu's 10 spells, all at the copy limit, and a
      * size limit with room left for other cards. */
     rules.deck_max = 60;
     offer_settings.type_mask = STS_TYPE_ALL;
     sts_deck_clear(&deck);
-    for (i = 0; i < g_db.characters[0].count; i++)
-        if (g_db.characters[0].cards[i].type == STS_CARD_SPELL)
-            add_copies(&deck, g_db.characters[0].cards[i].id, rules.copy_limit);
+    for (wau = 0; wau < g_db.characters[0].count; wau++)
+        if (g_db.characters[0].cards[wau].type == STS_CARD_SPELL)
+            add_copies(&deck, g_db.characters[0].cards[wau].id, rules.copy_limit);
     count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, offer, 8);
     CHECK(count == 3);
     CHECK(offer[0].type == STS_CARD_SYSTEM && offer[1].type == STS_CARD_SKILL && offer[2].type == STS_CARD_SYSTEM);
@@ -449,12 +449,12 @@ void test_offer_one_of_each(void)
 
 static void apply_offer(sts_deck *deck, const sts_offer *offer, sts_reward_mode mode)
 {
-    int i, j;
+    int wau, j;
 
     if (mode == STS_REWARD_REMOVE || mode == STS_REWARD_REPLACE) {
         /* REMOVE takes the offered card; REPLACE stands in for a player's choice by
          * dropping from the front of the deck. */
-        for (i = 0; i < offer->copies; i++) {
+        for (wau = 0; wau < offer->copies; wau++) {
             int position = 0;
             if (mode == STS_REWARD_REMOVE)
                 for (position = 0; position < deck->count && deck->ids[position] != offer->id; position++) {}
@@ -464,7 +464,7 @@ static void apply_offer(sts_deck *deck, const sts_offer *offer, sts_reward_mode 
         }
     }
     if (mode == STS_REWARD_ADD || mode == STS_REWARD_REPLACE)
-        for (i = 0; i < offer->copies; i++)
+        for (wau = 0; wau < offer->copies; wau++)
             sts_deck_add(deck, offer->id);
 }
 
@@ -535,7 +535,7 @@ void test_offer_apply(void)
     sts_deck deck, before;
     sts_rng rng;
     uint16_t ids[4];
-    int i, j;
+    int wau, j;
 
     sts_rng_seed(&rng, 3, 3);
 
@@ -629,7 +629,7 @@ void test_offer_apply(void)
     /* REPLACE random can land on any card, and never needs more than the deck has. */
     {
         int removed_a = 0, removed_b = 0;
-        for (i = 0; i < 200; i++) {
+        for (wau = 0; wau < 200; wau++) {
             sts_deck_clear(&deck);
             sts_deck_add(&deck, 100);
             sts_deck_add(&deck, 101);
@@ -667,8 +667,8 @@ void test_offer_apply(void)
         for (j = 0; j < 100; j++) {
             int count = sts_offer_generate(&g_db, 0, &deck, &rules, &offer_settings, &rng, out, 8);
             CHECK(count == 3);
-            for (i = 0; i < count; i++)
-                CHECK(out[i].copies <= 2);
+            for (wau = 0; wau < count; wau++)
+                CHECK(out[wau].copies <= 2);
         }
     }
 }

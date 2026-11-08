@@ -67,7 +67,7 @@ void screen_render_title_hint(void)
     const char *mod_in_the_way = blocking_mod();
     int blocked = mod_in_the_way || (!g_active && g_rules_changed_character >= 0);
     int now = mod_in_the_way ? 200 : blocked ? 100 + g_rules_changed_character : g_active ? g_active_character : -1;
-    int i;
+    int wau;
 
     /* The text only needs making again when the run in use changes. */
     if (now != shown_for) {
@@ -86,8 +86,8 @@ void screen_render_title_hint(void)
         make_hint_line(&lines[1], text, 438, blocked ? COLOR_RED : g_active ? COLOR_GREEN : COLOR_GREY);
         shown_for = now;
     }
-    for (i = 0; i < 2; i++)
-        lines[i].draw();
+    for (wau = 0; wau < 2; wau++)
+        lines[wau].draw();
 }
 
 static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int pos_y, int width, int height,
@@ -165,25 +165,25 @@ static int g_input_draw_count = 0;
 
 static void load_skill_input_images(void)
 {
-    int i;
+    int wau;
 
     if (g_inputs_ready)
         return;
     g_inputs_ready = 1;
-    for (i = 0; i < SKILL_INPUT_IMAGES; i++) {
+    for (wau = 0; wau < SKILL_INPUT_IMAGES; wau++) {
         char path[64];
-        Sprite *sprite = &g_input_sprites[i];
+        Sprite *sprite = &g_input_sprites[wau];
 
-        sprintf(path, "data/profile/deck2/022_SkillCard%03dCost.bmp", i);
-        g_input_loaded[i] = sprite->texture.loadFromGame(path);
-        if (!g_input_loaded[i]) {
+        sprintf(path, "data/profile/deck2/022_SkillCard%03dCost.bmp", wau);
+        g_input_loaded[wau] = sprite->texture.loadFromGame(path);
+        if (!g_input_loaded[wau]) {
             slog("could not load %s", path);
             continue;
         }
-        sprite->setSize({(unsigned)g_input_width[i], SKILL_INPUT_H});
-        sprite->rect.left = g_input_left[i];
+        sprite->setSize({(unsigned)g_input_width[wau], SKILL_INPUT_H});
+        sprite->rect.left = g_input_left[wau];
         sprite->rect.top = SKILL_INPUT_TOP;
-        sprite->rect.width = g_input_width[i];
+        sprite->rect.width = g_input_width[wau];
         sprite->rect.height = SKILL_INPUT_H;
         sprite->tint = COLOR_GOLD;
     }
@@ -274,12 +274,12 @@ static void load_art(int index, uint16_t id, int pos_x, int pos_y)
  * on every cursor move. */
 static void load_deck_art(void)
 {
-    int i;
+    int wau;
 
-    for (i = 0; i < MAX_DECK_ART; i++)
-        g_has_deck_art[i] = i < g_run.deck.count
-            && load_card_sprite(&g_deck_art[i], g_run.deck.ids[i],
-                                DECK_X + (i % DECK_COLS) * DECK_PITCH_X, DECK_Y + (i / DECK_COLS) * DECK_PITCH_Y, 1);
+    for (wau = 0; wau < MAX_DECK_ART; wau++)
+        g_has_deck_art[wau] = wau < g_run.deck.count
+            && load_card_sprite(&g_deck_art[wau], g_run.deck.ids[wau],
+                                DECK_X + (wau % DECK_COLS) * DECK_PITCH_X, DECK_Y + (wau / DECK_COLS) * DECK_PITCH_Y, 1);
     g_deck_art_dirty = 0;
 }
 
@@ -327,10 +327,10 @@ static void add_card_kind(const sts_card *card, int pos_x, int pos_y, int width)
 #define OFFER_GAP 16
 #define OFFER_Y 70
 
-static int offer_x(int i, int count)
+static int offer_x(int wau, int count)
 {
     int total = count * OFFER_W + (count - 1) * OFFER_GAP;
-    return (SCREEN_W - total) / 2 + i * (OFFER_W + OFFER_GAP);
+    return (SCREEN_W - total) / 2 + wau * (OFFER_W + OFFER_GAP);
 }
 
 static void rebuild_choose(void)
@@ -403,7 +403,7 @@ static int draft_deck_shown(void)
 static void rebuild_draft(void)
 {
     char line[192];
-    int i;
+    int wau;
 
     if (draft_deck_shown()) {
         if (g_deck_art_dirty)
@@ -426,13 +426,13 @@ static void rebuild_draft(void)
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     }
 
-    for (i = 0; i < g_run.offer_count && i < STS_OFFER_MAX; i++) {
-        const sts_offer *offer = &g_run.offers[i];
+    for (wau = 0; wau < g_run.offer_count && wau < STS_OFFER_MAX; wau++) {
+        const sts_offer *offer = &g_run.offers[wau];
         const card_text *entry = find_text(offer->id);
         const sts_card *card = sts_card_db_find(&g_db, g_run.character, offer->id);
-        int pos_x = offer_x(i, g_run.offer_count);
+        int pos_x = offer_x(wau, g_run.offer_count);
 
-        load_art(i, offer->id, pos_x + 8, OFFER_Y + 8);
+        load_art(wau, offer->id, pos_x + 8, OFFER_Y + 8);
         add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3,
                     COLOR_WHITE);
         if (card)
@@ -475,15 +475,15 @@ static void add_card_details(uint16_t id, int pos_y)
 static int add_change_section(const char *heading, const deck_change *list, int count, int pos_y, unsigned color)
 {
     const int pos_x = 288;
-    int i;
+    int wau;
 
     if (count == 0)
         return pos_y;
     add_label(heading, g_font_small, pos_x, pos_y, 340, 20, color);
     pos_y += 18;
-    for (i = 0; i < count; i++) {
-        const card_text *entry = find_text(list[i].id);
-        const sts_card *card = sts_card_db_find(&g_db, g_run.character, list[i].id);
+    for (wau = 0; wau < count; wau++) {
+        const card_text *entry = find_text(list[wau].id);
+        const sts_card *card = sts_card_db_find(&g_db, g_run.character, list[wau].id);
         char prefix[STS_SKILL_LABEL_SIZE + 8] = "";
         char text[NAME_SIZE + 32];
 
@@ -495,8 +495,8 @@ static int add_change_section(const char *heading, const deck_change *list, int 
         } else if (card && card->type == STS_CARD_SPELL) {
             sprintf(prefix, "%d-cost ", card->cost_or_slot);
         }
-        if (list[i].copies > 1)
-            _snprintf(text, sizeof text - 1, "%s%s x%d", prefix, entry ? entry->name : "?", list[i].copies);
+        if (list[wau].copies > 1)
+            _snprintf(text, sizeof text - 1, "%s%s x%d", prefix, entry ? entry->name : "?", list[wau].copies);
         else
             _snprintf(text, sizeof text - 1, "%s%s", prefix, entry ? entry->name : "?");
         text[sizeof text - 1] = 0;
@@ -548,7 +548,7 @@ static void rebuild_reward_remove(void)
 static void rebuild_rules(void)
 {
     char line[192];
-    int i;
+    int wau;
 
     sprintf(line, "%s: the rules have changed", sts_character_name(g_run.character));
     add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
@@ -556,11 +556,11 @@ static void rebuild_rules(void)
               g_font_small, 40, 80, 580, 20, COLOR_WHITE);
     add_label(g_rules_problem, g_font_small, 40, 106, 580, 20, COLOR_RED);
 
-    for (i = 0; i < rules_option_count(); i++) {
-        int pos_y = RULES_ROW_Y + i * RULES_ROW_PITCH;
+    for (wau = 0; wau < rules_option_count(); wau++) {
+        int pos_y = RULES_ROW_Y + wau * RULES_ROW_PITCH;
         const char *note = NULL;
 
-        switch (rules_option_at(i)) {
+        switch (rules_option_at(wau)) {
         case RULES_CARRY_ON:
             add_label("Carry on under the current rules", g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
             note = "Your deck and progress stay as they are.";
@@ -641,13 +641,13 @@ static void rebuild_deck(void)
 
 static void rebuild(void)
 {
-    int i;
+    int wau;
 
     ensure_fonts();
     g_label_count = 0;
     g_input_draw_count = 0;
-    for (i = 0; i < STS_OFFER_MAX; i++)
-        g_has_art[i] = 0;
+    for (wau = 0; wau < STS_OFFER_MAX; wau++)
+        g_has_art[wau] = 0;
 
     switch (g_state) {
     case ST_CHOOSE: rebuild_choose(); break;
@@ -681,19 +681,19 @@ static void draw_draft_deck(void)
 {
     int first = g_run.deck.count > DRAFT_DECK_SLOTS ? g_run.deck.count - DRAFT_DECK_SLOTS : 0;
     int slots = g_settings.rules.deck_min < DRAFT_DECK_SLOTS ? g_settings.rules.deck_min : DRAFT_DECK_SLOTS;
-    int i;
+    int wau;
 
-    for (i = 0; i < DRAFT_DECK_SLOTS; i++) {
-        int index = first + i;
-        int pos_x = DRAFT_DECK_X + (i % DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_X;
-        int pos_y = DRAFT_DECK_Y + (i / DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_Y;
+    for (wau = 0; wau < DRAFT_DECK_SLOTS; wau++) {
+        int index = first + wau;
+        int pos_x = DRAFT_DECK_X + (wau % DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_X;
+        int pos_y = DRAFT_DECK_Y + (wau / DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_Y;
 
         if (index < g_run.deck.count && index < MAX_DECK_ART && g_has_deck_art[index]) {
             g_deck_art[index].setSize({DRAFT_DECK_IMAGE_W, DRAFT_DECK_IMAGE_H});
             g_deck_art[index].tint = COLOR_WHITE;
             g_deck_art[index].setPosition({pos_x + DRAFT_DECK_IMAGE_OFFSET_X, pos_y});
             g_deck_art[index].draw();
-        } else if (i < slots) {
+        } else if (wau < slots) {
             draw_box(pos_x, pos_y, DRAFT_DECK_CARD_W, DRAFT_DECK_CARD_H, 0x18FFFFFFu, 0x50FFFFFFu);
         }
     }
@@ -701,7 +701,7 @@ static void draw_draft_deck(void)
 
 void screen_render(int opaque)
 {
-    int i;
+    int wau;
 
     if (g_dirty)
         rebuild();
@@ -718,12 +718,12 @@ void screen_render(int opaque)
                  g_rules_start_over_armed ? 0x60FF6060u : 0x60FFE080u,
                  g_rules_start_over_armed ? 0xFFFF6060u : 0xFFFFE080u);
     } else if (g_state == ST_DRAFT || g_state == ST_REWARD) {
-        for (i = 0; i < g_run.offer_count && i < STS_OFFER_MAX; i++) {
-            int selected = i == g_cursor;
-            draw_box(offer_x(i, g_run.offer_count), OFFER_Y, OFFER_W, 226,
+        for (wau = 0; wau < g_run.offer_count && wau < STS_OFFER_MAX; wau++) {
+            int selected = wau == g_cursor;
+            draw_box(offer_x(wau, g_run.offer_count), OFFER_Y, OFFER_W, 226,
                      selected ? 0x60FFE080u : 0x40FFFFFFu, selected ? 0xFFFFE080u : 0x80FFFFFFu);
-            if (g_has_art[i])
-                g_art[i].draw();
+            if (g_has_art[wau])
+                g_art[wau].draw();
         }
         if (draft_deck_shown())
             draw_draft_deck();
@@ -731,41 +731,41 @@ void screen_render(int opaque)
         /* Two rows fit above the card details. A larger deck scrolls with the cursor. */
         int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
 
-        for (i = top * DECK_COLS; i < g_run.deck.count && i < MAX_DECK_ART && i < (top + 2) * DECK_COLS; i++) {
-            int pos_x = DECK_X + (i % DECK_COLS) * DECK_PITCH_X;
-            int pos_y = DECK_Y + (i / DECK_COLS - top) * DECK_PITCH_Y;
+        for (wau = top * DECK_COLS; wau < g_run.deck.count && wau < MAX_DECK_ART && wau < (top + 2) * DECK_COLS; wau++) {
+            int pos_x = DECK_X + (wau % DECK_COLS) * DECK_PITCH_X;
+            int pos_y = DECK_Y + (wau / DECK_COLS - top) * DECK_PITCH_Y;
 
-            int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) && g_selected[i];
+            int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) && g_selected[wau];
 
             /* The draft screen draws these same images smaller. */
-            if (g_has_deck_art[i])
-                g_deck_art[i].setSize(g_deck_art[i].texture.getSize());
+            if (g_has_deck_art[wau])
+                g_deck_art[wau].setSize(g_deck_art[wau].texture.getSize());
 
-            if (i == g_cursor || picked) {
+            if (wau == g_cursor || picked) {
                 /* An even margin around the image, whatever size the game's art is. */
-                SokuLib::Vector2u size = g_has_deck_art[i] ? g_deck_art[i].getSize()
+                SokuLib::Vector2u size = g_has_deck_art[wau] ? g_deck_art[wau].getSize()
                                                            : SokuLib::Vector2u{DECK_PITCH_X - 8, DECK_PITCH_Y - 8};
 
                 draw_box(pos_x - 3, pos_y - 3, (int)size.x + 6, (int)size.y + 6,
                          picked ? 0x80FF6060u : 0x60FFE080u, picked ? 0xFFFF6060u : 0xFFFFE080u);
             }
-            if (g_has_deck_art[i]) {
+            if (g_has_deck_art[wau]) {
                 /* Copies of the incoming card are greyed out on the removal screens. */
                 int blocked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM)
-                    && g_run.deck.ids[i] == g_run.offers[g_pending_offer].id;
+                    && g_run.deck.ids[wau] == g_run.offers[g_pending_offer].id;
 
-                g_deck_art[i].tint = blocked ? 0xFF505050u : COLOR_WHITE;
-                g_deck_art[i].setPosition({pos_x, pos_y});
-                g_deck_art[i].draw();
+                g_deck_art[wau].tint = blocked ? 0xFF505050u : COLOR_WHITE;
+                g_deck_art[wau].setPosition({pos_x, pos_y});
+                g_deck_art[wau].draw();
             }
         }
     }
-    for (i = 0; i < g_label_count; i++)
-        g_labels[i].draw();
-    for (i = 0; i < g_input_draw_count; i++) {
-        Sprite *sprite = &g_input_sprites[g_input_draws[i].image];
+    for (wau = 0; wau < g_label_count; wau++)
+        g_labels[wau].draw();
+    for (wau = 0; wau < g_input_draw_count; wau++) {
+        Sprite *sprite = &g_input_sprites[g_input_draws[wau].image];
 
-        sprite->setPosition({g_input_draws[i].pos_x, g_input_draws[i].pos_y});
+        sprite->setPosition({g_input_draws[wau].pos_x, g_input_draws[wau].pos_y});
         sprite->draw();
     }
 }

@@ -6,16 +6,16 @@ sts_card_db g_db;
 
 void fill_legal_deck(sts_deck *deck, int base)
 {
-    int i;
+    int wau;
     sts_deck_clear(deck);
-    for (i = 0; i < 20; i++)        /* 20 distinct cards, 1 copy each */
-        sts_deck_add(deck, (uint16_t)(base + i));
+    for (wau = 0; wau < 20; wau++)        /* 20 distinct cards, 1 copy each */
+        sts_deck_add(deck, (uint16_t)(base + wau));
 }
 
 void add_copies(sts_deck *deck, uint16_t id, int count)
 {
-    int i;
-    for (i = 0; i < count; i++)
+    int wau;
+    for (wau = 0; wau < count; wau++)
         sts_deck_add(deck, id);
 }
 
@@ -26,9 +26,9 @@ int decks_equal(const sts_deck *first, const sts_deck *second)
 
 int count_type_in_deck(const sts_deck *deck, int character, int type)
 {
-    int i, count = 0;
-    for (i = 0; i < deck->count; i++) {
-        const sts_card *card = sts_card_db_find(&g_db, character, deck->ids[i]);
+    int wau, count = 0;
+    for (wau = 0; wau < deck->count; wau++) {
+        const sts_card *card = sts_card_db_find(&g_db, character, deck->ids[wau]);
         if (card && card->type == type) count++;
     }
     return count;

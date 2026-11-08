@@ -25,7 +25,7 @@ static sts_db_status parse_with_extra(const char *extra, int *err_line)
 
 void test_card_db_parse(void)
 {
-    int err = 0, i;
+    int err = 0, wau;
     size_t count;
 
     /* Comments, blank lines, CRLF endings and a missing final newline are all fine. */
@@ -57,8 +57,8 @@ void test_card_db_parse(void)
 
     /* Too many cards for one owner. */
     count = minimal_db_text(g_text);
-    for (i = 0; i < STS_POOL_MAX_CARDS; i++)
-        count += (size_t)sprintf(g_text + count, "Reimu,%d,spell,1\n", 300 + i);
+    for (wau = 0; wau < STS_POOL_MAX_CARDS; wau++)
+        count += (size_t)sprintf(g_text + count, "Reimu,%d,spell,1\n", 300 + wau);
     CHECK(sts_card_db_parse(g_text, count, &g_db2, &err) == STS_DB_OVERFLOW);
 
     /* A table missing a character or the system list is rejected. */
@@ -72,9 +72,9 @@ void test_card_db_parse(void)
 
 static int count_type(const sts_card_list *list, int type)
 {
-    int i, count = 0;
-    for (i = 0; i < list->count; i++)
-        if (list->cards[i].type == type) count++;
+    int wau, count = 0;
+    for (wau = 0; wau < list->count; wau++)
+        if (list->cards[wau].type == type) count++;
     return count;
 }
 
@@ -126,7 +126,7 @@ void test_card_db_file(void)
         };
         char label[STS_SKILL_LABEL_SIZE];
         size_t k;
-        int i;
+        int wau;
 
         for (k = 0; k < sizeof known / sizeof known[0]; k++) {
             CHECK(sts_skill_label(&g_db, known[k].character, known[k].id, label) == 1);
@@ -138,9 +138,9 @@ void test_card_db_file(void)
         for (character = 0; character < STS_NUM_CHARACTERS; character++) {
             const sts_card_list *list = &g_db.characters[character];
             int defaults = 0, alternates = 0;
-            for (i = 0; i < list->count; i++) {
-                if (list->cards[i].type != STS_CARD_SKILL) continue;
-                CHECK(sts_skill_label(&g_db, character, list->cards[i].id, label) == 1);
+            for (wau = 0; wau < list->count; wau++) {
+                if (list->cards[wau].type != STS_CARD_SKILL) continue;
+                CHECK(sts_skill_label(&g_db, character, list->cards[wau].id, label) == 1);
                 if (label[0] == 'd') defaults++;
                 if (label[0] == 'a') alternates++;
             }
