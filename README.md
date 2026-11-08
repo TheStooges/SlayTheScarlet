@@ -59,8 +59,8 @@ The buttons for each screen are listed at the bottom of that screen, using your 
 
 Only one run can be in use at a time. On the character screen, under F7, the button shown at the
 bottom starts using the selected character's run, or stops using it. The deck screen does the same,
-and lets you look through your deck or start over. Starting over needs two presses, so one slip cannot
-lose a run.
+and lets you look through your deck or start over. The character screen can also delete a run, and
+opening that character later starts a new draft. Both need two presses, so one slip cannot lose a run.
 
 A match on a different character or deck slot is a normal match: no offer, and your run is unchanged.
 
@@ -93,7 +93,7 @@ do nothing yet are only in the file.
 
 The draft always adds one card per pick until the deck is full. You can change how many cards are
 offered (up to 3), which card types appear and how often, who gets an offer after a
-match (both players, the winner or the loser), and whether you replace chosen
+match (win or lose, only if you win, only if you lose, or at random), and whether you pick the card that comes in, whether you replace chosen
 cards, a card type, or random cards. Setting `show_deck=false` makes the draft blind, hiding the
 cards you have picked so far.
 

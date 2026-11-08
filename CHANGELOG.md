@@ -14,14 +14,22 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 ### Changed
 
+- Pressing the start over button twice on the character screen now deletes the run and stays on that
+  screen, instead of going straight into a new draft. Opening the character starts one. The button
+  does nothing on a character with no run. The deck screen still starts over as before.
 - The draft always adds one card per pick until the deck is full: 20 picks, or 12 with the starting
   deck. `picks`, `copies_min` and `copies_max` are no longer settings in `[draft]`; an older
   `settings.ini` that lists them still loads, and they are ignored. Rewards keep their copy range.
 - Cards per pick and per offer go up to 3, as many as the offer screen fits.
 - The starting deck's cards are built in. The card lists in `[starter]` are no longer settings; an
   older `settings.ini` that lists them still loads, and they are ignored. Only `enabled` remains.
-- `who_picks=nobody` (a random swap for both players) acts as `both` for now: it needs both players
-  to have the mod and agree on it.
+- `who_picks` now reads as when you get an offer, from your own result: `both` (win or lose), `winner`
+  (only if you win), `loser` (only if you lose) or the new `random` (a chance, win or lose, set by
+  `random_chance`, out of 100, 50 by default). Each player's mod applies it alone, so nothing is
+  exchanged with the opponent.
+- `who_picks=nobody` is gone, and an older file that says it reads as `both`. Its automatic swap is now
+  two settings: the new `offer_pick=random` (one of the cards offered is picked for you) together with
+  `replacement=random`.
 
 ## 0.2 - 2026-11-08
 
