@@ -252,6 +252,57 @@ static void add_wrapped(const char *text, SokuLib::SWRFont &font, int pos_x, int
     }
 }
 
+/* Help text wraps at this many bytes: 40 full-width characters in Japanese, which has no spaces
+ * to break at, or about 84 letters in English, broken at spaces. */
+#define HELP_COLUMNS (game_is_japanese() ? 80 : 78)
+
+/* How many lines add_wrapped takes for this text. */
+static int count_wrapped_lines(const char *text, int cols, int at_spaces)
+{
+    char line[DESC_SIZE];
+    int lines = 0;
+
+    while (*text) {
+        size_t used = take_line(text, cols, at_spaces, line);
+
+        if (used == 0)
+            break;
+        text += used;
+        while (at_spaces && *text == ' ')
+            text++;
+        lines++;
+    }
+    return lines;
+}
+
+/* A paragraph of help below the settings, from pos_y. Returns the y after it. */
+static int add_help(const char *text, int pos_y, int max_lines, unsigned color)
+{
+    int at_spaces = !game_is_japanese();
+    int lines;
+
+    if (!text || !*text || max_lines <= 0)
+        return pos_y;
+    lines = count_wrapped_lines(text, HELP_COLUMNS, at_spaces);
+    if (lines > max_lines)
+        lines = max_lines;
+    add_wrapped(text, g_font_small, 28, pos_y, 590, 17, HELP_COLUMNS, at_spaces, lines, color);
+    return pos_y + lines * 17;
+}
+
+/* A line about the reward in progress, its last row at last_y. Long card names can take it onto a
+ * second row, which goes above the first so the key prompts stay clear. */
+#define REWARD_NOTICE_Y 416
+static void add_reward_notice(const char *text, int last_y, unsigned color)
+{
+    int at_spaces = !game_is_japanese();
+    int lines = count_wrapped_lines(text, HELP_COLUMNS, at_spaces);
+
+    if (lines > 2)
+        lines = 2;
+    add_wrapped(text, g_font_small, 20, last_y - (lines - 1) * 17, 600, 17, HELP_COLUMNS, at_spaces, lines, color);
+}
+
 static int load_card_sprite(Sprite *sprite, uint16_t id, int pos_x, int pos_y, unsigned scale)
 {
     char path[128];
@@ -563,10 +614,14 @@ static void rebuild_reward_remove(void)
     add_label(tr("Choose what leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
-    if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == offer->id)
-        add_label(tr("This is the card you are taking, so it cannot leave."), g_font_small, 20, 396, 600, 20, COLOR_RED);
-    sprintf(line, tr("Replacing with %dx %.90s. Choose %d more."), offer->copies, entry ? entry->name : "?", remaining);
-    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
+    if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == offer->id) {
+        add_reward_notice(tr("This is the card you are taking, so it cannot leave."), REWARD_NOTICE_Y, COLOR_RED);
+    } else {
+        sprintf(line, tr("Replacing with %dx %.90s."), offer->copies, entry ? entry->name : "?");
+        add_reward_notice(line, REWARD_NOTICE_Y - 17, COLOR_GOLD);
+        sprintf(line, tr("Choose %d more."), remaining);
+        add_reward_notice(line, REWARD_NOTICE_Y, COLOR_GOLD);
+    }
     sprintf(line, tr("Arrows: choose   %s: select   %s: back to the offers"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
@@ -609,6 +664,10 @@ static void rebuild_rules(void)
     add_label(line, g_font_small, 20, 440, 600, 20, g_rules_start_over_armed ? COLOR_RED : COLOR_GREY);
 }
 
+/* The type choices, below the two rows of the deck. */
+#define REWARD_TYPE_Y (DECK_Y + 2 * DECK_PITCH_Y + 14)
+#define REWARD_TYPE_PITCH 42
+
 static void rebuild_reward_type(void)
 {
     char line[192];
@@ -617,6 +676,8 @@ static void rebuild_reward_type(void)
     unsigned mask = sts_replace_types_available(&g_db, g_run.character, &g_run.deck, offer->id, offer->copies);
     int type;
 
+    if (g_deck_art_dirty)
+        load_deck_art();
     add_label(tr("Choose what type leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     for (type = 0; type < 3; type++) {
         /* Copies of the incoming card are not counted, as they cannot leave. */
@@ -625,12 +686,12 @@ static void rebuild_reward_type(void)
                          : type == STS_CARD_SKILL ? tr("Skill cards") : tr("Spell cards");
 
         sprintf(line, tr("%s (%d can leave)"), name, count);
-        add_label(line, g_font_big, 56, 110 + type * 50, 500, 28,
+        add_label(line, g_font_big, 56, REWARD_TYPE_Y + type * REWARD_TYPE_PITCH, 500, 28,
                   (mask & STS_TYPE_BIT(type)) ? COLOR_WHITE : COLOR_GREY);
     }
-    sprintf(line, tr("Replacing with %dx %.90s. Random cards of that type leave."),
-            offer->copies, entry ? entry->name : "?");
-    add_label(line, g_font_small, 20, 416, 600, 20, COLOR_GOLD);
+    sprintf(line, tr("Replacing with %dx %.90s."), offer->copies, entry ? entry->name : "?");
+    add_reward_notice(line, REWARD_NOTICE_Y - 17, COLOR_GOLD);
+    add_reward_notice(tr("Random cards of that type leave."), REWARD_NOTICE_Y, COLOR_GOLD);
     sprintf(line, tr("Up/Down: choose   %s: confirm   %s: back to the offers"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
@@ -667,44 +728,6 @@ static void rebuild_deck(void)
     else
         sprintf(line, tr("Arrows: inspect   %s: back   %s twice: start over"), BUTTON_B, BUTTON_C);
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
-}
-
-/* Help text wraps at this many bytes: 40 full-width characters in Japanese, which has no spaces
- * to break at, or about 84 letters in English, broken at spaces. */
-#define HELP_COLUMNS (game_is_japanese() ? 80 : 78)
-
-/* How many lines add_wrapped takes for this text. */
-static int count_wrapped_lines(const char *text, int cols, int at_spaces)
-{
-    char line[DESC_SIZE];
-    int lines = 0;
-
-    while (*text) {
-        size_t used = take_line(text, cols, at_spaces, line);
-
-        if (used == 0)
-            break;
-        text += used;
-        while (at_spaces && *text == ' ')
-            text++;
-        lines++;
-    }
-    return lines;
-}
-
-/* A paragraph of help below the settings, from pos_y. Returns the y after it. */
-static int add_help(const char *text, int pos_y, int max_lines, unsigned color)
-{
-    int at_spaces = !game_is_japanese();
-    int lines;
-
-    if (!text || !*text || max_lines <= 0)
-        return pos_y;
-    lines = count_wrapped_lines(text, HELP_COLUMNS, at_spaces);
-    if (lines > max_lines)
-        lines = max_lines;
-    add_wrapped(text, g_font_small, 28, pos_y, 590, 17, HELP_COLUMNS, at_spaces, lines, color);
-    return pos_y + lines * 17;
 }
 
 /* Where each entry of the list of menus sits. Save changes stands a little apart from the menus. */
@@ -898,6 +921,30 @@ static void draw_background(int opaque)
     draw_box(0, 0, SCREEN_W, SCREEN_H, BACKGROUND_SHADE, BACKGROUND_SHADE);
 }
 
+/* The game's card images have an empty edge: measured in game, 1 pixel on the left, 2 on the right, 1
+ * at the bottom and none at the top. */
+#define CARD_ART_EDGE_LEFT 1
+#define CARD_ART_EDGE_RIGHT 2
+#define CARD_ART_EDGE_BOTTOM 1
+#define CARD_BOX_MARGIN 3
+
+/* A box around a card in the deck grid, with an even margin around the card that can be seen. The
+ * image must be at its full size. */
+static void draw_card_box(int index, int pos_x, int pos_y, unsigned fill, unsigned border)
+{
+    int width = DECK_PITCH_X - 8 - 2 * CARD_BOX_MARGIN, height = DECK_PITCH_Y - 8 - 2 * CARD_BOX_MARGIN;
+
+    if (g_has_deck_art[index]) {
+        SokuLib::Vector2u size = g_deck_art[index].getSize();
+
+        pos_x += CARD_ART_EDGE_LEFT;
+        width = (int)size.x - CARD_ART_EDGE_LEFT - CARD_ART_EDGE_RIGHT;
+        height = (int)size.y - CARD_ART_EDGE_BOTTOM;
+    }
+    draw_box(pos_x - CARD_BOX_MARGIN, pos_y - CARD_BOX_MARGIN, width + 2 * CARD_BOX_MARGIN,
+             height + 2 * CARD_BOX_MARGIN, fill, border);
+}
+
 static void draw_draft_deck(void)
 {
     int first = g_run.deck.count > DRAFT_DECK_SLOTS ? g_run.deck.count - DRAFT_DECK_SLOTS : 0;
@@ -951,7 +998,7 @@ void screen_render(int opaque)
             draw_box(616, SETTINGS_LIST_Y + offset, 4, thumb, 0xC0FFE080u, 0xC0FFE080u);
         }
     } else if (g_state == ST_REWARD_TYPE) {
-        draw_box(44, 104 + g_cursor * 50, 552, 38, 0x60FFE080u, 0xFFFFE080u);
+        draw_box(44, REWARD_TYPE_Y - 6 + g_cursor * REWARD_TYPE_PITCH, 552, 38, 0x60FFE080u, 0xFFFFE080u);
     } else if (g_state == ST_RULES) {
         draw_box(44, RULES_ROW_Y - 6 + g_cursor * RULES_ROW_PITCH, 552, 58,
                  g_rules_start_over_armed ? 0x60FF6060u : 0x60FFE080u,
@@ -966,9 +1013,12 @@ void screen_render(int opaque)
         }
         if (draft_deck_shown())
             draw_draft_deck();
-    } else if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) {
-        /* Two rows fit above the card details. A larger deck scrolls with the cursor. */
-        int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
+    }
+    if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE) {
+        /* Two rows fit above the card details. A larger deck scrolls with the cursor, except on the
+         * type screen, whose cursor is on the types. */
+        int on_cards = g_state != ST_REWARD_TYPE;
+        int top = on_cards && g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
 
         for (wau = top * DECK_COLS; wau < g_run.deck.count && wau < MAX_DECK_ART && wau < (top + 2) * DECK_COLS; wau++) {
             int pos_x = DECK_X + (wau % DECK_COLS) * DECK_PITCH_X;
@@ -980,17 +1030,21 @@ void screen_render(int opaque)
             if (g_has_deck_art[wau])
                 g_deck_art[wau].setSize(g_deck_art[wau].texture.getSize());
 
-            if (wau == g_cursor || picked) {
-                /* An even margin around the image, whatever size the game's art is. */
-                SokuLib::Vector2u size = g_has_deck_art[wau] ? g_deck_art[wau].getSize()
-                                                           : SokuLib::Vector2u{DECK_PITCH_X - 8, DECK_PITCH_Y - 8};
+            /* On the type screen, a soft outline on the cards of the type under the cursor that can
+             * leave, so it does not compete with the cursor box. */
+            if (!on_cards && g_run.deck.ids[wau] != g_run.offers[g_pending_offer].id) {
+                const sts_card *card = sts_card_db_find(&g_db, g_run.character, g_run.deck.ids[wau]);
 
-                draw_box(pos_x - 3, pos_y - 3, (int)size.x + 6, (int)size.y + 6,
-                         picked ? 0x80FF6060u : 0x60FFE080u, picked ? 0xFFFF6060u : 0xFFFFE080u);
+                if (card && (int)card->type == g_cursor)
+                    draw_card_box(wau, pos_x, pos_y, 0x28FFE080u, 0x90FFE080u);
+            }
+            if ((on_cards && wau == g_cursor) || picked) {
+                draw_card_box(wau, pos_x, pos_y, picked ? 0x80FF6060u : 0x60FFE080u,
+                              picked ? 0xFFFF6060u : 0xFFFFE080u);
             }
             if (g_has_deck_art[wau]) {
                 /* Copies of the incoming card are greyed out on the removal screens. */
-                int blocked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM)
+                int blocked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE)
                     && g_run.deck.ids[wau] == g_run.offers[g_pending_offer].id;
 
                 g_deck_art[wau].tint = blocked ? 0xFF505050u : COLOR_WHITE;
