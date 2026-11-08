@@ -38,8 +38,9 @@ Giuroll is supported for online play. Other common mods should not need disablin
 To uninstall, remove the line and delete the folder. The mod never changes your profiles or
 `score123.dat`, so your real decks and profile are untouched.
 
-To update, replace `SlayTheScarlet.dll`, `cards.csv` and the `lang` folder. Keep `settings.ini`, which
-holds your rules, and the `runs` folder, which holds your runs.
+To update, delete the `SlayTheScarlet` folder and unzip the new one in its place. That also deletes
+your rules (`settings.ini`) and runs (the `runs` folder), so copy them back afterwards if you want to
+keep them.
 
 The mod's menus follow the game's language: Japanese on the Japanese game (`th123`), and English under
 the English translation (`th123e`).

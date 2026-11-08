@@ -3,7 +3,7 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
-## 0.3 - unreleased
+## 0.3 - 2026-11-09
 
 ### New
 
@@ -30,6 +30,20 @@ What changed in each release of Slay the Scarlet. Releases are on the
 - `who_picks=nobody` is gone, and an older file that says it reads as `both`. Its automatic swap is now
   two settings: the new `offer_pick=random` (one of the cards offered is picked for you) together with
   `replacement=random`.
+
+### Fixed
+
+- The screen for choosing what type leaves your deck now shows the deck, with the cards of the chosen
+  type outlined. Long card names on the reward screens wrap instead of running off the screen.
+- The boxes around cards in the deck grid are centred on the card.
+
+### Upgrading
+
+- The simplest way is a fresh install: delete the `SlayTheScarlet` folder from `modules` and unzip the
+  new one in its place. That also deletes your runs and rules, so copy the `runs` folder and
+  `settings.ini` back afterwards if you want to keep them.
+- A run made under rules that changed in this version may show "Rules changed", such as a draft that
+  used different copy settings.
 
 ## 0.2 - 2026-11-08
 
