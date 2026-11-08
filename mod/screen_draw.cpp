@@ -685,6 +685,64 @@ static void draw_box(int pos_x, int pos_y, int width, int height, unsigned fill,
     g_box.draw();
 }
 
+/* Behind every screen: the game's deck editor background (the dark gears of character select), the
+ * run character's portrait faded into it, and a shade over both so text stays easy to read. Without
+ * them, the screens would show the title menu through their text, or plain black after a match. */
+#define BACKGROUND_PATH "data/scene/select/bg.bmp"
+#define PORTRAIT_TINT 0x48FFFFFFu      /* the portrait at about a quarter strength, a backdrop */
+#define BACKGROUND_SHADE 0x60000000u
+
+static Sprite g_background;
+static Sprite g_portrait;
+static int g_background_loaded = -1;   /* -1 not tried yet, then 0 or 1 */
+static int g_portrait_character = -1;
+static int g_has_portrait = 0;
+
+static int load_full_screen(Sprite *sprite, const char *path)
+{
+    SokuLib::Vector2u size;
+
+    if (!sprite->texture.loadFromGame(path))
+        return 0;
+    size = sprite->texture.getSize();
+    sprite->setSize({SCREEN_W, SCREEN_H});
+    sprite->rect.left = 0;
+    sprite->rect.top = 0;
+    sprite->rect.width = (int)size.x;
+    sprite->rect.height = (int)size.y;
+    sprite->setPosition({0, 0});
+    return 1;
+}
+
+static void draw_background(int opaque)
+{
+    if (g_background_loaded < 0) {
+        g_background_loaded = load_full_screen(&g_background, BACKGROUND_PATH);
+        if (!g_background_loaded)
+            slog("could not load %s, using a plain background", BACKGROUND_PATH);
+    }
+    if (!g_background_loaded) {
+        draw_box(0, 0, SCREEN_W, SCREEN_H, opaque ? 0xFF000000u : 0xE0000000u, opaque ? 0xFF000000u : 0xE0000000u);
+        return;
+    }
+    g_background.draw();
+
+    /* The character menu is not about one character, so it has no portrait. */
+    if (g_state != ST_CHOOSE) {
+        if (g_portrait_character != g_run.character) {
+            char path[96];
+
+            sprintf(path, "data/stand/%.64s.bmp", SokuLib::getCharName((unsigned)g_run.character));
+            g_has_portrait = load_full_screen(&g_portrait, path);
+            g_portrait.tint = PORTRAIT_TINT;
+            g_portrait_character = g_run.character;
+        }
+        if (g_has_portrait)
+            g_portrait.draw();
+    }
+    draw_box(0, 0, SCREEN_W, SCREEN_H, BACKGROUND_SHADE, BACKGROUND_SHADE);
+}
+
 static void draw_draft_deck(void)
 {
     int first = g_run.deck.count > DRAFT_DECK_SLOTS ? g_run.deck.count - DRAFT_DECK_SLOTS : 0;
@@ -714,7 +772,7 @@ void screen_render(int opaque)
     if (g_dirty)
         rebuild();
 
-    draw_box(0, 0, SCREEN_W, SCREEN_H, opaque ? 0xFF000000u : 0xE0000000u, opaque ? 0xFF000000u : 0xE0000000u);
+    draw_background(opaque);
     if (g_state == ST_CHOOSE) {
         int pos_x = 24 + (g_cursor % COLS) * 120;
         int pos_y = 80 + (g_cursor / COLS) * 70;

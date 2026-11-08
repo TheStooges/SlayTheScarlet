@@ -303,6 +303,16 @@ Netplay is a primary requirement. Each machine simulates both players from share
 - **Skill input images:** `data/profile/deck2/022_SkillCard000Cost.bmp` to `004` (64x32) are the deck
   screen's images, one per skill input, in `cost_or_slot` order. The top half says "Skill Card", the
   bottom half has the arrows and button name. Paths load as `.bmp` though the archive holds `.cv2`.
+- **Game archives** (`th123a.dat`, `th123b.dat`, `th123c.dat`; 11,663 files): u16 file count, u32
+  list size, then the list, XORed with MT19937 (seeded with list size + 6, low byte of each output)
+  and then a rolling key (start 0xC5, step 0x83, step grows by 0x53). Entries are u32 offset, u32
+  size, u8 name length, Shift-JIS name. File data is XORed with `((offset >> 1) | 0x23) & 0xFF`.
+  `th123e.dat` has another layout. A `.cv2` image is u8 bits, u32 width, u32 height, u32 row width,
+  u32 palette, then pixels; 24-bit images are stored as 4 bytes per pixel (BGRX), 32-bit as BGRA.
+  Listed read-only with a throwaway Python script; nothing in the repo reads archives. Useful
+  finds: `data/scene/select/bg` (gear background, 640x480), `data/stand/<folder>` (portraits,
+  640x480), `data/stand/cutin/<folder>` (spell cut-ins), `data/scene/title/15_back` (title sky),
+  `data/profile/deck2/name/<folder>` (name banners, 360x100).
 - **Button names:** `profile1.keyboardBindings` holds DirectInput scan codes (name them with
   `GetKeyNameText`), and `controllerBindings` pad buttons counted from 0, while the key config screen
   counts from 1.
@@ -517,6 +527,12 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    the limit and see each other's score screen (custom messages). Opponent names stay local only.
    Open: a "first to N wins" limit instead, and ending a run early after N losses (like dying in
    Slay the Spire); both would be settings beside `matches`.
+13. (done, for v0.2) Screen background: every mod screen draws over something not meant for it
+   (the stopped battle scene after a match, so plain black; the title menu before one, showing
+   through the text). Now every screen draws the deck editor's gear background
+   (`data/scene/select/bg`), then on run screens the character's portrait (`data/stand/<folder>`)
+   at tint alpha 0x48, then a 0x60 black shade. 0x70 was too strong: white text over a light
+   portrait (Komachi's apron) was hard to read. Falls back to plain black if loading fails.
 
 ## Open questions
 
