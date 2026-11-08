@@ -460,6 +460,24 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    first. Details: play only once the cursor settles, so fast scrolling does not stack sounds; a
    setting to turn it off, cosmetic so not in the fingerprint (like `show_deck`). Cheaper fallback
    if it stalls: one shared game sound per card type (e.g. `SFX_SPELL_ACTIVATE` for spells).
+9. Time limit on the reward screen (after v0.2). Not needed technically (vanilla waited 28 minutes);
+   it keeps the opponent from waiting on a black screen. A setting, e.g. `[reward] time_limit`
+   in seconds, 0 = none and the default, part of the fingerprint (it changes how a reward can turn
+   out). On time-out, keep any choices already made and make the rest at random: the offer, then
+   the cards or type to replace. The random choices come from the run's saved RNG, so restarting
+   cannot reroll them, but the save must also record the time used, or restarting the game resets
+   the timer (a small save format change). In compatible mode only the local player sees the timer;
+   showing it to a modded opponent needs full mode messages. See how much players stall in phase 2
+   before setting a default.
+10. Roulette for random picks (after v0.2): instead of jumping to the deck-changed screen, the cursor
+   runs through the offers, fast at first and slowing down (gaps from a few frames to about 15,
+   about 2 s in all, move sound per step, confirm sound at the end), and settles on the result.
+   Used on a time-out (item 9), with `who_picks=nobody`, and possibly over the deck grid when
+   `replacement=random` picks the cards to remove. The result is rolled first and the animation only
+   shows it: pick the starting position so the slow-down lands on it. Runs per frame like every
+   screen, never a blocking loop. Confirm skips to the result. Cosmetic setting, e.g.
+   `reward_animation=true`, not in the fingerprint (like `show_deck`). Testable offline with
+   `who_picks=nobody`.
 
 ## Open questions
 
