@@ -329,6 +329,13 @@ Netplay is a primary requirement. Each machine simulates both players from share
   the last four presumably from Giuroll. Pick mod message IDs outside these.
 - **Port clash when testing on one PC:** `clientport` in `configex123.ini` must be 0 on the side that
   joins. If it matches the host's port, the two instances cannot connect.
+- **Spectating (a modded spectator, run in use, watching two unmodded players over a real
+  network, 8 matches):** the mod stayed out of it. No offer, select or result lines were logged, as
+  the spectator scenes are not hooked. A spectator receives one `GAME_MATCH` per match holding BOTH
+  players' decks (99 bytes for two 20-card decks, against 59 between players), so the "P1 swapped X
+  for Y" fallback can work on a spectator from the decks alone. The spectator also sends each
+  `GAME_MATCH` on with the same decks and a deck byte counting up (5, 6, 7, 8), presumably relaying
+  to spectators connected through it. Mind this before sending custom messages to spectators.
 
 ### Findings from a real install (SOKU -REWIRED- v1.5, OCE lab ver)
 
