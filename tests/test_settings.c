@@ -343,8 +343,8 @@ static void test_settings_starter(void)
     CHECK(defaults.starter_enabled == 0 && defaults.starter_common.count == 4);
     for (character = 0; character < STS_NUM_CHARACTERS; character++)
         CHECK(defaults.starter[character].count == 4);
-    CHECK(defaults.starter[1].ids[0] == 102 && defaults.starter[1].ids[2] == 208);
-    CHECK(defaults.starter[18].ids[1] == 101 && defaults.starter[18].ids[3] == 203);
+    CHECK(defaults.starter[1].ids[0] == 102 && defaults.starter[1].ids[2] == 212);
+    CHECK(defaults.starter[18].ids[1] == 102 && defaults.starter[18].ids[3] == 205);
     sts_settings_starter(&defaults, 0, &starter);
     CHECK(starter.count == 0);
 
@@ -366,15 +366,15 @@ static void test_settings_starter(void)
     CHECK(parse_ini("[starter]\nreimu=\ncommon=1\nSuwako=201\nmarisa=abc,\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_equal(&settings, &defaults) && settings.starter[0].count == 4);
 
-    /* On, it is part of the rules, and so is every list. Patchouli's default skill on 421 is 104,
+    /* On, it is part of the rules, and so is every list. Patchouli's default skill on 214 is 103,
      * and A Penny Saved (12) is not in it. */
     CHECK(parse_ini("[starter]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
     CHECK(sts_settings_hash(&settings) != sts_settings_hash(&defaults));
     sts_settings_starter(&settings, 4, &starter);
     CHECK(starter.count == 8 && sts_deck_count_of(&starter, 0) == 2 && sts_deck_count_of(&starter, 12) == 0
-          && sts_deck_count_of(&starter, 13) == 2 && sts_deck_count_of(&starter, 104) == 2
-          && sts_deck_count_of(&starter, 200) == 2);
+          && sts_deck_count_of(&starter, 13) == 2 && sts_deck_count_of(&starter, 103) == 2
+          && sts_deck_count_of(&starter, 212) == 2);
     CHECK(sts_settings_draft_length(&settings, 4) == 12);
     {
         uint32_t enabled_hash = sts_settings_hash(&settings);

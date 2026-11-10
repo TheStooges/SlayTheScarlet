@@ -3,6 +3,21 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## 0.3.1 - unreleased
+
+### Changed
+
+- The starting deck is revised. Its two system cards are strong, so the spell cards are weaker to
+  balance them, and some characters start with a different skill:
+  - Skills: Patchouli, Youmu and Tenshi start with d214, Alice with d236, Aya with d421, Iku and
+    Meiling with d623, and Utsuho with d22.
+  - Spell cards: Marisa starts with Earthlight Ray, Alice with Seeker Dolls, Patchouli with Emerald
+    Megalopolis, Yukari with Chen, Suika with Art of Oni Binding, Reisen with Crown Vision, Aya with
+    Sarutahiko's Guidance, Iku with Swimming Thunder Shot, Tenshi with Scarlet Weather Pressure,
+    Sanae with Mid-Day Supernova, Cirno with Cold Sprinkler, Meiling with Star Bullets, Utsuho with
+    Creeping Sun and Suwako with Froggy Braves the Elements.
+  - A run drafted with the starting deck on shows "Rules changed".
+
 ## 0.3 - 2026-11-09
 
 ### New

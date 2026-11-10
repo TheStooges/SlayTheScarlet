@@ -5,7 +5,6 @@
 #include "util.h"
 
 #define MAX_LINE 128
-/* A value as text, with room to spare. */
 #define VALUE_SIZE 64
 
 typedef struct {
@@ -50,9 +49,8 @@ static void default_offer_style(sts_offer_settings *offer_settings)
     offer_settings->weights[STS_CARD_SPELL] = 1;
 }
 
-/* The starter's defaults: two defensive system cards for everyone, as a beginner's crutch, then
- * for each character a default skill and a cheap, useful spell that is worth swapping out later.
- * A Penny Saved is left out on purpose: it is one of the strongest cards in the game. */
+/* The starter's defaults: two defensive system cards for everyone, then for each character 
+ * a default skill and a cheap, useful spell that is worth swapping out later. */
 static const uint16_t g_starter_common[] = {0, 0, 13, 13};
 
 typedef struct {
@@ -61,26 +59,26 @@ typedef struct {
 } starter_cards;
 
 static const starter_cards g_starter_cards[STS_NUM_CHARACTERS] = {
-    {100, 200},    /* Reimu: d236 Hakurei Amulet, Spirit Sign "Fantasy Orb" */
-    {102, 208},    /* Marisa: d22 Grand Stardust, Star Sign "Meteonic Shower" */
-    {102, 206},    /* Sakuya: d236 Magic Star Sword, Silver Sign "Silver Bound" */
-    {101, 202},    /* Alice: d623 Volatile Doll, Curse Sign "Shanghai Doll" */
-    {104, 200},    /* Patchouli: d421 Dew Spear, Fire Metal Sign "St Elmo's Pillar" */
-    {103, 200},    /* Youmu: d22 Medium's Bind, Human Sign "Slash of Present" */
-    {100, 201},    /* Remilia: d236 Demon Lord Walk, Critical "Heart Break" */
-    {101, 200},    /* Yuyuko: d236 Light of the Undead, Death Sign "Ghastly Dream" */
-    {100, 202},    /* Yukari: d236 Open, Lamented Box of Urashima, Boundary "Border Between 2D and 3D" */
-    {101, 200},    /* Suika: d623 Gnome -Dense-, Gather Sign "Throwing Mt. Togakushi" */
-    {101, 200},    /* Reisen: d214 Illusionary Blast, Charming Look "Corolla Vision" */
-    {101, 200},    /* Aya: d214 Domination Dash, Whirl Sign "Maple Leaf Fan" */
-    {101, 200},    /* Komachi: d623 Bound Spirits of the Earth, Nautical Sign "Flow of the River" */
-    {103, 200},    /* Iku: d214 Electrostatic Guided Missile, Electric Sign "Thunder Drum Shot" */
-    {102, 200},    /* Tenshi: d236 Beams of Non-Perception, Earth Sign "Sword of Unletting Soil" */
-    {100, 203},    /* Sanae: d236 Wind-Call, Omikuji "Random Omikuji Barrage" */
-    {102, 200},    /* Cirno: d22 Little Iceberg, Ice Sign "Icicle Machine Gun" */
-    {103, 200},    /* Meiling: d236 Fragrant Wave, Color Sign "Colorful Windchime" */
-    {101, 203},    /* Utsuho: d236 Ground Melt, Burning Star "Fixed Star" */
-    {100, 201},    /* Suwako: d214 Ancient Geyser, Spring Sign "Moriya Clear Water" */
+    {100, 200},    /* Reimu:     d236 Hakurei Amulet                  Spirit Sign "Fantasy Orb"               */
+    {102, 212},    /* Marisa:    d22  Grand Stardust                  Light Sign "Earthlight Ray"             */
+    {102, 206},    /* Sakuya:    d236 Magic Star Sword                Silver Sign "Silver Bound"              */
+    {100, 206},    /* Alice:     d236 Doll Placement                  Spy Sign "Seeker Dolls"                 */
+    {103, 212},    /* Patchouli: d214 Autumn Edge                     Earth Metal Sign "Emerald Megalopolis"  */
+    {102, 200},    /* Youmu:     d214 Slash of Life and Death         Human Sign "Slash of Present"           */
+    {100, 201},    /* Remilia:   d236 Demon Lord Walk                 Critical "Heart Break"                  */
+    {101, 200},    /* Yuyuko:    d236 Light of the Undead             Death Sign "Ghastly Dream"              */
+    {100, 204},    /* Yukari:    d236 Open, Lamented Box of Urashima  Shikigami "Chen"                        */
+    {101, 201},    /* Suika:     d623 Gnome -Dense-                   Drunk Sign "Art of Oni Binding"         */
+    {101, 203},    /* Reisen:    d214 Illusionary Blast               Fascination "Crown Vision"              */
+    {103, 212},    /* Aya:       d421 Pelting in the Night            Squall "Sarutahiko's Guidance"          */
+    {101, 200},    /* Komachi:   d623 Bound Spirits of the Earth      Nautical Sign "Flow of the River"       */
+    {101, 206},    /* Iku:       d623 Veils like Water                Lightning Fish "Swimming Thunder Shot"  */
+    {100, 209},    /* Tenshi:    d214 Sword of the Earth              Weather "Scarlet Weather Pressure"      */
+    {100, 206},    /* Sanae:     d236 Wind-Call                       Miracle "Mid-Day Supernova"             */
+    {102, 202},    /* Cirno:     d22  Little Iceberg                  Ice Cubes "Cold Sprinkler"              */
+    {101, 202},    /* Meiling:   d623 Red Cannon                      Chi Sign "Star Bullets"                 */
+    {102, 205},    /* Utsuho:    d22  Break Sun                       Nuclear Sign "Creeping Sun"             */
+    {100, 203},    /* Suwako:    d214 Ancient Geyser                  Native God "Froggy Braves the Elements" */
 };
 
 static void default_starter(sts_settings *settings)

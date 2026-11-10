@@ -100,7 +100,7 @@ cards you have picked so far.
 
 A starting deck is available and off by default. With `[starter] enabled=true`, each draft starts
 from 2 copies each of Spiritual Strike Talisman and Divine Raiment of the Dragon Fish, plus 2 copies
-each of a default skill and a cheap spell card chosen for each character, and 12 picks fill the rest.
+each of a default skill and a spell card chosen for each character, and 12 picks fill the rest.
 
 The defaults are provisional, until the community has played with them.
 

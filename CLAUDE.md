@@ -498,11 +498,20 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    in the file or in game: v0.2's `common` and per-character lists in `[starter]` are read and
    ignored. The developer's chosen starter, based on defensive options as a beginner's
    crutch: 2x each of Spiritual Strike Talisman (0) and Divine Raiment of the Dragon Fish (13) for
-   everyone (`common`), plus per character 2x a chosen default skill and 2x a cheap (cost 3 or less),
-   useful but not game-changing spell, the kind worth swapping out later. 8 cards, so 12 picks. A
-   Penny Saved (12) is left out on purpose, as one of the strongest cards in the game. Every chosen
-   card is in the character's default deck except Sakuya's Silver Bound and Yukari's Border Between
-   2D and 3D, both deliberate (`reference/default.pf` has the default decks). The lists count
+   everyone (`common`), plus per character 2x a chosen default skill and 2x a spell card. 8 cards,
+   so 12 picks. A
+   Penny Saved (12) is left out on purpose, as one of the strongest cards in the game. The v0.2
+   lists used cards from each character's default deck, except Sakuya's Silver Bound and Yukari's
+   Border Between 2D and 3D (`reference/default.pf` has the default decks). After v0.3 the community
+   revised them (2026-11-10), for this reason: the two system cards are strong enough to be worth
+   having over drafting them, so the spell cards are deliberately weak: spells matter less to how a
+   character plays than skills do. A spell already mediocre stays (Reimu, Sakuya, Reisen, Aya,
+   Komachi; Suwako too, as a weak character); Yuyuko keeps hers, as she has big damage without cards.
+   The 3-cost-or-less rule is broken on purpose for Patchouli (4-cost Emerald Megalopolis), and Yukari
+   drops to 1-cost Chen. Alice moved to d236 to make up for a weak spell. New skill inputs: Alice,
+   Patchouli, Youmu, Aya, Iku, Tenshi, Meiling, Utsuho. Still to decide: Youmu and Remilia's spells,
+   which keep their old ones until then. The comments in
+   `g_starter_cards` name every card. The lists count
    towards the fingerprint only while the starter is on, so older runs keep their rules. Starter
    cards are normal cards afterwards (copy limit, can be replaced). The lists may be tuned later by
    the community, in code. Not chosen: per-player choice between starters (one option would
@@ -574,6 +583,20 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    (`data/scene/select/bg`), then on run screens the character's portrait (`data/stand/<folder>`)
    at tint alpha 0x48, then a 0x60 black shade. 0x70 was too strong: white text over a light
    portrait (Komachi's apron) was hard to read. Falls back to plain black if loading fails.
+14. Set seed, for events (planned with v0.4, beside item 12). Within a run rerolling is already
+   impossible (the RNG state is saved), but starting over seeds a new run from the clock, so a player
+   can delete runs until they like a draft. A rule setting, e.g. `[run] seed`, blank = random as now
+   and the default, part of the fingerprint so an event's shared `settings.ini` carries it. Each run's
+   seed comes from the event seed plus the character: everyone on one character gets the same draft
+   offers, different characters get different ones. Starting over then gives the same draft back.
+   Rewards follow on from the run's RNG, so runs diverge with players' choices, but nobody can reroll.
+   Offers are local only, so no netplay or desync concern. What it does not close: a player can draft,
+   start over and draft again knowing every coming offer; and the mod is local, so a determined player
+   can edit the seed or the run file (the save checksum only catches accidents). So make it visible
+   rather than impossible: count starts over in the run (save format change) and show the seed, the
+   rules fingerprint and that count on item 12's score screen, for players to submit as a screenshot.
+   Open: whether events allow starting over at all (allow and count, only before the first match, or
+   never), as an event rule setting.
 
 ## Open questions
 
