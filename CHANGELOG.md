@@ -9,19 +9,21 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 - The starting deck is revised. Its two system cards are strong, so the spell cards are weaker to
   balance them, and some characters start with a different skill:
-  - Skills: Patchouli, Youmu and Tenshi start with d214, Alice with d236, Aya with d421, Iku and
+  - Skills: Patchouli, Youmu, and Tenshi start with d214, Alice with d236, Aya with d421, Iku and
     Meiling with d623, and Utsuho with d22.
   - Spell cards: Marisa starts with Earthlight Ray, Alice with Seeker Dolls, Patchouli with Emerald
     Megalopolis, Yukari with Chen, Suika with Art of Oni Binding, Reisen with Crown Vision, Aya with
     Sarutahiko's Guidance, Iku with Swimming Thunder Shot, Tenshi with Scarlet Weather Pressure,
     Sanae with Mid-Day Supernova, Cirno with Fairy Spin, Meiling with Star Bullets, Utsuho with
-    High-Tension Blade and Suwako with Froggy Braves the Elements.
+    High-Tension Blade, and Suwako with Froggy Braves the Elements.
   - A run drafted with the starting deck on shows "Rules changed".
-- Card types offered, how they are chosen and the three type weights are now one setting, `card_types`,
-  for the draft and for rewards: random (every card equally likely, so system cards come up most),
-  weighted (each type about as often, the default), mostly system, mostly skill or mostly spell (that
-  type two offers in three), or one of each. The old `types`, `offer_style` and weight settings are
+- Card types offered, how they are chosen, and the three type weights are now one setting,
+  `card_types`, for the draft and for rewards: random (every card equally likely), weighted (each type
+  about as often as the others, the default), mostly system, mostly skill, or mostly spell (that type
+  more often than the others), or one of each. The old `types`, `offer_style`, and weight settings are
   ignored if a `settings.ini` still has them.
+- The settings screen explains only the value selected, and the explanation changes as you change the
+  value. "Win or lose" is now called "After every match".
 
 ## 0.3 - 2026-11-09
 
