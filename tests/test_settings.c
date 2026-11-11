@@ -344,7 +344,7 @@ static void test_settings_starter(void)
     for (character = 0; character < STS_NUM_CHARACTERS; character++)
         CHECK(defaults.starter[character].count == 4);
     CHECK(defaults.starter[1].ids[0] == 102 && defaults.starter[1].ids[2] == 212);
-    CHECK(defaults.starter[18].ids[1] == 102 && defaults.starter[18].ids[3] == 205);
+    CHECK(defaults.starter[18].ids[1] == 102 && defaults.starter[18].ids[3] == 208);
     sts_settings_starter(&defaults, 0, &starter);
     CHECK(starter.count == 0);
 

@@ -75,9 +75,9 @@ static const starter_cards g_starter_cards[STS_NUM_CHARACTERS] = {
     {101, 206},    /* Iku:       d623 Veils like Water                Lightning Fish "Swimming Thunder Shot"  */
     {100, 209},    /* Tenshi:    d214 Sword of the Earth              Weather "Scarlet Weather Pressure"      */
     {100, 206},    /* Sanae:     d236 Wind-Call                       Miracle "Mid-Day Supernova"             */
-    {102, 202},    /* Cirno:     d22  Little Iceberg                  Ice Cubes "Cold Sprinkler"              */
+    {102, 205},    /* Cirno:     d22  Little Iceberg                  Ice Sign "Fairy Spin"                   */
     {101, 202},    /* Meiling:   d623 Red Cannon                      Chi Sign "Star Bullets"                 */
-    {102, 205},    /* Utsuho:    d22  Break Sun                       Nuclear Sign "Creeping Sun"             */
+    {102, 208},    /* Utsuho:    d22  Break Sun                       Light Energy "High-Tension Blade"       */
     {100, 203},    /* Suwako:    d214 Ancient Geyser                  Native God "Froggy Braves the Elements" */
 };
 

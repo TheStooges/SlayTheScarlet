@@ -14,8 +14,8 @@ What changed in each release of Slay the Scarlet. Releases are on the
   - Spell cards: Marisa starts with Earthlight Ray, Alice with Seeker Dolls, Patchouli with Emerald
     Megalopolis, Yukari with Chen, Suika with Art of Oni Binding, Reisen with Crown Vision, Aya with
     Sarutahiko's Guidance, Iku with Swimming Thunder Shot, Tenshi with Scarlet Weather Pressure,
-    Sanae with Mid-Day Supernova, Cirno with Cold Sprinkler, Meiling with Star Bullets, Utsuho with
-    Creeping Sun and Suwako with Froggy Braves the Elements.
+    Sanae with Mid-Day Supernova, Cirno with Fairy Spin, Meiling with Star Bullets, Utsuho with
+    High-Tension Blade and Suwako with Froggy Braves the Elements.
   - A run drafted with the starting deck on shows "Rules changed".
 
 ## 0.3 - 2026-11-09
