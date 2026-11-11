@@ -21,6 +21,9 @@ static recvfrom_fn g_og_recvfrom = NULL;
 /* Packets are handled on more than one thread. */
 static CRITICAL_SECTION g_lock;
 
+/* Replay packets received since the last spectator line, for that line. */
+static int g_replies_since_request_line = 0;
+
 static int compare_ids(const void *first, const void *second)
 {
     return (int)*(const unsigned short *)first - (int)*(const unsigned short *)second;
@@ -113,6 +116,39 @@ static uint32_t hash_bytes(const unsigned char *bytes, int len)
     return hash;
 }
 
+/* A spectator asks its parent for the match's inputs every 3 frames: CLIENT_GAME, GAME_REPLAY_REQUEST,
+ * u32 frame, u8 match (as the protocol notes describe it; not checked against the game). Logging every
+ * request would flood the log, so only a new match, or the frame going back, gets a line, with how many
+ * requests and replies there were since the last one. A frame going back may be the spectator replaying
+ * the end of the last match after reaching the loading screen. */
+static void log_replay_request(const unsigned char *packet, int len, int replies_since)
+{
+    static int last_match = -1;
+    static unsigned last_frame = 0;
+    static int requests = 0;
+    unsigned frame;
+    int match;
+
+    if (len < 7)
+        return;
+    frame = (unsigned)packet[2] | (unsigned)packet[3] << 8 | (unsigned)packet[4] << 16 | (unsigned)packet[5] << 24;
+    match = packet[6];
+    requests++;
+    if (match != last_match) {
+        slog("spectator: asks for match %d from frame %u (match %d reached frame %u; %d requests, %d replies)",
+             match, frame, last_match, last_frame, requests, replies_since);
+        requests = 0;
+        g_replies_since_request_line = 0;
+    } else if (frame < last_frame) {
+        slog("spectator: match %d went back from frame %u to %u (%d requests, %d replies)",
+             match, last_frame, frame, requests, replies_since);
+        requests = 0;
+        g_replies_since_request_line = 0;
+    }
+    last_match = match;
+    last_frame = frame;
+}
+
 static void analyze(const char *dir, const unsigned char *packet, int len)
 {
     static unsigned seen[128];
@@ -140,6 +176,11 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
         else
             slog("%s first packet of type 0x%02X, length %d", dir, type, len);
     }
+
+    if (sending && type == SokuLib::CLIENT_GAME && inner == SokuLib::GAME_REPLAY_REQUEST)
+        log_replay_request(packet, len, g_replies_since_request_line);
+    if (!sending && type == SokuLib::HOST_GAME && inner == SokuLib::GAME_REPLAY)
+        g_replies_since_request_line++;
 
     /* GAME_MATCH is resent until acknowledged, so only log it when it changes. */
     if (inner == SokuLib::GAME_MATCH) {

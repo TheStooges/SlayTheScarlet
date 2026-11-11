@@ -194,8 +194,10 @@ Netplay is a primary requirement. Each machine simulates both players from share
 
 - Build the selection screen as an event-driven state machine (driven by local input for players,
   by network events for spectators, local input ignored). Same screen, different driver.
-- Spectators connect to the host; the host's mod must relay the client's events. Spectators must
-  announce they are modded before receiving custom packets. Late joiners need a state snapshot.
+- Spectators hang under the client, not the host (per the protocol doc below: the host has one child,
+  the client; the client one, the first spectator; each spectator up to 4 more). So the host's
+  events must pass through the client's mod, then down the spectator tree. Spectators must announce
+  they are modded before receiving custom packets. Late joiners need a state snapshot.
 - Fallback that works in every mode: diff each player's deck against the previous `GAME_MATCH`
   packet and show "P1 swapped X for Y" at match start.
 
@@ -380,8 +382,9 @@ Netplay is a primary requirement. Each machine simulates both players from share
   through the Server vtables with mode 5. Trust only `mainMode` for the role.
 - **All runs use compatible rules for now** (`load_data` applies `sts_settings_force_compatible`),
   until full mode exists. Rules that are already compatible keep their fingerprint.
-- **Packet types seen** (first byte): 0x01, 0x03-0x06, 0x0B, 0x0D, 0x0E, and 0x43, 0x6B, 0x6E, 0x9C,
-  the last four presumably from Giuroll. Pick mod message IDs outside these.
+- **Packet types seen** (first byte): 0x01, 0x03-0x06, 0x0B, 0x0D, 0x0E, and 0x43, 0x6B, 0x6E, 0x9C.
+  0x6B and 0x6E are Giuroll's (see the Giuroll notes; it owns 0x6B-0x80); 0x43 and 0x9C are from
+  something else in the bundle. Pick mod message IDs outside all of these.
 - **Port clash when testing on one PC:** `clientport` in `configex123.ini` must be 0 on the side that
   joins. If it matches the host's port, the two instances cannot connect.
 - **Spectating (a modded spectator, run in use, watching two unmodded players over a real
@@ -473,6 +476,36 @@ real profile before loading its output, because it replaces all decks and a key 
 Com, toggles HP regeneration), F2 (fills the hand from the deck) and F3 (empties it) are available
 offline but not in online play. They are useful for
 in-game testing, because a match starts with an empty hand.
+
+**Giuroll** (read from source, github.com/Hagb/giuroll-hagb, the maintained fork of
+github.com/Giufin/giuroll; Rust). It hooks the game's packet read (after `recvfrom`, at 0x41DAEA):
+first byte 0x6B is its battle input, 0x6E an opponent's Esc, 0x6C a probe it answers with 0x6D, and
+**any other first byte from 0x6D to 0x80 is swallowed** (it sets the length to 0x400 so the game
+drops it). So Giuroll owns 0x6B-0x80: never use a byte in that range. Making the game drop a packet
+by its length is a trick a mod can use for its own packets too. Giuroll also watches the game's sent
+packets (0x4171B4, 0x4171C7) and changes what is sent to spectators (only frames with a buffer of
+them, at 0x42DAA6). It refuses to load if another netcode mod is present.
+
+**Hisoutensoku protocol** (github.com/delthas/touhou-protocol-docs, `protocol_123.md`; incomplete,
+not checked against the game). Top-level types: 0x01 HELLO, 0x02 PUNCH, 0x03 OLLEH, 0x04 CHAIN (every
+0.5 s to children), 0x05 INIT_REQUEST (carries a game_id that keeps incompatible clients out), 0x06
+INIT_SUCCESS, 0x07 INIT_ERROR, 0x08 REDIRECT, 0x0B QUIT, 0x0D/0x0E game data from parent/child
+(sub-types: 0x01 LOADED, 0x02 LOADED_ACK, 0x03 INPUT, 0x04 MATCH, 0x05 MATCH_ACK, 0x08
+MATCH_REQUEST, 0x09 REPLAY, 0x0B REPLAY_REQUEST). Spectators send REPLAY_REQUEST every 3 frames and
+get GAME_MATCH (both decks) when a new match starts, else REPLAY (compressed inputs). It does not say
+what the game does with an unknown first byte, or what a spectator sees between matches; SokuLib has
+only `LoadingWatch` (0x858180) and `BattleWatch` (0x85758C) spectator scenes.
+
+**Spectators, from the developer's experience:** spectators run Giuroll too (the community shares one
+copy of the game), so a packet type in Giuroll's dropped range (0x6F-0x80) is ignored by every peer
+without this mod, players and spectators alike. A spectator waits on the loading screen, unable to do
+anything but leave, until the players finish character select; the result screen and character select
+are never shown to it. Watch for this: a spectator is sometimes sent to the loading screen and then
+back to the battle, where a fast-forwarded replay of the previous match plays. The cause is unknown; a
+guess is that the spectator was behind and is still catching up on that match's inputs (Giuroll holds
+back frames for spectators). So anything shown on a spectator's loading screen must be tied to the
+match it belongs to (the `GAME_MATCH` match id), not to scene changes, and must survive a trip back to
+`BattleWatch`.
 
 **Privacy:** game logs contain the opponent's IP address and local Windows paths. Never commit
 logs or personal profiles. Keep reference files from the game install in a gitignored folder.

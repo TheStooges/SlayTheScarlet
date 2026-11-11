@@ -3,6 +3,14 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## 0.3.2 - 2026-11-11
+
+### Changed
+
+- A spectator with the mod now logs, in `sts.log`, when it moves between the loading screen and the
+  battle, each match it is sent, and when it is sent back to replay the end of a match. This is for
+  testing spectating; nothing on screen changes.
+
 ## 0.3.1 - 2026-11-11
 
 ### Changed

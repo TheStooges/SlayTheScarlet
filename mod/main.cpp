@@ -67,6 +67,11 @@ NET_SELECT_HOOK(SelectServer, "character select, as host")
 NET_SELECT_HOOK(SelectClient, "character select, as client")
 NET_LOADING_HOOK(LoadingServer, "loading, as host")
 NET_LOADING_HOOK(LoadingClient, "loading, as client")
+/* A spectator's scenes: only logged for now, to learn when it waits and when it watches. A spectator
+ * waits on its loading screen while the players are on the screen after a match and character
+ * select, and is sometimes sent back to the battle to catch up on the last one. */
+NET_LOADING_HOOK(LoadingWatch, "loading, as spectator")
+NET_LOADING_HOOK(BattleWatch, "battle, as spectator")
 NET_BATTLE_HOOK(BattleServer, "battle, as host")
 NET_BATTLE_HOOK(BattleClient, "battle, as client")
 
@@ -351,6 +356,8 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     g_og_LoadingClient = SokuLib::TamperDword(&SokuLib::VTable_LoadingClient.onProcess, on_LoadingClient);
     g_og_BattleServer = SokuLib::TamperDword(&SokuLib::VTable_BattleServer.onProcess, on_BattleServer);
     g_og_BattleClient = SokuLib::TamperDword(&SokuLib::VTable_BattleClient.onProcess, on_BattleClient);
+    g_og_LoadingWatch = SokuLib::TamperDword(&SokuLib::VTable_LoadingWatch.onProcess, on_LoadingWatch);
+    g_og_BattleWatch = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onProcess, on_BattleWatch);
     netlog_install();
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
     FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
