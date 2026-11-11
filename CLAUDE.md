@@ -514,8 +514,8 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    Komachi; Suwako too, as a weak character); Yuyuko keeps hers, as she has big damage without cards.
    The 3-cost-or-less rule is broken on purpose for Patchouli (4-cost Emerald Megalopolis), and Yukari
    drops to 1-cost Chen. Alice moved to d236 to make up for a weak spell. New skill inputs: Alice,
-   Patchouli, Youmu, Aya, Iku, Tenshi, Meiling, Utsuho. Still to decide: Youmu and Remilia's spells,
-   which keep their old ones until then. The comments in
+   Patchouli, Youmu, Aya, Iku, Tenshi, Meiling, Utsuho. Youmu and Remilia keep their v0.2 spells,
+   decided for v0.3.1. Every list is tentative and may be rebalanced in a later release. The comments in
    `g_starter_cards` name every card. The lists count
    towards the fingerprint only while the starter is on, so older runs keep their rules. Starter
    cards are normal cards afterwards (copy limit, can be replaced). The lists may be tuned later by

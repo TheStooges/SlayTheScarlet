@@ -3,7 +3,7 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
-## 0.3.1 - unreleased
+## 0.3.1 - 2026-11-11
 
 ### Changed
 
@@ -43,8 +43,8 @@ What changed in each release of Slay the Scarlet. Releases are on the
 - Cards per pick and per offer go up to 3, as many as the offer screen fits.
 - The starting deck's cards are built in. The card lists in `[starter]` are no longer settings; an
   older `settings.ini` that lists them still loads, and they are ignored. Only `enabled` remains.
-- `who_picks` now reads as when you get an offer, from your own result: `both` (win or lose), `winner`
-  (only if you win), `loser` (only if you lose) or the new `random` (a chance, win or lose, set by
+- `who_picks` now reads as when you get an offer, from your own result: `both` (after every match),
+  `winner` (only if you win), `loser` (only if you lose), or the new `random` (a chance, win or lose, set by
   `random_chance`, out of 100, 50 by default). Each player's mod applies it alone, so nothing is
   exchanged with the opponent.
 - `who_picks=nobody` is gone, and an older file that says it reads as `both`. Its automatic swap is now

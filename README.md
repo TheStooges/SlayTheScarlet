@@ -94,7 +94,7 @@ do nothing yet are only in the file.
 
 The draft always adds one card per pick until the deck is full. You can change how many cards are
 offered (up to 3), which card types appear and how often, who gets an offer after a
-match (win or lose, only if you win, only if you lose, or at random), and whether you pick the card that comes in, whether you replace chosen
+match (after every match, only if you win, only if you lose, or at random), and whether you pick the card that comes in, whether you replace chosen
 cards, a card type, or random cards. Setting `show_deck=false` makes the draft blind, hiding the
 cards you have picked so far.
 

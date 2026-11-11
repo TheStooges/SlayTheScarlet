@@ -811,7 +811,8 @@ static void rebuild_settings(void)
         add_label(line, g_font_small, 28, 331, 590, 20, COLOR_GREY);
         /* Each value's line starts on a line of its own. */
         for (wau = 0; wau < current->help_count; wau++)
-            help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
+            if (settings_help_shown(current, wau))
+                help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
     }
     sprintf(line, tr("Up/Down: choose   Left/Right: change   %s: save   %s: back"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);

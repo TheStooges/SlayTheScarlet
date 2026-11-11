@@ -34,15 +34,35 @@ static settings_row *add_row(const char *section, const char *key, const char *l
     row->section = section;
     row->key = key;
     row->label = label;
-    row->help[0] = help;
-    row->help_count = 1;
+    if (help)
+        row->help[row->help_count++] = help;
     return row;
 }
 
+/* A help line shown whatever the value. */
 static void add_help_line(settings_row *row, const char *line)
 {
     if (row && row->help_count < SETTINGS_HELP_LINES)
         row->help[row->help_count++] = line;
+}
+
+/* A help line about one value, shown only while it is selected. */
+static void add_value_help(settings_row *row, const char *value, const char *line)
+{
+    if (row && row->help_count < SETTINGS_HELP_LINES) {
+        row->help_value[row->help_count] = value;
+        row->help[row->help_count++] = line;
+    }
+}
+
+int settings_help_shown(const settings_row *row, int line)
+{
+    char value[64];
+
+    if (!row->help_value[line])
+        return 1;
+    sts_settings_get(&g_settings_edit, row->section, row->key, value, sizeof value);
+    return strcmp(value, row->help_value[line]) == 0;
 }
 
 /* The draft and the reward have the same offer settings, except that only the reward's copies can
@@ -52,17 +72,18 @@ static void add_offer_rows(const char *section, const char *copies_help)
     settings_row *row;
 
     add_row(section, "offers", section[0] == 'd' ? tr("Cards per pick") : tr("Cards per offer"),
-            section[0] == 'd' ? tr("How many cards each pick offers. The screen fits up to 3.")
-                              : tr("How many cards each offer shows. The screen fits up to 3."));
+            section[0] == 'd' ? tr("How many cards each pick offers.") : tr("How many cards each offer shows."));
     if (copies_help) {
         add_row(section, "copies_min", tr("Fewest copies"), copies_help);
         add_row(section, "copies_max", tr("Most copies"), copies_help);
     }
-    row = add_row(section, "card_types", tr("Card types"),
-                  tr("Random: every card equally likely, so system cards, the most numerous, come up most."));
-    add_help_line(row, tr("Weighted: each type comes up about as often as the others."));
-    add_help_line(row, tr("Mostly System, Skill or Spell: that type in two offers out of three."));
-    add_help_line(row, tr("One of each: every offer shows a system card, a skill card and a spell card."));
+    row = add_row(section, "card_types", tr("Card types"), NULL);
+    add_value_help(row, "random", tr("Random: every card is equally likely."));
+    add_value_help(row, "weighted", tr("Weighted: each type comes up about as often as the others."));
+    add_value_help(row, "mostly_system", tr("Mostly System: system cards come up more often than the others."));
+    add_value_help(row, "mostly_skill", tr("Mostly Skill: skill cards come up more often than the others."));
+    add_value_help(row, "mostly_spell", tr("Mostly Spell: spell cards come up more often than the others."));
+    add_value_help(row, "one_of_each", tr("One of each: every offer shows a system card, a skill card, and a spell card."));
 }
 
 const char *settings_menu_name(int menu)
@@ -95,40 +116,42 @@ static int build_menu_rows(int menu, settings_row *rows)
     g_build_count = 0;
     switch (menu) {
     case SETTINGS_MENU_DRAFT:
-        row = add_row("starter", "enabled", tr("Starting deck"),
-                      tr("On: 8 set cards for the character to start, then 12 picks fill the rest."));
-        add_help_line(row, tr("Off: each draft starts from an empty deck and takes 20 picks."));
-        row = add_row("draft", "show_deck", tr("Show the deck so far"), tr("On: the deck so far is shown beside the offers."));
-        add_help_line(row, tr("Off: a blind draft."));
+        row = add_row("starter", "enabled", tr("Starting deck"), NULL);
+        add_value_help(row, "true", tr("On: 8 set cards for the character to start, then 12 picks fill the rest."));
+        add_value_help(row, "false", tr("Off: each draft starts from an empty deck and takes 20 picks."));
+        row = add_row("draft", "show_deck", tr("Show the deck so far"), NULL);
+        add_value_help(row, "true", tr("On: the deck so far is shown beside the offers."));
+        add_value_help(row, "false", tr("Off: a blind draft."));
         add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
         add_offer_rows("draft", NULL);
         break;
     case SETTINGS_MENU_REWARD:
-        row = add_row("reward", "mode", tr("Reward mode"), tr("Replace a card: a card comes in and the same number leave."));
-        add_help_line(row, tr("No offers: the deck never changes after a match."));
+        row = add_row("reward", "mode", tr("Reward mode"), NULL);
+        add_value_help(row, "replace", tr("Replace a card: a card comes in and the same number leave."));
+        add_value_help(row, "skip", tr("No offers: the deck never changes after a match."));
         add_help_line(row, tr("Adding and removing change the deck size, which the mod cannot do yet."));
-        row = add_row("reward", "who_picks", tr("When you get an offer"),
-                      tr("Win or lose: you get an offer after every match."));
-        add_help_line(row, tr("Only if you win: no offer after a loss."));
-        add_help_line(row, tr("Only if you lose: no offer after a win."));
-        add_help_line(row, tr("Random: a set chance of an offer after each match, win or lose."));
+        row = add_row("reward", "who_picks", tr("When you get an offer"), NULL);
+        add_value_help(row, "both", tr("After every match: you get an offer, win or lose."));
+        add_value_help(row, "winner", tr("Only if you win: no offer after a loss."));
+        add_value_help(row, "loser", tr("Only if you lose: no offer after a win."));
+        add_value_help(row, "random", tr("Random: a set chance of an offer after each match, win or lose."));
         if (g_settings_edit.who_picks == STS_WHO_RANDOM)
             add_row("reward", "random_chance", tr("Chance of an offer"),
                     tr("Out of 100: how likely an offer is after each match."));
-        row = add_row("reward", "offer_pick", tr("What comes into the deck"),
-                      tr("Player chooses a card: pick one of the cards offered."));
-        add_help_line(row, tr("Random: one of the cards offered is picked for you."));
+        row = add_row("reward", "offer_pick", tr("What comes into the deck"), NULL);
+        add_value_help(row, "choose", tr("Player chooses a card: pick one of the cards offered."));
+        add_value_help(row, "random", tr("Random: one of the cards offered is picked for you."));
         add_help_line(row, tr("With \"What leaves the deck\" on Random too, the swap happens by itself."));
-        row = add_row("reward", "replacement", tr("What leaves the deck"),
-                      tr("Player chooses cards: pick exactly which cards leave."));
-        add_help_line(row, tr("Player chooses a type: random cards of the chosen type leave."));
-        add_help_line(row, tr("Random: the cards that leave are chosen at random."));
+        row = add_row("reward", "replacement", tr("What leaves the deck"), NULL);
+        add_value_help(row, "choose", tr("Player chooses cards: pick exactly which cards leave."));
+        add_value_help(row, "by_type", tr("Player chooses a type: random cards of the chosen type leave."));
+        add_value_help(row, "random", tr("Random: the cards that leave are chosen at random."));
         add_offer_rows("reward", tr("Each offer gives a random number of copies in this range."));
         break;
     case SETTINGS_MENU_RUN:
-        row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"),
-                      tr("On: a run made under other rules carries on if its deck is legal under them."));
-        add_help_line(row, tr("Off: a run made under other rules can only start over."));
+        row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"), NULL);
+        add_value_help(row, "true", tr("On: a run made under other rules carries on if its deck is legal under them."));
+        add_value_help(row, "false", tr("Off: a run made under other rules can only start over."));
         break;
     }
     return g_build_count;
@@ -157,7 +180,7 @@ static const char *choice_text(const char *raw)
 {
     if (strcmp(raw, "true") == 0) return tr("On");
     if (strcmp(raw, "false") == 0) return tr("Off");
-    if (strcmp(raw, "both") == 0) return tr("Win or lose");
+    if (strcmp(raw, "both") == 0) return tr("After every match");
     if (strcmp(raw, "winner") == 0) return tr("Only if you win");
     if (strcmp(raw, "loser") == 0) return tr("Only if you lose");
     if (strcmp(raw, "replace") == 0) return tr("Replace a card");

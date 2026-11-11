@@ -86,13 +86,14 @@ typedef enum { RULES_CARRY_ON, RULES_BACK, RULES_START_OVER } rules_option;
 #define RULES_ROW_Y 150
 #define RULES_ROW_PITCH 70
 
-/* One setting on the settings screen. Its help is a few lines, one for each value where the value
- * needs explaining. */
-#define SETTINGS_HELP_LINES 4
+/* One setting on the settings screen. Its help is a few lines: some always shown, and some about one
+ * value (help_value, as the file writes it), shown only while that value is selected. */
+#define SETTINGS_HELP_LINES 8
 typedef struct {
     const char *section, *key;
     const char *label;
     const char *help[SETTINGS_HELP_LINES];
+    const char *help_value[SETTINGS_HELP_LINES];   /* NULL: always shown */
     int help_count;
 } settings_row;
 #define MAX_SETTINGS_ROWS 48
@@ -186,6 +187,7 @@ void on_settings_event(screen_event event);
 void on_settings_confirm_event(screen_event event);
 void settings_value_text(const settings_row *row, char *out, size_t size);
 int settings_row_changed(const settings_row *row);
+int settings_help_shown(const settings_row *row, int line);
 const char *settings_menu_name(int menu);
 const char *settings_menu_help(int menu);
 int settings_menu_changed(int menu);
