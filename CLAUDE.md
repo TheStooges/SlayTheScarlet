@@ -119,9 +119,14 @@ unlock rules (rarity, sequences, story rewards) do not limit the pool, because p
 unlocked save.
 
 Offers roll a card type first and a card within it second, because a flat roll over all cards favours
-system cards (21 of them, against 12 skills and 9-14 spells: about 45-50% of offers). `offer_style` picks
-`weighted` (the type is rolled from `system_weight`, `skill_weight` and `spell_weight`, 1/1/1 by default)
-or `one_of_each` (system, skill, spell in turn), separately for the draft and rewards.
+system cards (21 of them, against 12 skills and 9-14 spells: about 45-50% of offers). By decision
+(v0.3.1), one setting, `card_types`, picks how, separately for the draft and rewards: `random` (a flat
+roll over all cards, so system cards come up most; `STS_OFFER_BY_CARD`), `weighted` (each type equally
+likely, the default and the old 1/1/1 weights, so its fingerprint is unchanged), `mostly_system`,
+`mostly_skill`, `mostly_spell` (that type weighs 4 against 1 and 1: two offers in three) and
+`one_of_each` (system, skill, spell in turn). The old `types`, `offer_style` and `*_weight` keys are
+read and ignored. The offer generator still has `type_mask`, `style` and `weights` inside, which
+`card_types` fills in; only code can set other values (shown as "custom").
 
 Rule interpretations in `core/` that may need revisiting with the community:
 

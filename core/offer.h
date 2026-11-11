@@ -32,7 +32,8 @@ typedef enum {
  * cards would dominate just by being the most numerous. */
 typedef enum {
     STS_OFFER_WEIGHTED,     /* each offer rolls a type, using the weights */
-    STS_OFFER_ONE_OF_EACH   /* system, skill, spell in turn, moving on if a type has nothing */
+    STS_OFFER_ONE_OF_EACH,  /* system, skill, spell in turn, moving on if a type has nothing */
+    STS_OFFER_BY_CARD       /* every card as likely as any other, so a type with more cards comes up more */
 } sts_offer_style;
 
 /* Most offers one pick can show. */

@@ -49,8 +49,6 @@ static void add_help_line(settings_row *row, const char *line)
  * be set: the draft adds one card per pick. */
 static void add_offer_rows(const char *section, const char *copies_help)
 {
-    const char *weight_help = tr("How often this type is offered compared with the others, when weighted.");
-    const char *weight_off = tr("0 turns it off.");
     settings_row *row;
 
     add_row(section, "offers", section[0] == 'd' ? tr("Cards per pick") : tr("Cards per offer"),
@@ -60,16 +58,11 @@ static void add_offer_rows(const char *section, const char *copies_help)
         add_row(section, "copies_min", tr("Fewest copies"), copies_help);
         add_row(section, "copies_max", tr("Most copies"), copies_help);
     }
-    add_row(section, "types", tr("Card types offered"), tr("Which card types can be offered."));
-    row = add_row(section, "offer_style", tr("How types are chosen"),
-                  tr("Weighted: each offer's card type is rolled from the weights below."));
+    row = add_row(section, "card_types", tr("Card types"),
+                  tr("Random: every card equally likely, so system cards, the most numerous, come up most."));
+    add_help_line(row, tr("Weighted: each type comes up about as often as the others."));
+    add_help_line(row, tr("Mostly System, Skill or Spell: that type in two offers out of three."));
     add_help_line(row, tr("One of each: every offer shows a system card, a skill card and a spell card."));
-    row = add_row(section, "system_weight", tr("System card weight"), weight_help);
-    add_help_line(row, weight_off);
-    row = add_row(section, "skill_weight", tr("Skill card weight"), weight_help);
-    add_help_line(row, weight_off);
-    row = add_row(section, "spell_weight", tr("Spell card weight"), weight_help);
-    add_help_line(row, weight_off);
 }
 
 const char *settings_menu_name(int menu)
@@ -176,6 +169,10 @@ static const char *choice_text(const char *raw)
     if (strcmp(raw, "random") == 0) return tr("Random");
     if (strcmp(raw, "weighted") == 0) return tr("Weighted");
     if (strcmp(raw, "one_of_each") == 0) return tr("One of each");
+    if (strcmp(raw, "mostly_system") == 0) return tr("Mostly System");
+    if (strcmp(raw, "mostly_skill") == 0) return tr("Mostly Skill");
+    if (strcmp(raw, "mostly_spell") == 0) return tr("Mostly Spell");
+    if (strcmp(raw, "custom") == 0) return tr("Custom");
     return NULL;
 }
 
@@ -188,23 +185,6 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
     if (!row->key)
         return;
     sts_settings_get(&g_settings_edit, row->section, row->key, raw, sizeof raw);
-    if (strcmp(row->key, "types") == 0) {
-        /* "system,skill" becomes "System, Skill". */
-        size_t used = 0, wau;
-
-        for (wau = 0; raw[wau] && used + 3 < size; wau++) {
-            if (raw[wau] == ',') {
-                out[used++] = ',';
-                out[used++] = ' ';
-            } else if (wau == 0 || raw[wau - 1] == ',') {
-                out[used++] = (char)(raw[wau] - 'a' + 'A');
-            } else {
-                out[used++] = raw[wau];
-            }
-        }
-        out[used] = 0;
-        return;
-    }
     /* The other "choose" is about the cards that leave. */
     if (strcmp(row->key, "offer_pick") == 0 && strcmp(raw, "choose") == 0)
         words = tr("Player chooses a card");
@@ -413,16 +393,6 @@ static void describe_problem(sts_settings_problem problem, const sts_settings_pr
     case STS_PROBLEM_REWARD_COPY_LIMIT:
         _snprintf(out, size - 1, tr("Most copies cannot be above %d, the copies of one card a deck may hold."),
                   rules->copy_limit);
-        break;
-    case STS_PROBLEM_DRAFT_TYPES:
-    case STS_PROBLEM_REWARD_TYPES:
-        _snprintf(out, size - 1, "%s", tr("At least one card type must be offered."));
-        break;
-    case STS_PROBLEM_DRAFT_WEIGHTS:
-        _snprintf(out, size - 1, "%s", tr("Draft: every card type offered has a weight of 0, so nothing can be offered."));
-        break;
-    case STS_PROBLEM_REWARD_WEIGHTS:
-        _snprintf(out, size - 1, "%s", tr("Rewards: every card type offered has a weight of 0, so nothing can be offered."));
         break;
     case STS_PROBLEM_RANDOM_CHANCE:
         _snprintf(out, size - 1, "%s", tr("The chance of an offer cannot be above 100."));

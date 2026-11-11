@@ -51,9 +51,9 @@ static void test_settings_every_key(void)
 
     /* Every setting is reachable. */
     CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=25\ncopy_limit=3\n"
-                    "[draft]\noffers=4\ntypes=skill,spell\n"
+                    "[draft]\noffers=4\ncard_types=mostly_spell\n"
                     "[reward]\nmode=add\nwho_picks=loser\noffers=5\ncopies_min=2\ncopies_max=3\n"
-                    "types=system\nreplacement=by_type\n"
+                    "card_types=one_of_each\nreplacement=by_type\n"
                     "[netplay]\npick_visibility=live\nopponent_deck=full\n"
                     "[items]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(settings.rules.deck_min == 15 && settings.rules.deck_max == 25 && settings.rules.copy_limit == 3);
@@ -77,16 +77,17 @@ static void test_settings_every_key(void)
 
     /* Every other setting is reachable. */
     CHECK(parse_ini("[deck]\nsize_min=15\nsize_max=25\ncopy_limit=3\n"
-                    "[draft]\noffers=4\ntypes=skill,spell\n"
+                    "[draft]\noffers=4\ncard_types=mostly_spell\n"
                     "[reward]\nmode=add\nwho_picks=loser\noffers=5\ncopies_min=2\ncopies_max=3\n"
-                    "types=system\nreplacement=by_type\n"
+                    "card_types=one_of_each\nreplacement=by_type\n"
                     "[netplay]\npick_visibility=live\nopponent_deck=full\n"
                     "[items]\nenabled=true\n", &settings, &line) == STS_SETTINGS_OK);
-    CHECK(settings.draft.type_mask == (STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL)));
+    CHECK(settings.draft.style == STS_OFFER_WEIGHTED && settings.draft.weights[STS_CARD_SPELL] == 4
+          && settings.draft.weights[STS_CARD_SYSTEM] == 1 && settings.draft.type_mask == STS_TYPE_ALL);
     CHECK(settings.reward.mode == STS_REWARD_ADD && settings.who_picks == STS_WHO_LOSER
           && settings.reward.offer_count == 5);
     CHECK(settings.reward.copies_min == 2 && settings.reward.copies_max == 3);
-    CHECK(settings.reward.type_mask == STS_TYPE_BIT(STS_CARD_SYSTEM) && settings.reward.replace == STS_REPLACE_BY_TYPE);
+    CHECK(settings.reward.style == STS_OFFER_ONE_OF_EACH && settings.reward.replace == STS_REPLACE_BY_TYPE);
     CHECK(settings.pick_visibility == STS_VISIBILITY_LIVE && settings.opponent_deck == STS_OPPONENT_DECK_FULL);
     CHECK(settings.items_enabled == 1);
     CHECK(sts_settings_validate(&settings) == NULL);
@@ -115,19 +116,45 @@ static void test_settings_offer_style(void)
 
     sts_settings_defaults(&defaults);
 
-    /* Offer style and weights, separately for the draft and rewards. */
+    /* card_types, separately for the draft and rewards. Weighted is the default: each type 1. */
     CHECK(defaults.draft.style == STS_OFFER_WEIGHTED && defaults.reward.style == STS_OFFER_WEIGHTED);
     CHECK(defaults.reward.weights[STS_CARD_SYSTEM] == 1 && defaults.reward.weights[STS_CARD_SKILL] == 1
-          && defaults.reward.weights[STS_CARD_SPELL] == 1);
-    CHECK(parse_ini("[draft]\noffer_style=one_of_each\n[reward]\nsystem_weight=2\nskill_weight=3\nspell_weight=4\n",
+          && defaults.reward.weights[STS_CARD_SPELL] == 1 && defaults.reward.type_mask == STS_TYPE_ALL);
+    CHECK(parse_ini("[draft]\ncard_types=one_of_each\n[reward]\ncard_types=mostly_skill\n",
                     &settings, &line) == STS_SETTINGS_OK);
     CHECK(settings.draft.style == STS_OFFER_ONE_OF_EACH && settings.reward.style == STS_OFFER_WEIGHTED);
-    CHECK(settings.reward.weights[STS_CARD_SYSTEM] == 2 && settings.reward.weights[STS_CARD_SKILL] == 3
-          && settings.reward.weights[STS_CARD_SPELL] == 4);
-    CHECK(settings.draft.weights[STS_CARD_SYSTEM] == 1);
+    CHECK(settings.reward.weights[STS_CARD_SYSTEM] == 1 && settings.reward.weights[STS_CARD_SKILL] == 4
+          && settings.reward.weights[STS_CARD_SPELL] == 1);
     CHECK(sts_settings_validate(&settings) == NULL);
-    CHECK(parse_ini("[reward]\noffer_style=gamble\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
-    CHECK(parse_ini("[reward]\nspell_weight=-1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[draft]\ncard_types=random\n", &settings, &line) == STS_SETTINGS_OK
+          && settings.draft.style == STS_OFFER_BY_CARD);
+    CHECK(parse_ini("[reward]\ncard_types=mostly_system\n", &settings, &line) == STS_SETTINGS_OK
+          && settings.reward.weights[STS_CARD_SYSTEM] == 4 && settings.reward.weights[STS_CARD_SPELL] == 1);
+    CHECK(parse_ini("[reward]\ncard_types=gamble\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[reward]\ncard_types=\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+
+    /* Every value is a different rule. */
+    {
+        static const char *const values[] = {"random", "weighted", "mostly_system", "mostly_skill", "mostly_spell",
+                                             "one_of_each"};
+        uint32_t hashes[6];
+        int wau, j;
+
+        for (wau = 0; wau < 6; wau++) {
+            sts_settings_defaults(&settings);
+            CHECK(sts_settings_set(&settings, "reward", "card_types", values[wau]) == STS_SETTINGS_OK);
+            hashes[wau] = sts_settings_hash(&settings);
+            for (j = 0; j < wau; j++)
+                CHECK(hashes[j] != hashes[wau]);
+        }
+        CHECK(hashes[1] == sts_settings_hash(&defaults));
+    }
+
+    /* The type settings it replaced are read and ignored, so files from 0.3 still load. */
+    CHECK(parse_ini("[draft]\ntypes=spell\noffer_style=one_of_each\nsystem_weight=0\n"
+                    "[reward]\ntypes=system,skill\nskill_weight=9\nspell_weight=0\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_equal(&settings, &defaults) && sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+    CHECK(sts_settings_set(&settings, "draft", "types", "spell") == STS_SETTINGS_UNKNOWN_KEY);
 }
 
 static void test_settings_errors(void)
@@ -149,8 +176,7 @@ static void test_settings_errors(void)
     CHECK(parse_ini("[deck]\nsize_min=-1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
     CHECK(parse_ini("[deck]\nsize_min=99999\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
     CHECK(parse_ini("[reward]\nmode=gamble\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
-    CHECK(parse_ini("[reward]\ntypes=system,trap\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
-    CHECK(parse_ini("[reward]\ntypes=\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[reward]\ncard_types=trap\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
     CHECK(parse_ini("[items]\nenabled=1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
     CHECK(sts_settings_load("no/such/file.ini", &settings, &line) == STS_SETTINGS_IO);
     CHECK(sts_settings_hash(&settings) == sts_settings_hash(&defaults));    /* defaults even so */
@@ -179,9 +205,6 @@ static void test_settings_validation(void)
     BAD_INI("[reward]\noffers=0\n");
     BAD_INI("[reward]\ncopies_min=3\ncopies_max=2\n");
     BAD_INI("[reward]\ncopies_max=5\n");
-    BAD_INI("[reward]\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n");
-    BAD_INI("[draft]\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n");
-    BAD_INI("[reward]\ntypes=spell\nspell_weight=0\n");
 #undef BAD_INI
 
     /* The problem is named, for the settings screen to word it. */
@@ -195,10 +218,8 @@ static void test_settings_validation(void)
         PROBLEM("[deck]\nsize_min=30\nsize_max=20\n", STS_PROBLEM_DECK_SIZE);
         PROBLEM("[deck]\ncopy_limit=5\n", STS_PROBLEM_COPY_LIMIT);
         PROBLEM("[draft]\noffers=9\n", STS_PROBLEM_DRAFT_OFFERS);
-        PROBLEM("[draft]\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n", STS_PROBLEM_DRAFT_WEIGHTS);
         PROBLEM("[reward]\ncopies_min=3\ncopies_max=2\n", STS_PROBLEM_REWARD_COPIES);
         PROBLEM("[reward]\ncopies_max=5\n", STS_PROBLEM_REWARD_COPY_LIMIT);
-        PROBLEM("[reward]\ntypes=spell\nspell_weight=0\n", STS_PROBLEM_REWARD_WEIGHTS);
         PROBLEM("[reward]\nmode=add\n", STS_PROBLEM_REWARD_SIZE);
 #undef PROBLEM
         /* Starter problems can only come from the built-in lists, so they are made by hand. */
@@ -215,11 +236,6 @@ static void test_settings_validation(void)
         sts_settings_defaults(&settings);
         CHECK(sts_settings_check(&settings, NULL) == STS_PROBLEM_NONE);
     }
-
-    /* The weights only matter to the style that uses them. */
-    CHECK(parse_ini("[reward]\noffer_style=one_of_each\nsystem_weight=0\nskill_weight=0\nspell_weight=0\n",
-                    &settings, &line) == STS_SETTINGS_OK);
-    CHECK(sts_settings_validate(&settings) == NULL);
 
     /* Workable variations are accepted, including a skip with otherwise odd offers. */
     CHECK(parse_ini("[reward]\ncopies_min=1\ncopies_max=4\n", &settings, &line) == STS_SETTINGS_OK);
@@ -424,7 +440,7 @@ static void test_settings_one_value(void)
     CHECK(!sts_settings_get(&settings, "draft", "picks", value, sizeof value));
     CHECK(sts_settings_get(&settings, "reward", "copies_max", value, sizeof value) && strcmp(value, "1") == 0);
     CHECK(sts_settings_get(&settings, "draft", "show_deck", value, sizeof value) && strcmp(value, "true") == 0);
-    CHECK(sts_settings_get(&settings, "draft", "types", value, sizeof value) && strcmp(value, "system,skill,spell") == 0);
+    CHECK(sts_settings_get(&settings, "draft", "card_types", value, sizeof value) && strcmp(value, "weighted") == 0);
     CHECK(sts_settings_get(&settings, "reward", "who_picks", value, sizeof value) && strcmp(value, "both") == 0);
     CHECK(sts_settings_get(&settings, "reward", "replacement", value, sizeof value) && strcmp(value, "choose") == 0);
     CHECK(sts_settings_get(&settings, "netplay", "pick_visibility", value, sizeof value)
@@ -438,12 +454,12 @@ static void test_settings_one_value(void)
     /* Set takes the file's text; a bad value or unknown key changes nothing. */
     CHECK(sts_settings_set(&settings, "reward", "who_picks", "loser") == STS_SETTINGS_OK
           && settings.who_picks == STS_WHO_LOSER);
-    CHECK(sts_settings_set(&settings, "draft", "types", "spell,skill") == STS_SETTINGS_OK
-          && settings.draft.type_mask == (STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL)));
-    CHECK(sts_settings_get(&settings, "draft", "types", value, sizeof value) && strcmp(value, "skill,spell") == 0);
+    CHECK(sts_settings_set(&settings, "draft", "card_types", "mostly_spell") == STS_SETTINGS_OK
+          && settings.draft.weights[STS_CARD_SPELL] == 4);
+    CHECK(sts_settings_get(&settings, "draft", "card_types", value, sizeof value) && strcmp(value, "mostly_spell") == 0);
     before = settings;
     CHECK(sts_settings_set(&settings, "reward", "who_picks", "everyone") == STS_SETTINGS_BAD_VALUE);
-    CHECK(sts_settings_set(&settings, "draft", "types", "system,dragon") == STS_SETTINGS_BAD_VALUE);
+    CHECK(sts_settings_set(&settings, "draft", "card_types", "dragon") == STS_SETTINGS_BAD_VALUE);
     CHECK(sts_settings_set(&settings, "starter", "common", "1,2") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_set(&settings, "draft", "colour", "red") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_equal(&settings, &before));
@@ -457,24 +473,20 @@ static void test_settings_one_value(void)
     for (wau = 0; wau < 20; wau++)
         sts_settings_step(&settings, "reward", "copies_max", -1);
     CHECK(settings.reward.copies_max == 1);
-    for (wau = 0; wau < 30; wau++)
-        sts_settings_step(&settings, "reward", "spell_weight", 1);
-    CHECK(settings.reward.weights[STS_CARD_SPELL] == 20);
-    settings.reward.weights[STS_CARD_SPELL] = 50;   /* above the range, from the file */
-    CHECK(sts_settings_step(&settings, "reward", "spell_weight", -1) && settings.reward.weights[STS_CARD_SPELL] == 20);
 
     /* Choices go round in order, both ways. */
     CHECK(sts_settings_step(&settings, "reward", "who_picks", -1) && settings.who_picks == STS_WHO_RANDOM);
     CHECK(sts_settings_step(&settings, "reward", "who_picks", 1) && settings.who_picks == STS_WHO_BOTH);
     CHECK(sts_settings_step(&settings, "draft", "show_deck", 1) && settings.draft_show_deck == 0);
     CHECK(sts_settings_step(&settings, "draft", "show_deck", 1) && settings.draft_show_deck == 1);
-    for (wau = 0; wau < 7; wau++) {
-        CHECK(sts_settings_step(&settings, "reward", "types", 1));
-        CHECK(settings.reward.type_mask != 0 && (settings.reward.type_mask & ~(unsigned)STS_TYPE_ALL) == 0);
+    CHECK(sts_settings_step(&settings, "reward", "card_types", -1) && settings.reward.style == STS_OFFER_BY_CARD);
+    CHECK(sts_settings_step(&settings, "reward", "card_types", 1) && settings.reward.style == STS_OFFER_WEIGHTED
+          && settings.reward.weights[STS_CARD_SYSTEM] == 1);
+    for (wau = 0; wau < 6; wau++) {
+        CHECK(sts_settings_step(&settings, "reward", "card_types", 1));
+        CHECK(settings.reward.type_mask == STS_TYPE_ALL);
     }
-    CHECK(settings.reward.type_mask == STS_TYPE_ALL);
-    CHECK(sts_settings_step(&settings, "reward", "types", 1) && sts_settings_step(&settings, "reward", "types", -1)
-          && settings.reward.type_mask == STS_TYPE_ALL);
+    CHECK(sts_settings_get(&settings, "reward", "card_types", value, sizeof value) && strcmp(value, "weighted") == 0);
 
     /* The card lists are not settings. */
     before = settings;
@@ -649,12 +661,10 @@ static void test_settings_rewrite(void)
         static const char *const keys[][2] = {
             {"deck", "size_min"}, {"deck", "size_max"}, {"deck", "copy_limit"},
             {"draft", "offers"}, {"draft", "show_deck"},
-            {"draft", "types"}, {"draft", "offer_style"}, {"draft", "system_weight"}, {"draft", "skill_weight"},
-            {"draft", "spell_weight"}, {"starter", "enabled"}, {"reward", "mode"}, {"reward", "who_picks"},
+            {"draft", "card_types"}, {"starter", "enabled"}, {"reward", "mode"}, {"reward", "who_picks"},
             {"reward", "random_chance"}, {"reward", "offer_pick"},
-            {"reward", "offers"}, {"reward", "copies_min"}, {"reward", "copies_max"}, {"reward", "types"},
-            {"reward", "offer_style"}, {"reward", "system_weight"}, {"reward", "skill_weight"},
-            {"reward", "spell_weight"}, {"reward", "replacement"}, {"netplay", "pick_visibility"},
+            {"reward", "offers"}, {"reward", "copies_min"}, {"reward", "copies_max"}, {"reward", "card_types"},
+            {"reward", "replacement"}, {"netplay", "pick_visibility"},
             {"netplay", "opponent_deck"}, {"items", "enabled"}, {"run", "allow_rule_changes"},
         };
         int key;

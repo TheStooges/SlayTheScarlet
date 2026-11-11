@@ -98,11 +98,12 @@ void test_run_draft(void)
         static const char *const inis[] = {
             "[draft]\noffers=8\n",
             "[draft]\noffers=1\n",
-            "[draft]\ntypes=spell\n",
-            "[draft]\ntypes=skill\n",
+            "[draft]\ncard_types=mostly_spell\n",
+            "[draft]\ncard_types=random\n",
+            "[draft]\ncard_types=one_of_each\n",
             "[deck]\nsize_min=10\nsize_max=40\n",
             "[deck]\nsize_min=30\nsize_max=30\n",
-            "[deck]\ncopy_limit=1\n[draft]\ntypes=system,skill,spell\n",
+            "[deck]\ncopy_limit=1\n[draft]\ncard_types=mostly_skill\n",
         };
         size_t wau;
         for (wau = 0; wau < sizeof inis / sizeof inis[0]; wau++) {
@@ -122,7 +123,8 @@ void test_run_draft(void)
 
     /* A pool too small for the deck reports stuck instead of faking a legal deck:
      * 1 copy each of Komachi's 9 spells cannot reach 20 cards. */
-    CHECK(parse_ini("[deck]\ncopy_limit=1\n[draft]\ntypes=spell\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[deck]\ncopy_limit=1\n", &settings, &line) == STS_SETTINGS_OK);
+    settings.draft.type_mask = STS_TYPE_BIT(STS_CARD_SPELL);   /* not a setting; only code can do this */
     CHECK(sts_run_start(&run, &g_db, &settings, 12, 1) == STS_RUN_OK);
     CHECK(finish_draft(&run, &settings) == STS_RUN_STUCK);
     CHECK(run.phase == STS_PHASE_DRAFT && run.offer_count == 0 && run.deck.count == 9);
@@ -846,7 +848,7 @@ void test_run_endurance(void)
         "[reward]\nwho_picks=loser\nreplacement=random\n",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=add\ncopies_max=4\n",
         "[deck]\nsize_min=15\nsize_max=30\n[reward]\nmode=remove\ncopies_max=3\n",
-        "[reward]\nreplacement=random\ntypes=spell\ncopies_min=2\ncopies_max=2\n",
+        "[reward]\nreplacement=random\ncard_types=mostly_spell\ncopies_min=2\ncopies_max=2\n",
     };
     static sts_run run;
     static char text[STS_RUN_TEXT_MAX];

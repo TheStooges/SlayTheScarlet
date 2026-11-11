@@ -17,6 +17,11 @@ What changed in each release of Slay the Scarlet. Releases are on the
     Sanae with Mid-Day Supernova, Cirno with Fairy Spin, Meiling with Star Bullets, Utsuho with
     High-Tension Blade and Suwako with Froggy Braves the Elements.
   - A run drafted with the starting deck on shows "Rules changed".
+- Card types offered, how they are chosen and the three type weights are now one setting, `card_types`,
+  for the draft and for rewards: random (every card equally likely, so system cards come up most),
+  weighted (each type about as often, the default), mostly system, mostly skill or mostly spell (that
+  type two offers in three), or one of each. The old `types`, `offer_style` and weight settings are
+  ignored if a `settings.ini` still has them.
 
 ## 0.3 - 2026-11-09
 

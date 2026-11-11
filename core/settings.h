@@ -106,15 +106,11 @@ typedef enum {
     STS_PROBLEM_DRAFT_OFFERS,       /* offers outside 1 to STS_OFFER_MAX */
     STS_PROBLEM_DRAFT_COPIES,       /* copies_min below 1 or above copies_max (not settable for the draft) */
     STS_PROBLEM_DRAFT_COPY_LIMIT,   /* copies_max above copy_limit (not settable for the draft) */
-    STS_PROBLEM_DRAFT_TYPES,        /* no card type */
-    STS_PROBLEM_DRAFT_WEIGHTS,      /* weighted, and every type offered weighs 0 */
     STS_PROBLEM_STARTER_TOO_BIG,    /* the character's starter is above size_max */
     STS_PROBLEM_STARTER_COPIES,     /* number: the card with more than copy_limit copies */
     STS_PROBLEM_REWARD_OFFERS,
     STS_PROBLEM_REWARD_COPIES,
     STS_PROBLEM_REWARD_COPY_LIMIT,
-    STS_PROBLEM_REWARD_TYPES,
-    STS_PROBLEM_REWARD_WEIGHTS,
     STS_PROBLEM_REWARD_SIZE,        /* add or remove with a fixed deck size */
     STS_PROBLEM_RANDOM_CHANCE       /* random_chance above 100 */
 } sts_settings_problem;

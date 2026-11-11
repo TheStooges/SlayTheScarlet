@@ -254,6 +254,23 @@ void test_offer_fairness(void)
     CHECK(type_hits[STS_CARD_SYSTEM] > ROLLS * 3 / 2 * 9 / 10 && type_hits[STS_CARD_SYSTEM] < ROLLS * 3 / 2 * 11 / 10);
     CHECK(type_hits[STS_CARD_SKILL] > ROLLS * 3 / 4 * 9 / 10 && type_hits[STS_CARD_SKILL] < ROLLS * 3 / 4 * 11 / 10);
 
+    /* By card, every card is as likely as any other, so each type comes up in proportion to its cards:
+     * for Komachi 21 system, 12 skill and 9 spell cards out of 42. The first offer of each set is the
+     * only one with the full pool to choose from, so only it is counted. */
+    offer_settings.weights[STS_CARD_SYSTEM] = 1;
+    offer_settings.style = STS_OFFER_BY_CARD;
+    memset(type_hits, 0, sizeof type_hits);
+    for (j = 0; j < ROLLS; j++) {
+        count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+        CHECK(count == 3);
+        type_hits[offer[0].type]++;
+    }
+    CHECK(type_hits[STS_CARD_SYSTEM] > ROLLS * 21 / 42 * 9 / 10 && type_hits[STS_CARD_SYSTEM] < ROLLS * 21 / 42 * 11 / 10);
+    CHECK(type_hits[STS_CARD_SKILL] > ROLLS * 12 / 42 * 9 / 10 && type_hits[STS_CARD_SKILL] < ROLLS * 12 / 42 * 11 / 10);
+    CHECK(type_hits[STS_CARD_SPELL] > ROLLS * 9 / 42 * 9 / 10 && type_hits[STS_CARD_SPELL] < ROLLS * 9 / 42 * 11 / 10);
+    offer_settings.style = STS_OFFER_WEIGHTED;
+    offer_settings.weights[STS_CARD_SYSTEM] = 2;
+
     /* A weight of 0 turns a type off, and a type with no cards left hands over to the others. */
     offer_settings.weights[STS_CARD_SYSTEM] = 0;
     for (j = 0; j < 500; j++) {

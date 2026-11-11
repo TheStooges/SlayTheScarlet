@@ -27,9 +27,49 @@ static const named_value g_replace[] = {
     {"choose", STS_REPLACE_CHOOSE}, {"by_type", STS_REPLACE_BY_TYPE},
     {"random", STS_REPLACE_RANDOM}, {NULL, 0}
 };
-static const named_value g_styles[] = {
-    {"weighted", STS_OFFER_WEIGHTED}, {"one_of_each", STS_OFFER_ONE_OF_EACH}, {NULL, 0}
+/* The card_types setting: which type each offer is. Each value sets the offer generator's style and
+ * weights (see apply_card_types). Weighted is the default, and the same rules as before it existed. */
+enum {
+    CARD_TYPES_RANDOM, CARD_TYPES_WEIGHTED, CARD_TYPES_MOSTLY_SYSTEM, CARD_TYPES_MOSTLY_SKILL,
+    CARD_TYPES_MOSTLY_SPELL, CARD_TYPES_ONE_OF_EACH
 };
+static const named_value g_card_types[] = {
+    {"random", CARD_TYPES_RANDOM}, {"weighted", CARD_TYPES_WEIGHTED},
+    {"mostly_system", CARD_TYPES_MOSTLY_SYSTEM}, {"mostly_skill", CARD_TYPES_MOSTLY_SKILL},
+    {"mostly_spell", CARD_TYPES_MOSTLY_SPELL}, {"one_of_each", CARD_TYPES_ONE_OF_EACH}, {NULL, 0}
+};
+
+/* A "mostly" type weighs this against 1 for each of the others: two offers in three. */
+#define MOSTLY_WEIGHT 4
+
+static void apply_card_types(sts_offer_settings *offer_settings, int card_types)
+{
+    int type;
+
+    offer_settings->type_mask = STS_TYPE_ALL;
+    offer_settings->style = card_types == CARD_TYPES_RANDOM ? STS_OFFER_BY_CARD
+                          : card_types == CARD_TYPES_ONE_OF_EACH ? STS_OFFER_ONE_OF_EACH : STS_OFFER_WEIGHTED;
+    for (type = 0; type < 3; type++)
+        offer_settings->weights[type] = 1;
+    if (card_types >= CARD_TYPES_MOSTLY_SYSTEM && card_types <= CARD_TYPES_MOSTLY_SPELL)
+        offer_settings->weights[card_types - CARD_TYPES_MOSTLY_SYSTEM] = MOSTLY_WEIGHT;
+}
+
+/* Which card_types value gives these offer settings, or -1 for ones only code can make. */
+static int card_types_of(const sts_offer_settings *offer_settings)
+{
+    int value;
+
+    for (value = CARD_TYPES_RANDOM; value <= CARD_TYPES_ONE_OF_EACH; value++) {
+        sts_offer_settings preset = *offer_settings;
+
+        apply_card_types(&preset, value);
+        if (preset.type_mask == offer_settings->type_mask && preset.style == offer_settings->style
+            && memcmp(preset.weights, offer_settings->weights, sizeof preset.weights) == 0)
+            return value;
+    }
+    return -1;
+}
 static const named_value g_visibility[] = {
     {"hidden", STS_VISIBILITY_HIDDEN}, {"after_confirm", STS_VISIBILITY_AFTER_CONFIRM},
     {"live", STS_VISIBILITY_LIVE}, {NULL, 0}
@@ -43,10 +83,7 @@ static const named_value g_bool[] = {
 
 static void default_offer_style(sts_offer_settings *offer_settings)
 {
-    offer_settings->style = STS_OFFER_WEIGHTED;
-    offer_settings->weights[STS_CARD_SYSTEM] = 1;
-    offer_settings->weights[STS_CARD_SKILL] = 1;
-    offer_settings->weights[STS_CARD_SPELL] = 1;
+    apply_card_types(offer_settings, CARD_TYPES_WEIGHTED);
 }
 
 /* The starter's defaults: two defensive system cards for everyone, then for each character 
@@ -162,31 +199,6 @@ static int find_named(const char *value, const named_value *table, int *out)
     return 0;
 }
 
-/* "system,skill,spell", any subset; at least one is required. */
-static int set_types(char *value, unsigned *out)
-{
-    unsigned mask = 0;
-
-    for (;;) {
-        char *comma = strchr(value, ',');
-        if (comma)
-            *comma = 0;
-        if (strcmp(value, "system") == 0)
-            mask |= STS_TYPE_BIT(STS_CARD_SYSTEM);
-        else if (strcmp(value, "skill") == 0)
-            mask |= STS_TYPE_BIT(STS_CARD_SKILL);
-        else if (strcmp(value, "spell") == 0)
-            mask |= STS_TYPE_BIT(STS_CARD_SPELL);
-        else
-            return 0;
-        if (!comma)
-            break;
-        value = comma + 1;
-    }
-    *out = mask;
-    return 1;
-}
-
 static char lower_case(char letter)
 {
     return letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
@@ -211,11 +223,11 @@ static int character_key(const char *key)
 
 /* What kind of value a setting holds, and where it lives in sts_settings. Every setting is found
  * through find_setting, so parsing, the settings screen and rewriting the file agree on them. */
-typedef enum { KIND_INT, KIND_BOOL, KIND_NAMED, KIND_TYPES } value_kind;
+typedef enum { KIND_INT, KIND_BOOL, KIND_NAMED, KIND_CARD_TYPES } value_kind;
 
 typedef struct {
     value_kind kind;
-    void *field;                /* int (or an enum, which is int-sized), or an unsigned mask */
+    void *field;                /* int (or an enum, which is int-sized), or sts_offer_settings */
     const named_value *names;   /* KIND_NAMED */
     int step_min, step_max;     /* KIND_INT: the range the settings screen steps through */
     int step_size;              /* KIND_INT: how far one step goes, 0 meaning 1 */
@@ -246,16 +258,8 @@ static int find_offer_setting(sts_offer_settings *offer_settings, const sts_rule
         set_ref(ref, KIND_INT, &offer_settings->copies_min, NULL, 1, offer_settings->copies_max);
     else if (strcmp(key, "copies_max") == 0)
         set_ref(ref, KIND_INT, &offer_settings->copies_max, NULL, offer_settings->copies_min, copy_limit);
-    else if (strcmp(key, "types") == 0)
-        set_ref(ref, KIND_TYPES, &offer_settings->type_mask, NULL, 0, 0);
-    else if (strcmp(key, "offer_style") == 0)
-        set_ref(ref, KIND_NAMED, &offer_settings->style, g_styles, 0, 0);
-    else if (strcmp(key, "system_weight") == 0)
-        set_ref(ref, KIND_INT, &offer_settings->weights[STS_CARD_SYSTEM], NULL, 0, 20);
-    else if (strcmp(key, "skill_weight") == 0)
-        set_ref(ref, KIND_INT, &offer_settings->weights[STS_CARD_SKILL], NULL, 0, 20);
-    else if (strcmp(key, "spell_weight") == 0)
-        set_ref(ref, KIND_INT, &offer_settings->weights[STS_CARD_SPELL], NULL, 0, 20);
+    else if (strcmp(key, "card_types") == 0)
+        set_ref(ref, KIND_CARD_TYPES, offer_settings, g_card_types, 0, 0);
     else
         return 0;
     return 1;
@@ -363,20 +367,19 @@ static int set_from_text(const setting_ref *ref, char *value)
             return 0;
         write_number(ref, number);
         return 1;
-    case KIND_TYPES:
-        return set_types(value, (unsigned *)ref->field);
+    case KIND_CARD_TYPES:
+        if (!find_named(value, ref->names, &number))
+            return 0;
+        apply_card_types((sts_offer_settings *)ref->field, number);
+        return 1;
     }
     return 0;
 }
-
-static const char *const g_type_names[3] = {"system", "skill", "spell"};
 
 /* A setting's value as the file writes it. */
 static void format_value(const setting_ref *ref, char *out, size_t size)
 {
     char text[VALUE_SIZE];
-    size_t used = 0;
-    int wau;
 
     text[0] = 0;
     switch (ref->kind) {
@@ -397,12 +400,12 @@ static void format_value(const setting_ref *ref, char *out, size_t size)
         }
         break;
     }
-    case KIND_TYPES:
-        for (wau = 0; wau < 3; wau++) {
-            if (*(const unsigned *)ref->field & STS_TYPE_BIT(wau))
-                used += (size_t)sprintf(text + used, "%s%s", used ? "," : "", g_type_names[wau]);
-        }
+    case KIND_CARD_TYPES: {
+        int value = card_types_of((const sts_offer_settings *)ref->field);
+
+        strcpy(text, value >= 0 ? g_card_types[value].name : "custom");
         break;
+    }
     }
     if (size > 0) {
         strncpy(out, text, size - 1);
@@ -420,13 +423,23 @@ static int set_key(sts_settings *settings, const char *section, const char *key,
     return set_from_text(&ref, value);
 }
 
-/* Settings that versions up to 0.2 had and that are now fixed: the draft adds one copy per pick
- * until the deck reaches size_min, and the starter's cards are built in. Files from those versions
- * still list them, so they are read and ignored rather than refused as unknown. */
+/* Settings that earlier versions had and that are now fixed or replaced: the draft adds one copy per
+ * pick until the deck reaches size_min, the starter's cards are built in, and card_types replaced the
+ * card type settings. Files from those versions still list them, so they are read and ignored rather
+ * than refused as unknown. */
+static int replaced_type_key(const char *key)
+{
+    return strcmp(key, "types") == 0 || strcmp(key, "offer_style") == 0 || strcmp(key, "system_weight") == 0
+        || strcmp(key, "skill_weight") == 0 || strcmp(key, "spell_weight") == 0;
+}
+
 static int obsolete_key(const char *section, const char *key)
 {
     if (strcmp(section, "draft") == 0)
-        return strcmp(key, "picks") == 0 || strcmp(key, "copies_min") == 0 || strcmp(key, "copies_max") == 0;
+        return strcmp(key, "picks") == 0 || strcmp(key, "copies_min") == 0 || strcmp(key, "copies_max") == 0
+            || replaced_type_key(key);
+    if (strcmp(section, "reward") == 0)
+        return replaced_type_key(key);
     if (strcmp(section, "starter") == 0)
         return strcmp(key, "common") == 0 || character_key(key) >= 0;
     return 0;
@@ -575,17 +588,6 @@ static int check_offer(const sts_offer_settings *offer_settings, const sts_rules
         return 1;
     if (offer_settings->copies_max > rules->copy_limit)
         return 2;
-    if (offer_settings->type_mask == 0 || (offer_settings->type_mask & ~(unsigned)STS_TYPE_ALL))
-        return 3;
-    if (offer_settings->style == STS_OFFER_WEIGHTED) {
-        int type, total = 0;
-
-        for (type = 0; type < 3; type++)
-            if (offer_settings->type_mask & STS_TYPE_BIT(type))
-                total += offer_settings->weights[type];
-        if (total == 0)
-            return 4;
-    }
     return -1;
 }
 
@@ -692,10 +694,6 @@ const char *sts_settings_validate(const sts_settings *settings)
     case STS_PROBLEM_REWARD_COPIES:     return "copies_min must be at least 1 and not above copies_max";
     case STS_PROBLEM_DRAFT_COPY_LIMIT:
     case STS_PROBLEM_REWARD_COPY_LIMIT: return "copies_max cannot be above copy_limit";
-    case STS_PROBLEM_DRAFT_TYPES:
-    case STS_PROBLEM_REWARD_TYPES:      return "types must list at least one of system, skill, spell";
-    case STS_PROBLEM_DRAFT_WEIGHTS:
-    case STS_PROBLEM_REWARD_WEIGHTS:    return "weighted offers need a weight above 0 on a type that can be offered";
     case STS_PROBLEM_REWARD_SIZE:       return "reward mode add or remove needs size_min below size_max";
     case STS_PROBLEM_RANDOM_CHANCE:     return "random_chance cannot be above 100";
     case STS_PROBLEM_STARTER_TOO_BIG:
@@ -812,12 +810,10 @@ typedef struct {
 
 static const setting_key g_keys[] = {
     {"deck", "size_min"}, {"deck", "size_max"}, {"deck", "copy_limit"},
-    {"draft", "offers"}, {"draft", "show_deck"}, {"draft", "types"}, {"draft", "offer_style"}, {"draft", "system_weight"},
-    {"draft", "skill_weight"}, {"draft", "spell_weight"},
+    {"draft", "offers"}, {"draft", "show_deck"}, {"draft", "card_types"},
     {"starter", "enabled"},
     {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "random_chance"}, {"reward", "offers"}, {"reward", "copies_min"},
-    {"reward", "copies_max"}, {"reward", "types"}, {"reward", "offer_style"}, {"reward", "system_weight"},
-    {"reward", "skill_weight"}, {"reward", "spell_weight"}, {"reward", "offer_pick"}, {"reward", "replacement"},
+    {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
     {"run", "allow_rule_changes"},
@@ -877,22 +873,10 @@ sts_settings_status sts_settings_set(sts_settings *settings, const char *section
     return STS_SETTINGS_OK;
 }
 
-/* Type choices in the order the settings screen steps through them: all three first. */
-static const unsigned g_type_masks[] = {
-    STS_TYPE_ALL,
-    STS_TYPE_BIT(STS_CARD_SKILL) | STS_TYPE_BIT(STS_CARD_SPELL),
-    STS_TYPE_BIT(STS_CARD_SYSTEM) | STS_TYPE_BIT(STS_CARD_SPELL),
-    STS_TYPE_BIT(STS_CARD_SYSTEM) | STS_TYPE_BIT(STS_CARD_SKILL),
-    STS_TYPE_BIT(STS_CARD_SPELL),
-    STS_TYPE_BIT(STS_CARD_SKILL),
-    STS_TYPE_BIT(STS_CARD_SYSTEM),
-};
-#define TYPE_CHOICES ((int)(sizeof g_type_masks / sizeof g_type_masks[0]))
-
 int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction)
 {
     setting_ref ref;
-    int wau, count;
+    int count;
 
     if (!find_setting(settings, section, key, &ref))
         return 0;
@@ -924,14 +908,15 @@ int sts_settings_step(sts_settings *settings, const char *section, const char *k
         write_number(&ref, ref.names[(current + direction + count) % count].value);
         return 1;
     }
-    case KIND_TYPES: {
-        unsigned *mask = (unsigned *)ref.field;
-        int current = 0;
+    case KIND_CARD_TYPES: {
+        sts_offer_settings *offer_settings = (sts_offer_settings *)ref.field;
+        int current = card_types_of(offer_settings);
 
-        for (wau = 0; wau < TYPE_CHOICES; wau++)
-            if (g_type_masks[wau] == *mask)
-                current = wau;
-        *mask = g_type_masks[(current + direction + TYPE_CHOICES) % TYPE_CHOICES];
+        if (current < 0)
+            current = CARD_TYPES_WEIGHTED;
+        for (count = 0; ref.names[count].name; count++)
+            ;
+        apply_card_types(offer_settings, (current + direction + count) % count);
         return 1;
     }
     }
@@ -1001,7 +986,8 @@ static int classify_line(const char *text, const text_line *line, int *section, 
 }
 
 /* Which of the KEY_COUNT settings a key line in this section is, or -1, matched by the field it
- * sets. Obsolete settings are none of them, so their lines are left as they are. */
+ * sets and its kind: card_types points at the whole offer settings, which start where the reward
+ * mode does. Obsolete settings are none of them, so their lines are left as they are. */
 static int key_index_of(sts_settings *scratch, const char *section, const char *key)
 {
     setting_ref ref, other;
@@ -1014,7 +1000,7 @@ static int key_index_of(sts_settings *scratch, const char *section, const char *
         const char *other_section = key_at(wau, name);
 
         if (strcmp(other_section, section) == 0 && find_setting(scratch, other_section, name, &other)
-            && other.field == ref.field)
+            && other.field == ref.field && other.kind == ref.kind)
             return wau;
     }
     return -1;

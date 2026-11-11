@@ -94,6 +94,11 @@ static void collect_candidates(const sts_card_db *db, int character, const sts_c
     }
 }
 
+static int type_weight(const sts_offer_settings *offer_settings, const candidate_list *by_type, int type)
+{
+    return offer_settings->style == STS_OFFER_BY_CARD ? by_type[type].count : offer_settings->weights[type];
+}
+
 /* The type for the offer at this position, or -1 if nothing more can be offered. */
 static int choose_type(const sts_offer_settings *offer_settings, const candidate_list *by_type, int position,
                        sts_rng *rng)
@@ -111,19 +116,20 @@ static int choose_type(const sts_offer_settings *offer_settings, const candidate
         return -1;
     }
 
-    /* Only types that still have a card take part, so no roll is ever wasted. */
+    /* Only types that still have a card take part, so no roll is ever wasted. By card, a type weighs
+     * as many as the cards it has left. */
     for (type = 0; type < 3; type++)
         if (by_type[type].count > 0)
-            total += offer_settings->weights[type];
+            total += type_weight(offer_settings, by_type, type);
     if (total > 0) {
         int roll = (int)sts_rng_below(rng, (uint32_t)total);
 
         for (type = 0; type < 3; type++) {
             if (by_type[type].count == 0)
                 continue;
-            if (roll < offer_settings->weights[type])
+            if (roll < type_weight(offer_settings, by_type, type))
                 return type;
-            roll -= offer_settings->weights[type];
+            roll -= type_weight(offer_settings, by_type, type);
         }
     }
     return -1;
