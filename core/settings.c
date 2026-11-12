@@ -329,9 +329,12 @@ static int find_setting(sts_settings *settings, const char *section, const char 
         return 1;
     }
     if (strcmp(section, "run") == 0) {
-        if (strcmp(key, "allow_rule_changes") != 0)
+        if (strcmp(key, "allow_rule_changes") == 0)
+            set_ref(ref, KIND_BOOL, &settings->allow_rule_changes, g_bool, 0, 0);
+        else if (strcmp(key, "matches") == 0)
+            set_ref(ref, KIND_INT, &settings->match_limit, NULL, 0, STS_MATCH_LIMIT_MAX);
+        else
             return 0;
-        set_ref(ref, KIND_BOOL, &settings->allow_rule_changes, g_bool, 0, 0);
         return 1;
     }
     return 0;
@@ -666,6 +669,8 @@ sts_settings_problem sts_settings_check(const sts_settings *settings, sts_settin
 
     if (settings->random_chance > 100)
         return STS_PROBLEM_RANDOM_CHANCE;
+    if (settings->match_limit > STS_MATCH_LIMIT_MAX)
+        return STS_PROBLEM_MATCH_LIMIT;
 
     if (settings->reward.mode != STS_REWARD_SKIP) {
         offer = check_offer(&settings->reward, rules);
@@ -696,6 +701,7 @@ const char *sts_settings_validate(const sts_settings *settings)
     case STS_PROBLEM_REWARD_COPY_LIMIT: return "copies_max cannot be above copy_limit";
     case STS_PROBLEM_REWARD_SIZE:       return "reward mode add or remove needs size_min below size_max";
     case STS_PROBLEM_RANDOM_CHANCE:     return "random_chance cannot be above 100";
+    case STS_PROBLEM_MATCH_LIMIT:       return "matches cannot be above 20";
     case STS_PROBLEM_STARTER_TOO_BIG:
         name = sts_character_name(info.character);
         sprintf(message, "%s's starter has more cards than size_max", name);
@@ -799,6 +805,9 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     /* Likewise, so runs from before it existed keep theirs. */
     if (settings->offer_pick != STS_OFFER_PICK_CHOOSE)
         hash = hash_int(hash, (int)settings->offer_pick + 1000);
+    /* And endless runs keep theirs. */
+    if (settings->match_limit != 0)
+        hash = hash_int(hash, settings->match_limit + 2000);
     return hash;
 }
 
@@ -816,7 +825,7 @@ static const setting_key g_keys[] = {
     {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
-    {"run", "allow_rule_changes"},
+    {"run", "matches"}, {"run", "allow_rule_changes"},
 };
 #define KEY_COUNT ((int)(sizeof g_keys / sizeof g_keys[0]))
 #define KEY_NAME_SIZE 24

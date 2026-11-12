@@ -101,7 +101,7 @@ const char *settings_menu_help(int menu)
     switch (menu) {
     case SETTINGS_MENU_DRAFT:  return tr("Building a run's deck, one card per pick until it is full: the starting deck, and what each pick offers.");
     case SETTINGS_MENU_REWARD: return tr("The card offer after each match, and what it changes in the deck.");
-    case SETTINGS_MENU_RUN:    return tr("What happens to a run when the rules change.");
+    case SETTINGS_MENU_RUN:    return tr("How long a run lasts, and what happens to it when the rules change.");
     }
     return tr("Writes the changes from every menu to settings.ini.");
 }
@@ -149,6 +149,9 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_offer_rows("reward", tr("Each offer gives a random number of copies in this range."));
         break;
     case SETTINGS_MENU_RUN:
+        row = add_row("run", "matches", tr("Match limit"), tr("How many matches a run lasts."));
+        add_value_help(row, "0", tr("Endless: the run goes on until you start over."));
+        add_help_line(row, tr("The last match gives no offer: the run ends and shows its score."));
         row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"), NULL);
         add_value_help(row, "true", tr("On: a run made under other rules carries on if its deck is legal under them."));
         add_value_help(row, "false", tr("Off: a run made under other rules can only start over."));
@@ -211,6 +214,8 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
     /* The other "choose" is about the cards that leave. */
     if (strcmp(row->key, "offer_pick") == 0 && strcmp(raw, "choose") == 0)
         words = tr("Player chooses a card");
+    else if (strcmp(row->key, "matches") == 0 && strcmp(raw, "0") == 0)
+        words = tr("Endless");
     else
         words = choice_text(raw);
     _snprintf(out, size - 1, "%s", words ? words : raw);
@@ -420,6 +425,9 @@ static void describe_problem(sts_settings_problem problem, const sts_settings_pr
     case STS_PROBLEM_RANDOM_CHANCE:
         _snprintf(out, size - 1, "%s", tr("The chance of an offer cannot be above 100."));
         break;
+    case STS_PROBLEM_MATCH_LIMIT:
+        _snprintf(out, size - 1, tr("A run cannot last more than %d matches."), STS_MATCH_LIMIT_MAX);
+        break;
     case STS_PROBLEM_STARTER_TOO_BIG:
         _snprintf(out, size - 1, tr("%s's starting cards are more than a deck can hold."), character_label(info->character));
         break;
@@ -450,7 +458,7 @@ static void apply_rules_to_active_run(void)
             suspend_run_deck_for_rules();
         return;
     }
-    if (status == STS_RUN_OK && run.phase != STS_PHASE_DRAFT) {
+    if (status == STS_RUN_OK && run.phase != STS_PHASE_DRAFT && run.phase != STS_PHASE_FINISHED) {
         g_run = run;
         activate_run_deck();
     }
@@ -469,7 +477,8 @@ static int list_affected_runs(uint32_t new_hash)
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         const char *name = character_label(character);
 
-        if (!g_has_save[character] || g_saved_hash[character] != old_hash)
+        /* A finished run is not played any more, so its rules do not matter. */
+        if (!g_has_save[character] || g_saved_hash[character] != old_hash || g_saved_phase[character] == STS_PHASE_FINISHED)
             continue;
         if (used + strlen(name) + 3 < sizeof g_settings_affected)
             used += (size_t)sprintf(g_settings_affected + used, "%s%s", count ? ", " : "", name);

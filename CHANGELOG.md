@@ -7,6 +7,13 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 ### Changed
 
+- A match limit (Settings, Runs; `[run] matches`, off by default). The last match gives no offer: the
+  run ends and shows its score, with wins and losses, rounds, and each match with what its offer
+  changed. Choosing a match shows the deck after it, with the cards it brought in outlined in green and
+  the ones it took out in red, and can open that deck to look through. Deck 1
+  goes back to the player's own deck. A finished run's score can still be viewed from the character
+  screen.
+- The reward screen says which match of the limit it is ("Match 2 of 5").
 - The card table and the Japanese translation are now built into `SlayTheScarlet.dll`, so the zip
   holds only the DLL, `settings.ini`, and the documents. When updating, `cards.csv` and the `lang`
   folder from an older release can be deleted; the mod no longer reads them.

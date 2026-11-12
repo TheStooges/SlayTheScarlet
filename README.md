@@ -65,6 +65,13 @@ opening that character later starts a new draft. Both need two presses, so one s
 
 A match on a different character or deck slot is a normal match: no offer, and your run is unchanged.
 
+Runs are endless by default. With a match limit (Settings, Runs), the last match gives no offer, since
+its card would never be played. The run ends instead and shows its score: wins and losses, and each
+match with what its offer changed. Choosing a match shows the deck as it was after it, with the cards
+it brought in outlined in green and the ones it took out beside them in red, and opens that deck to
+look through. Deck 1 goes back to your own deck. The score can still be viewed from the
+character screen, until you start the character's run over.
+
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
 new ones. There is no time limit for now.
 
@@ -103,6 +110,8 @@ from 2 copies each of Spiritual Strike Talisman and Divine Raiment of the Dragon
 each of a default skill and a spell card chosen for each character, and 12 picks fill the rest.
 
 The defaults are provisional, until the community has played with them.
+
+`[run] matches` sets how many matches a run lasts, up to 20, or 0 for no limit (the default).
 
 If you change the rules, a run made under the old rules can only be started over. To let runs carry
 on under the new rules when their deck is still legal, set `allow_rule_changes=true`.

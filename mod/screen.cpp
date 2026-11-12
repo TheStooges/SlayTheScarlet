@@ -35,6 +35,11 @@ deck_change g_changes_added[MAX_CHANGE_LINES];
 int g_changes_removed_count = 0;
 int g_changes_added_count = 0;
 
+int g_score_top = 0;
+int g_viewed_match = SCORE_FINAL_DECK;
+static int g_score_cursor = 0;           /* the entry to come back to from the deck screen */
+static sts_deck g_final_deck;            /* the run's own deck, while g_run.deck shows an earlier one */
+
 static void describe_deck_change(const sts_deck *before);
 static void clear_deck_change(void);
 
@@ -58,7 +63,9 @@ static void scan_saves(void)
         g_saved_phase[character] = tmp.phase;
         g_saved_picks[character] = tmp.picks_done;
         g_saved_hash[character] = tmp.settings_hash;
-        g_saved_rules_changed[character] = g_has_save[character] && tmp.settings_hash != sts_settings_hash(&g_settings);
+        /* A finished run is not played any more, so new rules do not matter to it. */
+        g_saved_rules_changed[character] = g_has_save[character] && tmp.phase != STS_PHASE_FINISHED
+            && tmp.settings_hash != sts_settings_hash(&g_settings);
     }
 }
 
@@ -81,6 +88,10 @@ static void enter_phase(void)
     g_deck_art_dirty = 1;
     if (g_run.phase == STS_PHASE_DRAFT) {
         g_state = ST_DRAFT;
+    } else if (g_run.phase == STS_PHASE_FINISHED) {
+        g_state = ST_SCORE;
+        g_score_top = 0;
+        g_score_cursor = 0;
     } else {
         g_state = g_run.phase == STS_PHASE_REWARD ? ST_REWARD : ST_DECK;
         /* Opening a run only looks at it. A run already in use picks up any new deck. */
@@ -101,6 +112,24 @@ static int on_reward_screen(void)
 {
     return g_state == ST_REWARD || g_state == ST_REWARD_TYPE || g_state == ST_REWARD_REMOVE
         || g_state == ST_REWARD_CONFIRM;
+}
+
+/* The run just ended: Deck 1 goes back to the player's own deck. */
+static void on_run_finished(void)
+{
+    slog("the run for character %d is finished after %d matches", g_run.character, g_run.matches_played);
+    if (g_active && g_active_character == g_run.character)
+        deactivate_run_deck();
+}
+
+int score_entry_count(void)
+{
+    return g_run.history_count + (g_run.history_forgotten == 0);
+}
+
+int score_entry_match(int entry)
+{
+    return g_run.history_forgotten == 0 ? entry - 1 : entry;
 }
 
 /* Runs on the first title or character select frame after a finished match. */
@@ -156,6 +185,8 @@ void maybe_start_reward(void)
         if (status != STS_RUN_OK)
             return;
         save_run();
+        if (outcome == STS_REWARD_FINISHED)
+            on_run_finished();
         if (outcome == STS_REWARD_NONE) {
             g_match_no_offer = 1;
             return;
@@ -225,6 +256,12 @@ static void commit_reward(const sts_replace_choice *choice)
     g_selected_count = 0;
     describe_deck_change(&before);
     save_run();
+    if (g_run.phase == STS_PHASE_FINISHED) {
+        /* The match owed behind this offer was the last: this change first, then the score. */
+        on_run_finished();
+        show_deck();
+        return;
+    }
     if (g_run.phase == STS_PHASE_REWARD) {
         /* A reward was owed: the deck screen shows this change, then moves on to its offers. */
         slog("owed reward: new offers, %d more owed", g_run.owed_count);
@@ -389,6 +426,11 @@ static void open_character(int character)
         start_new_run(character);
         return;
     }
+    /* A finished run only shows its score, whatever the rules are now. */
+    if (status == STS_RUN_OK && g_run.phase == STS_PHASE_FINISHED) {
+        enter_phase();
+        return;
+    }
     if (status == STS_RUN_OK)
         status = sts_run_validate(&g_run, &g_db, &g_settings);
     if (status == STS_RUN_SETTINGS_CHANGED) {
@@ -402,8 +444,11 @@ static void open_character(int character)
     enter_phase();
 }
 
+static void stop_viewing_past_deck(void);
+
 void go_to_chooser_at(int cursor)
 {
+    stop_viewing_past_deck();
     if (g_data_ok)
         scan_saves();
     g_state = ST_CHOOSE;
@@ -451,7 +496,7 @@ choose_toggle choose_toggle_for(int character)
     if (g_active && g_active_character == character)
         return TOGGLE_STOP;
     if (g_has_save[character] && !g_saved_rules_changed[character] && g_saved_phase[character] != STS_PHASE_DRAFT
-        && g_rules_changed_character != character)
+        && g_saved_phase[character] != STS_PHASE_FINISHED && g_rules_changed_character != character)
         return TOGGLE_USE;
     return TOGGLE_NONE;
 }
@@ -599,8 +644,121 @@ static void on_draft_event(screen_event event)
     }
 }
 
+/* Puts the run's own deck back after the deck screen showed an earlier one. Nothing saves the run
+ * while it shows one, but going back to the chooser or the score always comes through here. */
+static void stop_viewing_past_deck(void)
+{
+    if (g_viewed_match == SCORE_FINAL_DECK)
+        return;
+    g_run.deck = g_final_deck;
+    g_viewed_match = SCORE_FINAL_DECK;
+    g_deck_art_dirty = 1;
+}
+
+/* The deck screen, showing the deck as it was after a match (or the draft), with what that match
+ * changed listed beside it. */
+static void view_deck_at(int match)
+{
+    sts_deck deck, before;
+
+    if (!sts_run_deck_after(&g_run, match, &deck))
+        return;
+    g_score_cursor = g_cursor;
+    g_final_deck = g_run.deck;
+    g_viewed_match = match;
+    g_run.deck = deck;
+    clear_deck_change();
+    /* Both decks are worked out from the run's own deck, which the history fits. */
+    if (match >= 0) {
+        static sts_run final_run;
+
+        final_run = g_run;
+        final_run.deck = g_final_deck;
+        if (sts_run_deck_after(&final_run, match - 1, &before))
+            describe_deck_change(&before);
+    }
+    g_state = ST_DECK;
+    g_cursor = 0;
+    g_alt_armed = 0;
+    g_dirty = 1;
+    g_deck_art_dirty = 1;
+}
+
+/* A finished run's deck can only be looked at, and leads back to the score. */
+static void on_finished_deck_event(screen_event event)
+{
+    switch (event) {
+    case EV_LEFT:
+    case EV_RIGHT:
+    case EV_UP:
+    case EV_DOWN:
+        move_grid_cursor(event);
+        break;
+    case EV_CONFIRM:
+    case EV_CANCEL:
+        clear_deck_change();
+        stop_viewing_past_deck();
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_state = ST_SCORE;
+        g_cursor = g_score_cursor;
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
+/* Up and down choose a point in the run, and the deck above shows the deck at that point. */
+static void on_score_event(screen_event event)
+{
+    switch (event) {
+    case EV_UP:
+    case EV_DOWN: {
+        int count = score_entry_count();
+
+        /* Wraps round, from the top entry to the bottom one and back. */
+        g_cursor = (g_cursor + (event == EV_UP ? count - 1 : 1)) % count;
+        if (g_cursor < g_score_top)
+            g_score_top = g_cursor;
+        if (g_cursor >= g_score_top + SCORE_VISIBLE)
+            g_score_top = g_cursor - SCORE_VISIBLE + 1;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+        break;
+    }
+    case EV_CONFIRM:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        view_deck_at(score_entry_match(g_cursor));
+        break;
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        if (g_close_after_deck) {
+            g_close_after_deck = 0;
+            g_state = ST_CLOSED;
+        } else {
+            go_to_chooser();
+        }
+        break;
+    case EV_ALT:
+        if (alt_twice()) {
+            g_error[0] = 0;
+            g_status[0] = 0;
+            g_close_after_deck = 0;
+            start_new_run(g_run.character);
+        }
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
 static void on_deck_event(screen_event event)
 {
+    if (g_run.phase == STS_PHASE_FINISHED) {
+        on_finished_deck_event(event);
+        return;
+    }
     switch (event) {
     case EV_LEFT:
     case EV_RIGHT:
@@ -802,6 +960,16 @@ static void carry_on_under_new_rules(void)
     slog("run for character %d now follows the current rules", g_run.character);
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     save_run();
+    /* The new rules' match limit may already have been reached. */
+    if (g_run.phase == STS_PHASE_FINISHED) {
+        if (g_rules_changed_character == g_run.character) {
+            g_rules_changed_character = -1;
+            save_active_file();
+        }
+        on_run_finished();
+        enter_phase();
+        return;
+    }
     /* The run that was in use before the rules changed goes back into use. */
     if (g_rules_changed_character == g_run.character && g_run.phase != STS_PHASE_DRAFT)
         activate_run_deck();
@@ -885,6 +1053,7 @@ static void handle_event(screen_event event)
     case ST_RULES:          on_rules_event(event); break;
     case ST_SETTINGS:       on_settings_event(event); break;
     case ST_SETTINGS_CONFIRM: on_settings_confirm_event(event); break;
+    case ST_SCORE:          on_score_event(event); break;
     case ST_CLOSED:         break;
     }
 }

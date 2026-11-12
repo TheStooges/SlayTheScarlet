@@ -171,6 +171,8 @@ int activate_run_deck(void)
         set_error(tr("Cannot use this deck"), tr("another mod is loaded that could overwrite your real deck"));
         return 0;
     }
+    if (g_run.phase == STS_PHASE_FINISHED)
+        return 0;
     if (g_active && fresh)
         restore_real_deck();
     /* Still on the same run: if the slot no longer holds the old run deck, the game has
@@ -238,6 +240,9 @@ void resume_active_run(void)
         }
         run_path(path, sizeof path, character);
         status = sts_run_load(path, &g_run);
+        /* A finished run is not played any more. */
+        if (status == STS_RUN_OK && g_run.phase == STS_PHASE_FINISHED)
+            status = STS_RUN_WRONG_PHASE;
         if (status == STS_RUN_OK)
             status = sts_run_validate(&g_run, &g_db, &g_settings);
         if (status == STS_RUN_SETTINGS_CHANGED) {

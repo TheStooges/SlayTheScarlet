@@ -15,6 +15,10 @@
  * limit would need its own patch, so settings may not go above this for now. */
 #define STS_GAME_COPY_LIMIT 4
 
+/* The longest match limit. A run's history keeps more (STS_RUN_HISTORY_MAX), so a finished run
+ * always has every match. */
+#define STS_MATCH_LIMIT_MAX 20
+
 /* When this player gets a card offer, from their own result alone. Each player's mod applies it
  * by itself, so nothing is exchanged with the opponent. With no offer the deck stays unchanged. */
 typedef enum {
@@ -70,6 +74,8 @@ typedef struct {
     /* May a run made under other rules carry on under these? This says how to treat a
      * rule change rather than being a rule, so it is not part of the fingerprint. */
     int allow_rule_changes;
+    /* How many matches a run lasts, 0 for no limit. The last one gives no offer: the run is finished. */
+    int match_limit;
     /* Is the deck so far shown while drafting? It changes nothing about the deck or what is
      * offered, so a run can carry on when it changes: not part of the fingerprint. */
     int draft_show_deck;
@@ -112,7 +118,8 @@ typedef enum {
     STS_PROBLEM_REWARD_COPIES,
     STS_PROBLEM_REWARD_COPY_LIMIT,
     STS_PROBLEM_REWARD_SIZE,        /* add or remove with a fixed deck size */
-    STS_PROBLEM_RANDOM_CHANCE       /* random_chance above 100 */
+    STS_PROBLEM_RANDOM_CHANCE,      /* random_chance above 100 */
+    STS_PROBLEM_MATCH_LIMIT         /* matches above STS_MATCH_LIMIT_MAX */
 } sts_settings_problem;
 
 typedef struct {

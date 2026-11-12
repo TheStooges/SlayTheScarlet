@@ -14,6 +14,7 @@ add_library(SlayTheScarlet MODULE
   main.cpp
   card_text.cpp
   embedded.cpp
+  history.cpp
   log.cpp
   match.cpp
   netlog.cpp

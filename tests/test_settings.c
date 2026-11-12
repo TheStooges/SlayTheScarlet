@@ -707,6 +707,33 @@ static void test_settings_rules_text(void)
     CHECK(sts_settings_set_rule(&copy, "no dot or equals") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_set_rule(&copy, "reward.random_chance=often") == STS_SETTINGS_BAD_VALUE);
     CHECK(copy.random_chance == 75);
+    CHECK(sts_settings_set_rule(&copy, "run.matches=12") == STS_SETTINGS_OK && copy.match_limit == 12);
+}
+
+/* The match limit: 0 (endless) by default, counted in the fingerprint only when set, and no longer
+ * than a run's history. */
+static void test_settings_match_limit(void)
+{
+    sts_settings settings, before;
+    int line = 0;
+
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(settings.match_limit == 0);
+    CHECK(parse_ini("[run]\nmatches=0\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before));
+    CHECK(parse_ini("[run]\nmatches=10\n", &settings, &line) == STS_SETTINGS_OK && settings.match_limit == 10);
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&before) && sts_settings_validate(&settings) == NULL);
+    CHECK(parse_ini("[run]\nmatches=20\n", &settings, &line) == STS_SETTINGS_OK && sts_settings_validate(&settings) == NULL);
+    CHECK(parse_ini("[run]\nmatches=21\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_check(&settings, NULL) == STS_PROBLEM_MATCH_LIMIT && sts_settings_validate(&settings) != NULL);
+    CHECK(parse_ini("[run]\nmatches=-1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+
+    sts_settings_defaults(&settings);
+    CHECK(sts_settings_step(&settings, "run", "matches", -1) && settings.match_limit == 0);
+    CHECK(sts_settings_step(&settings, "run", "matches", 1) && settings.match_limit == 1);
+    settings.match_limit = STS_MATCH_LIMIT_MAX;
+    CHECK(sts_settings_step(&settings, "run", "matches", 1) && settings.match_limit == STS_MATCH_LIMIT_MAX);
 }
 
 void test_settings(void)
@@ -724,4 +751,5 @@ void test_settings(void)
     test_settings_one_value();
     test_settings_rewrite();
     test_settings_rules_text();
+    test_settings_match_limit();
 }

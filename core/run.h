@@ -37,7 +37,8 @@ typedef struct {
 /* The most cards one reward can bring in or take out. */
 #define STS_RUN_CHANGE_MAX 8
 
-/* The most matches a run remembers. An endless run past this forgets its oldest. */
+/* The most matches a run remembers, at least the longest match limit. An endless run past this
+ * forgets its oldest. */
 #define STS_RUN_HISTORY_MAX 100
 
 /* One match of a run and what its reward changed. */
@@ -115,13 +116,16 @@ sts_run_status sts_run_draft_pick(sts_run *run, const sts_card_db *db, const sts
 typedef enum {
     STS_REWARD_NONE,    /* no change to the deck; still READY */
     STS_REWARD_AUTO,    /* nothing to choose (offer_pick and replacement random): the deck has changed; still READY */
-    STS_REWARD_OFFERS   /* offers are waiting; call sts_run_reward_pick */
+    STS_REWARD_OFFERS,  /* offers are waiting; call sts_run_reward_pick */
+    STS_REWARD_FINISHED /* that was the last match of the match limit: no offer, the run is FINISHED */
 } sts_reward_outcome;
 
 /* Call once when a match ends, from READY or REWARD. The match joins the history. From REWARD the
  * offers on screen stay, the match's reward is owed until they are taken, and *outcome is OFFERS.
- * Returns STS_RUN_WRONG_PHASE from DRAFT or FINISHED, or when STS_RUN_OWED_MAX rewards are already
- * owed, leaving *outcome as NONE and the history as it was. */
+ * The match that reaches the match limit gives no offer and finishes the run, when its reward comes
+ * up (at once, or once the offers before it are taken). Returns STS_RUN_WRONG_PHASE from DRAFT or
+ * FINISHED, after the match limit, or when STS_RUN_OWED_MAX rewards are already owed, leaving
+ * *outcome as NONE and the history as it was. */
 sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                     const sts_match_result *result, sts_reward_outcome *outcome);
 
@@ -133,7 +137,7 @@ typedef struct {
 } sts_replace_choice;
 
 /* Takes offer `index` and returns to READY, or starts the oldest owed reward, which may leave
- * the run in REWARD with new offers. Owed rewards that give no offer are used up on the way (a
+ * the run in REWARD with new offers, or FINISHED if it was the last match. Owed rewards that give no offer are used up on the way (a
  * automatic change, with nothing to choose, is made then). On any error nothing changes and the
  * offers stay, so the screen can simply ask again. choice may be NULL unless the mode needs it. */
 sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings,
@@ -165,12 +169,18 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
 
 /* Moves a run made under other rules onto these. Returns STS_RUN_ILLEGAL, changing nothing, if
  * its deck breaks them. Offers on screen are kept if still possible, so editing the settings is
- * not a free reroll; otherwise they are rolled again, which may end a reward or a draft. */
+ * not a free reroll; otherwise they are rolled again, which may end a reward or a draft. A match
+ * limit the run has already reached finishes it. A finished run stays finished. */
 sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const sts_settings *settings);
 
 /* 1 if the run knows the rules it was made under and they still give its fingerprint, so putting
  * them back would let it carry on. A save from before format 3 cannot, and nor can a run whose
  * built-in starter cards have changed since. */
 int sts_run_rules_restorable(const sts_run *run);
+
+/* The deck as it was after history[index], or before history[0] for index -1 (the starting deck,
+ * if no match has been forgotten), worked out backwards from the deck now. Rewards still pending
+ * have not changed it yet. Returns 0 if the history does not fit the deck. */
+int sts_run_deck_after(const sts_run *run, int index, sts_deck *out);
 
 #endif

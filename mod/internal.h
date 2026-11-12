@@ -56,7 +56,8 @@ typedef enum {
     ST_REWARD_CONFIRM,  /* REPLACE by choice: last check before the swap */
     ST_RULES,           /* the run was made under other rules: carry on or start over? */
     ST_SETTINGS,        /* settings.ini as a list to change */
-    ST_SETTINGS_CONFIRM /* saving would change the rules of saved runs: save anyway? */
+    ST_SETTINGS_CONFIRM,/* saving would change the rules of saved runs: save anyway? */
+    ST_SCORE            /* a finished run: its results and each match */
 } screen_state;
 typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
 
@@ -103,9 +104,22 @@ enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_ME
 #define SETTINGS_ROW_H 19
 #define SETTINGS_VISIBLE_ROWS 14
 
+/* The score screen: a small grid of the deck at the chosen point, and below it the starting deck and
+ * each match, in two lines each, this many at a time. */
+#define SCORE_DECK_X 40
+#define SCORE_DECK_Y 112
+#define SCORE_LIST_Y 226
+#define SCORE_ENTRY_H 38
+#define SCORE_VISIBLE 5
+
 /* embedded.cpp: a data file built into the DLL, by its resource name (CARDS_CSV, LANG_JA). The
  * bytes are not NUL-terminated and stay valid while the DLL is loaded. NULL if missing. */
 const char *embedded_data(const char *name, size_t *length);
+
+/* history.cpp: a run's record, for the score screen. Card names come from load_card_text, so it
+ * must have loaded the run's character. The change is empty for the last match of a finished run. */
+void count_results(const sts_run *run, int *won, int *lost, int *rounds_won, int *rounds_lost);
+void describe_match(const sts_run *run, int index, char *result, size_t result_size, char *change, size_t change_size);
 
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);
@@ -183,6 +197,14 @@ extern deck_change g_changes_removed[MAX_CHANGE_LINES];
 extern deck_change g_changes_added[MAX_CHANGE_LINES];
 extern int g_changes_removed_count;
 extern int g_changes_added_count;
+extern int g_score_top;   /* the first entry the score screen shows; g_cursor is the chosen one */
+/* The score screen's entries: the starting deck (if no match was forgotten), then each match. */
+int score_entry_count(void);
+int score_entry_match(int entry);   /* its index in the history, or -1 for the draft */
+/* The point of the run the deck screen shows for a finished run: a match's index in the history, -1
+ * for the draft, or SCORE_FINAL_DECK. */
+#define SCORE_FINAL_DECK (-2)
+extern int g_viewed_match;
 
 /* settings_screen.cpp */
 const char *offers_off_screen(const sts_settings *settings);

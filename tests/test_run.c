@@ -1055,9 +1055,124 @@ static void test_saved_rules(void)
     CHECK(save_and_load(&loaded, &run) && !run.has_rules);
 }
 
+/* The match that reaches the match limit gives no offer and finishes the run. */
+static void test_match_limit(void)
+{
+    static sts_run run, other;
+    sts_settings settings, changed;
+    sts_reward_outcome out;
+    int wau, line = 0;
+
+    CHECK(parse_ini("[run]\nmatches=3\n[reward]\nreplacement=random\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(settings.match_limit == 3 && sts_settings_validate(&settings) == NULL);
+    ready_run(&run, &settings, 6, 101);
+    for (wau = 0; wau < 2; wau++) {
+        CHECK(begin_reward(&run, &g_db, &settings, wau, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK && run.phase == STS_PHASE_READY);
+    }
+    other = run;
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_FINISHED);
+    CHECK(run.phase == STS_PHASE_FINISHED && run.offer_count == 0 && run.matches_played == 3);
+    CHECK(decks_equal(&run.deck, &other.deck) && run.history_count == 3 && !run.history[2].pending);
+    CHECK(run.history[2].won == 1 && run.history[2].added_count == 0 && run.history[2].removed_count == 0);
+    CHECK(sts_run_validate(&run, &g_db, &settings) == STS_RUN_OK && save_and_load(&run, &other));
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_WRONG_PHASE && run.history_count == 3);
+
+    /* A limit of 1: the first match ends the run. */
+    settings.match_limit = 1;
+    ready_run(&run, &settings, 6, 102);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_FINISHED);
+
+    /* The last match owed behind an offer finishes the run once that offer is taken, and no match
+     * after the limit is taken in. */
+    settings.match_limit = 2;
+    ready_run(&run, &settings, 6, 103);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && run.owed_count == 1);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_WRONG_PHASE && run.history_count == 2);
+    CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+    CHECK(run.phase == STS_PHASE_FINISHED && run.owed_count == 0 && run.offer_count == 0);
+    CHECK(run.history[0].added_count > 0 && !run.history[1].pending && run.history[1].added_count == 0);
+
+    /* With no limit, a run goes on. */
+    settings.match_limit = 0;
+    ready_run(&run, &settings, 6, 104);
+    for (wau = 0; wau < 5; wau++) {
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+    }
+    CHECK(run.phase == STS_PHASE_READY);
+
+    /* Lowering the limit to what has been played ends the run when it adopts the new rules; so does a
+     * limit reached by the match whose offers are on screen. */
+    changed = settings;
+    changed.match_limit = 5;
+    other = run;
+    CHECK(sts_run_adopt_rules(&other, &g_db, &changed) == STS_RUN_OK && other.phase == STS_PHASE_FINISHED);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    changed.match_limit = 6;
+    other = run;
+    CHECK(sts_run_adopt_rules(&other, &g_db, &changed) == STS_RUN_OK && other.phase == STS_PHASE_FINISHED);
+    CHECK(other.offer_count == 0 && !other.history[5].pending && other.history[5].added_count == 0);
+    changed.match_limit = 7;
+    other = run;
+    CHECK(sts_run_adopt_rules(&other, &g_db, &changed) == STS_RUN_OK && other.phase == STS_PHASE_REWARD);
+    /* A finished run stays finished under any rules. */
+    CHECK(sts_run_adopt_rules(&other, &g_db, &settings) == STS_RUN_OK);
+    changed.match_limit = 5;
+    CHECK(sts_run_adopt_rules(&other, &g_db, &changed) == STS_RUN_OK && other.phase == STS_PHASE_FINISHED);
+    CHECK(sts_run_adopt_rules(&other, &g_db, &settings) == STS_RUN_OK && other.phase == STS_PHASE_FINISHED);
+}
+
+static int same_cards(const sts_deck *first, const sts_deck *second)
+{
+    sts_deck one = *first, other = *second;
+
+    sts_deck_sort(&one);
+    sts_deck_sort(&other);
+    return decks_equal(&one, &other);
+}
+
+/* The deck after each match, and before the first, is worked out backwards from the deck now. */
+static void test_deck_after(void)
+{
+    static sts_run run;
+    static sts_deck seen[5], worked_out;
+    sts_settings settings;
+    sts_reward_outcome out;
+    int wau;
+
+    sts_settings_defaults(&settings);
+    settings.reward.replace = STS_REPLACE_RANDOM;
+    settings.reward.copies_max = 3;
+    ready_run(&run, &settings, 11, 120);
+    seen[0] = run.deck;
+    CHECK(sts_run_deck_after(&run, -1, &worked_out) && same_cards(&worked_out, &seen[0]));
+    for (wau = 0; wau < 4; wau++) {
+        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(sts_run_reward_pick(&run, &g_db, &settings, wau % 3, NULL) == STS_RUN_OK);
+        seen[wau + 1] = run.deck;
+    }
+    for (wau = -1; wau < 4; wau++)
+        CHECK(sts_run_deck_after(&run, wau, &worked_out) && same_cards(&worked_out, &seen[wau + 1]));
+    CHECK(!sts_run_deck_after(&run, 4, &worked_out) && !sts_run_deck_after(&run, -2, &worked_out));
+
+    /* A reward still pending has not changed the deck. */
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(sts_run_deck_after(&run, 4, &worked_out) && same_cards(&worked_out, &seen[4]));
+    CHECK(sts_run_deck_after(&run, -1, &worked_out) && same_cards(&worked_out, &seen[0]));
+
+    /* A history that does not fit the deck is refused. */
+    run.history[0].added[0] = 0xFFFF;
+    CHECK(!sts_run_deck_after(&run, -1, &worked_out));
+}
+
 void test_run_save(void)
 {
     static sts_run run;
+
+    test_match_limit();
+    test_deck_after();
 
     test_history();
     test_saved_rules();

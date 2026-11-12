@@ -630,7 +630,15 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    temporary file moved over the old one. The settings reload at once: a run in use whose rules
    changed stops as at start-up (`active.txt` kept), and comes back if they are changed back.  In full mode both players need one set of rules (probably the host's), and the
    screen should show which rules are in force.
-12. Match limit and score screen (after v0.2): `[run] matches`, 0 = endless and the default, part of
+12. (built for v0.4, not yet played in game) Match limit and score screen: `[run] matches`, 0 =
+   endless and the default, up to 20 (by decision; the history keeps 100, so a finished run always
+   has every match), part of the fingerprint only when set. The score screen lists the deck before
+   the first match and each match; the chosen one shows the deck after it (worked out backwards from
+   the final deck by `sts_run_deck_after`), with the cards it brought in outlined in green and the ones it took out in a row beside it in red;
+   A opens that deck on the deck screen (g_run.deck stands in for it until B). A finished run
+   skips the rules check (its rules no longer matter), and a rule change that lowers the limit to the
+   matches played finishes the run when it carries on. By decision, no history files: a run's record
+   lives in its save until it is started over. Original plan: `[run] matches`, part of
    the fingerprint. Counts finished VS matches with the run deck, as `matches_played` does now (a
    disconnect before the result screen does not count). The last match skips the offer, since the
    card would never be played, and goes to a score screen. The run then enters a new finished phase

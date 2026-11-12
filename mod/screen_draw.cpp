@@ -426,6 +426,9 @@ static void rebuild_choose(void)
             } else if (g_saved_phase[character] == STS_PHASE_REWARD) {
                 sprintf(line, tr("Reward waiting"));
                 color = COLOR_GOLD;
+            } else if (g_saved_phase[character] == STS_PHASE_FINISHED) {
+                sprintf(line, tr("Finished"));
+                color = COLOR_GREY;
             } else if (g_active && g_active_character == character) {
                 sprintf(line, tr("In use"));
                 color = COLOR_GREEN;
@@ -497,7 +500,10 @@ static void rebuild_draft(void)
         sprintf(line, format, character_label(g_run.character));
         add_label(line, g_font_big, 20, 16, 470, 30, COLOR_WHITE);
         /* Owed rewards come from the latest matches, so the offer on screen is from an earlier one. */
-        sprintf(line, tr("Match %d"), g_run.matches_played - g_run.owed_count);
+        if (g_settings.match_limit > 0)
+            sprintf(line, tr("Match %d of %d"), g_run.matches_played - g_run.owed_count, g_settings.match_limit);
+        else
+            sprintf(line, tr("Match %d"), g_run.matches_played - g_run.owed_count);
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     } else {
         sprintf(line, tr("%s: pick %d of %d"), character_label(g_run.character),
@@ -705,8 +711,16 @@ static void rebuild_deck(void)
     if (g_deck_art_dirty)
         load_deck_art();
 
-    sprintf(line, tr("%s: your deck"), character_label(g_run.character));
-    add_label(line, g_font_big, 20, 16, 400, 30, COLOR_WHITE);
+    if (g_run.phase == STS_PHASE_FINISHED && g_viewed_match == -1)
+        sprintf(line, tr("%s: the deck after the draft"), character_label(g_run.character));
+    else if (g_run.phase == STS_PHASE_FINISHED && g_viewed_match == g_run.history_count - 1)
+        sprintf(line, tr("%s: the final deck"), character_label(g_run.character));
+    else if (g_run.phase == STS_PHASE_FINISHED && g_viewed_match >= 0)
+        sprintf(line, tr("%s: the deck after match %d"), character_label(g_run.character),
+                g_run.history_forgotten + g_viewed_match + 1);
+    else
+        sprintf(line, tr("%s: your deck"), character_label(g_run.character));
+    add_label(line, g_font_big, 20, 16, 500, 30, COLOR_WHITE);
     sprintf(line, tr("%d cards"), g_run.deck.count);
     add_label(line, g_font_small, 540, 22, 90, 20, COLOR_GREY);
 
@@ -717,6 +731,12 @@ static void rebuild_deck(void)
     if (g_cursor < g_run.deck.count)
         add_card_details(g_run.deck.ids[g_cursor], pos_y);
     add_change_list(pos_y, tr("Removed"), tr("Added"));
+    if (g_run.phase == STS_PHASE_FINISHED) {
+        add_label(tr("This run is over, so its deck is no longer used."), g_font_small, 20, 396, 600, 20, COLOR_GREY);
+        sprintf(line, tr("Arrows: inspect   %s: back to the score"), BUTTON_B);
+        add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        return;
+    }
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
     /* With the other key prompts at the bottom, not the status line above. */
     sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
@@ -728,6 +748,58 @@ static void rebuild_deck(void)
     else
         sprintf(line, tr("Arrows: inspect   %s: back   %s twice: start over"), BUTTON_B, BUTTON_C);
     add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
+}
+
+/* A finished run: its results, then the starting deck and each match, with what its reward changed.
+ * The deck at the chosen point is drawn above the list (draw_score_deck). */
+static void rebuild_score(void)
+{
+    char line[192], result[192], change[640];
+    int won, lost, rounds_won, rounds_lost, entry, match;
+    sts_deck deck;
+
+    count_results(&g_run, &won, &lost, &rounds_won, &rounds_lost);
+    sprintf(line, tr("%s: the run is over"), character_label(g_run.character));
+    add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    sprintf(line, tr("Won %d of %d matches."), won, g_run.matches_played);
+    add_label(line, g_font_big, 40, 52, 560, 28, COLOR_GOLD);
+    sprintf(line, tr("Rounds won %d, lost %d."), rounds_won, rounds_lost);
+    add_label(line, g_font_small, 40, 82, 560, 20, COLOR_WHITE);
+
+    /* What the deck beside it is. */
+    match = score_entry_match(g_cursor);
+    if (match < 0)
+        sprintf(line, "%s", tr("The draft"));
+    else if (match == g_run.history_count - 1)
+        sprintf(line, "%s", tr("The final match"));
+    else
+        sprintf(line, tr("After match %d"), g_run.history_forgotten + match + 1);
+    add_label(line, g_font_big, SCORE_DECK_X + 340, SCORE_DECK_Y, 240, 28, COLOR_WHITE);
+    /* Above the cards that left, drawn below it. */
+    if (sts_run_deck_after(&g_run, match, &deck) && match >= 0 && g_run.history[match].removed_count > 0)
+        add_label(tr("Replaced"), g_font_small, SCORE_DECK_X + 340, SCORE_DECK_Y + 30, 240, 20, COLOR_RED);
+
+    for (entry = g_score_top; entry < score_entry_count() && entry < g_score_top + SCORE_VISIBLE; entry++) {
+        int pos_y = SCORE_LIST_Y + (entry - g_score_top) * SCORE_ENTRY_H;
+
+        match = score_entry_match(entry);
+        if (match < 0) {
+            add_label(tr("The draft"), g_font_small, 48, pos_y, 552, 20, COLOR_WHITE);
+            continue;
+        }
+        describe_match(&g_run, match, result, sizeof result, change, sizeof change);
+        add_label(result, g_font_small, 48, pos_y, 552, 20, g_run.history[match].won ? COLOR_GREEN : COLOR_RED);
+        if (change[0])
+            add_label(change, g_font_small, 68, pos_y + 17, 532, 20, COLOR_WHITE);
+    }
+
+    sprintf(line, tr("Up/Down: choose   %s: see this deck   %s: back"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    if (g_alt_armed)
+        sprintf(line, tr("Press %s again to discard this run and start over."), BUTTON_C);
+    else
+        sprintf(line, tr("%s twice: start over"), BUTTON_C);
+    add_label(line, g_font_small, 20, 458, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
 /* Where each entry of the list of menus sits. Save changes stands a little apart from the menus. */
@@ -843,6 +915,7 @@ static void rebuild(void)
         break;
     case ST_REWARD_TYPE:   rebuild_reward_type(); break;
     case ST_RULES:         rebuild_rules(); break;
+    case ST_SCORE:         rebuild_score(); break;
     case ST_SETTINGS:
     case ST_SETTINGS_CONFIRM:
         rebuild_settings();
@@ -968,6 +1041,88 @@ static void draw_draft_deck(void)
     }
 }
 
+/* The score screen's deck changes with the cursor, so its card images are kept by ID: the decks of
+ * one run share most of their cards. */
+#define SCORE_ART_MAX 64
+static Sprite g_score_art[SCORE_ART_MAX];
+static uint16_t g_score_art_id[SCORE_ART_MAX];
+static int g_score_art_loaded[SCORE_ART_MAX];
+static int g_score_art_count = 0;
+static int g_score_art_character = -1;
+
+static Sprite *score_art(uint16_t id)
+{
+    int wau;
+
+    if (g_score_art_character != g_run.character) {
+        g_score_art_count = 0;
+        g_score_art_character = g_run.character;
+    }
+    for (wau = 0; wau < g_score_art_count; wau++)
+        if (g_score_art_id[wau] == id)
+            return g_score_art_loaded[wau] ? &g_score_art[wau] : NULL;
+    if (g_score_art_count == SCORE_ART_MAX)
+        return NULL;
+    g_score_art_id[g_score_art_count] = id;
+    g_score_art_loaded[g_score_art_count] = load_card_sprite(&g_score_art[g_score_art_count], id, 0, 0, 1);
+    g_score_art_count++;
+    return g_score_art_loaded[g_score_art_count - 1] ? &g_score_art[g_score_art_count - 1] : NULL;
+}
+
+/* The deck after the chosen match, small, with the cards that match brought in outlined. */
+static void draw_score_deck(void)
+{
+    int match = score_entry_match(g_cursor);
+    uint16_t brought_in[STS_RUN_CHANGE_MAX];
+    int brought_in_count = 0, wau, card;
+    sts_deck deck;
+
+    if (!sts_run_deck_after(&g_run, match, &deck))
+        return;
+    if (match >= 0) {
+        brought_in_count = g_run.history[match].added_count;
+        memcpy(brought_in, g_run.history[match].added, sizeof brought_in);
+    }
+    for (wau = 0; wau < deck.count && wau < DRAFT_DECK_SLOTS; wau++) {
+        int pos_x = SCORE_DECK_X + (wau % DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_X;
+        int pos_y = SCORE_DECK_Y + (wau / DRAFT_DECK_COLS) * DRAFT_DECK_PITCH_Y;
+        Sprite *sprite = score_art(deck.ids[wau]);
+
+        /* Each copy brought in is outlined once. */
+        for (card = 0; card < brought_in_count; card++) {
+            if (brought_in[card] == deck.ids[wau]) {
+                brought_in[card] = brought_in[--brought_in_count];
+                draw_box(pos_x - 2, pos_y - 2, DRAFT_DECK_CARD_W + 4, DRAFT_DECK_CARD_H + 4, 0x6090FF90u, 0xFF90FF90u);
+                break;
+            }
+        }
+        if (sprite) {
+            sprite->setSize({DRAFT_DECK_IMAGE_W, DRAFT_DECK_IMAGE_H});
+            sprite->tint = COLOR_WHITE;
+            sprite->setPosition({pos_x + DRAFT_DECK_IMAGE_OFFSET_X, pos_y});
+            sprite->draw();
+        }
+    }
+
+    /* The cards that match took out are no longer in the deck, so they get a row of their own beside
+     * it, under the key. */
+    if (match < 0)
+        return;
+    for (card = 0; card < g_run.history[match].removed_count; card++) {
+        int pos_x = SCORE_DECK_X + 340 + card * DRAFT_DECK_PITCH_X;
+        int pos_y = SCORE_DECK_Y + DRAFT_DECK_PITCH_Y + 2;
+        Sprite *sprite = score_art(g_run.history[match].removed[card]);
+
+        draw_box(pos_x - 2, pos_y - 2, DRAFT_DECK_CARD_W + 4, DRAFT_DECK_CARD_H + 4, 0x60FF9090u, 0xFFFF9090u);
+        if (sprite) {
+            sprite->setSize({DRAFT_DECK_IMAGE_W, DRAFT_DECK_IMAGE_H});
+            sprite->tint = COLOR_WHITE;
+            sprite->setPosition({pos_x + DRAFT_DECK_IMAGE_OFFSET_X, pos_y});
+            sprite->draw();
+        }
+    }
+}
+
 void screen_render(int opaque)
 {
     int wau;
@@ -998,6 +1153,20 @@ void screen_render(int opaque)
             draw_box(616, SETTINGS_LIST_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
             draw_box(616, SETTINGS_LIST_Y + offset, 4, thumb, 0xC0FFE080u, 0xC0FFE080u);
         }
+    } else if (g_state == ST_SCORE) {
+        int entries = score_entry_count();
+
+        draw_box(36, SCORE_LIST_Y - 3 + (g_cursor - g_score_top) * SCORE_ENTRY_H, 568, SCORE_ENTRY_H - 2,
+                 0x60FFE080u, 0xFFFFE080u);
+        /* Where the entries shown are in the whole list. */
+        if (entries > SCORE_VISIBLE) {
+            int track = SCORE_VISIBLE * SCORE_ENTRY_H;
+
+            draw_box(616, SCORE_LIST_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
+            draw_box(616, SCORE_LIST_Y + track * g_score_top / entries, 4, track * SCORE_VISIBLE / entries,
+                     0xC0FFE080u, 0xC0FFE080u);
+        }
+        draw_score_deck();
     } else if (g_state == ST_REWARD_TYPE) {
         draw_box(44, REWARD_TYPE_Y - 6 + g_cursor * REWARD_TYPE_PITCH, 552, 38, 0x60FFE080u, 0xFFFFE080u);
     } else if (g_state == ST_RULES) {

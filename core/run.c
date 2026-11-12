@@ -247,12 +247,45 @@ static void decide_reward(sts_run *run, const sts_card_db *db, const sts_setting
     *outcome = STS_REWARD_OFFERS;
 }
 
-/* The reward for one match, from READY. Unless offers wait, it is settled at once. */
+/* The number of the match whose reward comes next, the oldest still pending, counting from 1. */
+static int next_reward_match(const sts_run *run)
+{
+    int wau;
+
+    for (wau = 0; wau < run->history_count; wau++)
+        if (run->history[wau].pending)
+            return run->history_forgotten + wau + 1;
+    return run->matches_played;
+}
+
+/* The run is over: no reward still to come changes the deck. */
+static void finish_run(sts_run *run)
+{
+    while (run->history_count > 0 && run->history[run->history_count - 1].pending)
+        settle_reward(run, &run->deck);
+    run->offer_count = 0;
+    run->offer_frames = 0;
+    run->owed_count = 0;
+    run->phase = STS_PHASE_FINISHED;
+}
+
+static int limit_reached(const sts_settings *settings, int match)
+{
+    return settings->match_limit > 0 && match >= settings->match_limit;
+}
+
+/* The reward for one match, from READY. Unless offers wait, it is settled at once. The last match
+ * of the match limit has no reward, as its card would never be played: it finishes the run. */
 static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                              int won, sts_reward_outcome *outcome)
 {
     sts_deck before = run->deck;
 
+    if (limit_reached(settings, next_reward_match(run))) {
+        finish_run(run);
+        *outcome = STS_REWARD_FINISHED;
+        return;
+    }
     decide_reward(run, db, settings, won, outcome);
     if (*outcome != STS_REWARD_OFFERS)
         settle_reward(run, &before);
@@ -278,6 +311,8 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
     *outcome = STS_REWARD_NONE;
     if (!result)
         return STS_RUN_BAD_ARGUMENT;
+    if (limit_reached(settings, run->matches_played))
+        return STS_RUN_WRONG_PHASE;
     if (run->phase == STS_PHASE_REWARD) {
         if (run->owed_count >= STS_RUN_OWED_MAX)
             return STS_RUN_WRONG_PHASE;
@@ -735,6 +770,13 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
         if (!sts_offer_is_valid(db, updated.character, &updated.deck, &settings->rules, cfg, &updated.offers[wau]))
             offers_valid = 0;
 
+    /* A lower match limit than the matches already played ends the run now. */
+    if ((updated.phase == STS_PHASE_READY && limit_reached(settings, updated.matches_played))
+        || (updated.phase == STS_PHASE_REWARD && limit_reached(settings, next_reward_match(&updated)))) {
+        finish_run(&updated);
+        *run = updated;
+        return STS_RUN_OK;
+    }
     if (!offers_valid) {
         if (updated.phase == STS_PHASE_DRAFT) {
             status = advance_draft(&updated, db, settings);
@@ -759,4 +801,39 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
 int sts_run_rules_restorable(const sts_run *run)
 {
     return run->has_rules && sts_settings_hash(&run->rules) == run->settings_hash;
+}
+
+/* Takes one copy of id out of the deck. Returns 0 if it holds none. */
+static int remove_one_copy(sts_deck *deck, uint16_t id)
+{
+    int wau;
+
+    for (wau = 0; wau < deck->count; wau++) {
+        if (deck->ids[wau] == id) {
+            deck->ids[wau] = deck->ids[--deck->count];
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int sts_run_deck_after(const sts_run *run, int index, sts_deck *out)
+{
+    int match, card;
+
+    *out = run->deck;
+    if (index < -1 || index >= run->history_count)
+        return 0;
+    for (match = run->history_count - 1; match > index; match--) {
+        const sts_match_record *record = &run->history[match];
+
+        for (card = 0; card < record->added_count; card++)
+            if (!remove_one_copy(out, record->added[card]))
+                return 0;
+        for (card = 0; card < record->removed_count; card++)
+            if (sts_deck_add(out, record->removed[card]) != 0)
+                return 0;
+    }
+    sts_deck_sort(out);
+    return 1;
 }
