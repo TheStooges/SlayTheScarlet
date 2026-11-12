@@ -18,9 +18,7 @@ BUILD = os.path.join(ROOT, "build-release", "mod")
 # Path inside the zip -> source in the repository.
 CONTENTS = {
     "SlayTheScarlet.dll": os.path.join(BUILD, "SlayTheScarlet.dll"),
-    "cards.csv": os.path.join(ROOT, "data", "cards.csv"),
     "settings.ini": os.path.join(ROOT, "data", "settings.ini"),
-    "lang/ja.txt": os.path.join(ROOT, "data", "lang", "ja.txt"),
     "README.md": os.path.join(ROOT, "README.md"),
     "CHANGELOG.md": os.path.join(ROOT, "CHANGELOG.md"),
     "LICENSE.txt": os.path.join(ROOT, "LICENSE"),
@@ -32,7 +30,8 @@ CONTENTS = {
 NAMES_ITS_AUTHOR = {"LICENSE.txt"}
 
 # Translations are UTF-8 by design; everything else must be ASCII.
-UTF8_TEXT = {"lang/ja.txt"}
+# None are in the zip any more: cards.csv and the translations are built into the DLL.
+UTF8_TEXT = set()
 
 # The README's picture of the Deck 1 symbol is left out of the zip, as plain words.
 README_IMAGE = b"(![green Deck 1 symbol](images/deck1.svg))"

@@ -103,6 +103,10 @@ enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_ME
 #define SETTINGS_ROW_H 19
 #define SETTINGS_VISIBLE_ROWS 14
 
+/* embedded.cpp: a data file built into the DLL, by its resource name (CARDS_CSV, LANG_JA). The
+ * bytes are not NUL-terminated and stay valid while the DLL is loaded. NULL if missing. */
+const char *embedded_data(const char *name, size_t *length);
+
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);
 int run_file_exists(int character);

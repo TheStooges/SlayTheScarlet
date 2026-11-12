@@ -33,14 +33,17 @@ int load_data(void)
 {
     char path[MAX_PATH + 32];
     int line = 0;
-    sts_db_status db;
+    sts_db_status db = STS_DB_IO;
     sts_settings_status status;
     const char *bad;
+    const char *cards;
+    size_t cards_length;
 
     if (g_data_ok)
         return 1;
-    sprintf(path, "%scards.csv", g_dir);
-    db = sts_card_db_load(path, &g_db, &line);
+    cards = embedded_data("CARDS_CSV", &cards_length);
+    if (cards)
+        db = sts_card_db_parse(cards, cards_length, &g_db, &line);
     if (db != STS_DB_OK) {
         set_error("cards.csv", sts_db_status_str(db));
         return 0;

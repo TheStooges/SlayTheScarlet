@@ -136,7 +136,8 @@ cmake .. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build . --target SlayTheScarlet
 ```
 
-The DLL, `cards.csv` and `settings.ini` end up in `build/mod`.
+The DLL and `settings.ini` end up in `build/mod`. The card table (`data/cards.csv`) and the
+translations (`data/lang`) are built into the DLL, so rebuild after changing them.
 
 To make a release zip, run `tools\build_release.bat` from the same prompt, then
 `python tools\package_release.py <version>`. The zip goes in `release/`.

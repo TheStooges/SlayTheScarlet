@@ -3,9 +3,17 @@ add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/SokuLib ${CMAKE_BINARY_DIR}/SokuLib)
 
+# cards.csv and the translations are built into the DLL as resources.
+set(STS_DATA_DIR ${CMAKE_SOURCE_DIR}/data)
+configure_file(embedded.rc.in ${CMAKE_CURRENT_BINARY_DIR}/embedded.rc @ONLY)
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/embedded.rc PROPERTIES
+  OBJECT_DEPENDS "${STS_DATA_DIR}/cards.csv;${STS_DATA_DIR}/lang/ja.txt")
+
 add_library(SlayTheScarlet MODULE
+  ${CMAKE_CURRENT_BINARY_DIR}/embedded.rc
   main.cpp
   card_text.cpp
+  embedded.cpp
   log.cpp
   match.cpp
   netlog.cpp
@@ -30,10 +38,7 @@ target_include_directories(SlayTheScarlet PRIVATE ${CMAKE_SOURCE_DIR}/lib/SokuLi
 target_link_directories(SlayTheScarlet PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 target_link_libraries(SlayTheScarlet PRIVATE sts_core SokuLib shlwapi d3d9 d3dx9)
 
-# The DLL loads these from its own folder.
+# The DLL reads settings.ini from its own folder.
 add_custom_command(TARGET SlayTheScarlet POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          ${CMAKE_SOURCE_DIR}/data/cards.csv ${CMAKE_SOURCE_DIR}/data/settings.ini
-          $<TARGET_FILE_DIR:SlayTheScarlet>
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          ${CMAKE_SOURCE_DIR}/data/lang $<TARGET_FILE_DIR:SlayTheScarlet>/lang)
+          ${CMAKE_SOURCE_DIR}/data/settings.ini $<TARGET_FILE_DIR:SlayTheScarlet>)

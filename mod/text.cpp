@@ -1,7 +1,7 @@
 /* The mod's own text in the game's language. The game's text is Japanese unless the English
  * translation (th123e) replaced its data files, so the card names tell which one is running.
- * Translations live in lang/<code>.txt beside the DLL, in UTF-8, and are converted to the
- * game's Shift-JIS when loaded. Without a translation, text stays in English. */
+ * Translations are written in data/lang/<code>.txt, in UTF-8, built into the DLL (embedded.cpp),
+ * and converted to the game's Shift-JIS when loaded. Without a translation, text stays in English. */
 #include <stdio.h>
 #include <stdlib.h>
 #include "internal.h"
@@ -65,9 +65,9 @@ static char *to_game_encoding(const char *text, size_t length, size_t *out_lengt
 static void load_language(void)
 {
     const char *code = "ja";
-    char path[MAX_PATH + 32];
     size_t length = 0, converted_length = 0;
-    char *text, *converted;
+    const char *text;
+    char *converted;
     sts_lang_status status;
     int line = 0;
 
@@ -77,15 +77,12 @@ static void load_language(void)
         slog("game text is English, so the mod's text is too");
         return;
     }
-    _snprintf(path, sizeof path - 1, "%slang\\%s.txt", g_dir, code);
-    path[sizeof path - 1] = 0;
-    text = sts_read_file(path, &length);
+    text = embedded_data("LANG_JA", &length);
     if (!text) {
-        slog("game text is Japanese, but lang\\%s.txt could not be read: using English", code);
+        slog("game text is Japanese, but the DLL has no lang\\%s.txt: using English", code);
         return;
     }
     converted = to_game_encoding(text, length, &converted_length);
-    free(text);
     if (!converted) {
         slog("lang\\%s.txt is not valid UTF-8: using English", code);
         return;

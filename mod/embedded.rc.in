@@ -1,0 +1,4 @@
+/* Data files built into the DLL, so the release holds only the DLL and settings.ini. CMake fills in
+ * the paths (configure_file), and embedded.cpp reads them back by name. */
+CARDS_CSV RCDATA "@STS_DATA_DIR@/cards.csv"
+LANG_JA RCDATA "@STS_DATA_DIR@/lang/ja.txt"

@@ -3,6 +3,14 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## 0.4 - unreleased
+
+### Changed
+
+- The card table and the Japanese translation are now built into `SlayTheScarlet.dll`, so the zip
+  holds only the DLL, `settings.ini`, and the documents. When updating, `cards.csv` and the `lang`
+  folder from an older release can be deleted; the mod no longer reads them.
+
 ## 0.3.2 - 2026-11-11
 
 ### Changed
