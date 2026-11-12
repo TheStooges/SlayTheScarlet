@@ -105,7 +105,8 @@ recorded here, and online logging now lives in `mod/netlog.cpp`.
 
 `core/` modules: `deck` (model, validation), `pf` (profile read/write), `pool` (card table), `rng`
 (PCG32), `offer` (offer generator, applying a taken offer), `settings` (`.ini` parsing, validation,
-compatible-mode override, fingerprint), `run` (draft and reward state machine, save format), `lang`
+compatible-mode override, fingerprint), `run` (draft and reward state machine, save format), `state` (runs/state.txt: run in use,
+restart counts), `lang`
 (translation files, checking each keeps its English line's %d/%s blanks), `util`.
 `data/settings.ini` documents every setting and states the defaults.
 
@@ -554,7 +555,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    2b. Early game-side experiment, before any UI: find which memory the `GAME_MATCH` packet's deck is
    built from, and where the game reads decks from the `.pf` and trims them (see open questions).
 3. (done, offline) Draft tool in game: card-offer UI, writes run deck. Opened with F7 on the main
-   menu, a stand-in for a proper way in. One run at a time is "in use" (`runs/active.txt` next to the DLL,
+   menu, a stand-in for a proper way in. One run at a time is "in use" (`runs/state.txt` next to the DLL, `active.txt` before v0.4,
    beside the `run_XX.sav` saves, so it survives restarts), toggled with D on the deck screen and started by finishing a draft.
    Stopping restores the slot's previous contents, in memory only.
 4. Post-match reward screen (done, offline: replaces the vanilla unlock list) + **compatible mode**
@@ -633,7 +634,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    asks, refuses if the file changed on disk since the screen opened, then writes through
    `sts_settings_rewrite` (only changed values; missing settings added to their section) to a
    temporary file moved over the old one. The settings reload at once: a run in use whose rules
-   changed stops as at start-up (`active.txt` kept), and comes back if they are changed back.  In full mode both players need one set of rules (probably the host's), and the
+   changed stops as at start-up (`state.txt` kept), and comes back if they are changed back.  In full mode both players need one set of rules (probably the host's), and the
    screen should show which rules are in force.
 12. (built for v0.4, not yet played in game) Match limit and score screen: `[run] matches`, 0 =
    endless and the default, up to 20 (by decision; the history keeps 100, so a finished run always
@@ -663,7 +664,17 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    (`data/scene/select/bg`), then on run screens the character's portrait (`data/stand/<folder>`)
    at tint alpha 0x48, then a 0x60 black shade. 0x70 was too strong: white text over a light
    portrait (Komachi's apron) was hard to read. Falls back to plain black if loading fails.
-14. Set seed, for events (planned with v0.4, beside item 12). Within a run rerolling is already
+14. (built for v0.4, not yet played in game) Set seed: `[run] seed`, a word of up to 24 letters,
+   digits, `-` and `_`, case-sensitive by decision, blank by default, hashed only when set. In game it
+   is typed into a text box of the mod's own on Settings, Runs (A opens it; letters, digits, - and _
+   read with GetAsyncKeyState; Enter keeps, Esc cancels; the screen's buttons are ignored meanwhile).
+   SokuLib does not expose the game's own name entry box.
+   `sts_run_seed` turns it into the run's seed; the RNG's stream is already the character. Restart
+   counts live in `runs/state.txt` (core `state`, which replaced `active.txt`): per character and
+   per rules fingerprint of the run discarded, by starting over or deleting, so an event's count is
+   its own and changing the rules and back does not reset it. A new run copies its count into the
+   save, and the score screen shows seed, fingerprint and count. Kept by decision, though nobody
+   asked for the count yet. Starting over stays allowed (and counted). Original plan: Within a run rerolling is already
    impossible (the RNG state is saved), but starting over seeds a new run from the clock, so a player
    can delete runs until they like a draft. A rule setting, e.g. `[run] seed`, blank = random as now
    and the default, part of the fingerprint so an event's shared `settings.ini` carries it. Each run's

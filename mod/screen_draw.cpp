@@ -398,6 +398,11 @@ static void rebuild_choose(void)
     char line[128];
 
     add_label(tr("Slay the Scarlet: choose a character"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    if (g_settings.seed[0] && !blocking_mod()) {
+        _snprintf(line, sizeof line - 1, tr("Currently set seed: %s."), g_settings.seed);
+        line[sizeof line - 1] = 0;
+        add_label(line, g_font_small, 20, 396, 600, 20, COLOR_GOLD);
+    }
     if (g_settings.starter_enabled)
         add_label(tr("Starting decks are on: each draft begins with set cards for the character."),
                   g_font_small, 20, 414, 600, 20, COLOR_GOLD);
@@ -823,7 +828,16 @@ static void rebuild_score(void)
     sprintf(line, tr("Won %d of %d matches."), won, g_run.matches_played);
     add_label(line, g_font_big, 40, 52, 560, 28, COLOR_GOLD);
     sprintf(line, tr("Rounds won %d, lost %d."), rounds_won, rounds_lost);
-    add_label(line, g_font_small, 40, 82, 560, 20, COLOR_WHITE);
+    add_label(line, g_font_small, 40, 82, 240, 20, COLOR_WHITE);
+    /* For events: the seed and rules the run was played under, and how often it was started over,
+     * so a screenshot of this screen shows them. */
+    if (g_run.has_rules && g_run.rules.seed[0])
+        _snprintf(line, sizeof line - 1, tr("Seed %s   Rules %08x   Started over: %d"), g_run.rules.seed,
+                  (unsigned)g_run.settings_hash, g_run.restarts);
+    else
+        _snprintf(line, sizeof line - 1, tr("Rules %08x   Started over: %d"), (unsigned)g_run.settings_hash, g_run.restarts);
+    line[sizeof line - 1] = 0;
+    add_label(line, g_font_small, 270, 82, 360, 20, COLOR_GREY);
 
     /* What the deck beside it is. */
     match = score_entry_match(g_cursor);
@@ -868,6 +882,9 @@ static int settings_menu_y(int index)
 }
 
 /* The list of menus, or one menu's settings, with help for the entry under the cursor below. */
+/* The seed's text box, over the help below the settings. */
+#define SEED_BOX_Y 344
+
 static void rebuild_settings(void)
 {
     char line[256], value[128];
@@ -935,6 +952,17 @@ static void rebuild_settings(void)
         return;
     }
 
+    /* The seed's text box takes the place of the help while it is open. */
+    if (seed_entry_open()) {
+        _snprintf(line, sizeof line - 1, "%s_", g_seed_entry);
+        line[sizeof line - 1] = 0;
+        add_label(tr("Type a seed:"), g_font_small, 36, SEED_BOX_Y + 8, 140, 20, COLOR_WHITE);
+        add_label(line, g_font_big, 176, SEED_BOX_Y + 4, 420, 28, COLOR_GOLD);
+        add_label(tr("Letters, digits, - and _, up to 24, and capitals count. Empty turns the seed off."), g_font_small, 36,
+                  SEED_BOX_Y + 38, 580, 20, COLOR_GREY);
+        add_label(tr("Enter: done   Esc: cancel   Backspace: delete"), g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        return;
+    }
     if (g_cursor < g_settings_row_count) {
         const settings_row *current = &g_settings_rows[g_cursor];
 
@@ -945,7 +973,10 @@ static void rebuild_settings(void)
             if (settings_help_shown(current, wau))
                 help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
     }
-    sprintf(line, tr("Up/Down: choose   Left/Right: change   %s: save   %s: back"), BUTTON_A, BUTTON_B);
+    if (settings_on_seed_row())
+        sprintf(line, tr("Up/Down: choose   %s: type a seed   %s: back"), BUTTON_A, BUTTON_B);
+    else
+        sprintf(line, tr("Up/Down: choose   Left/Right: change   %s: save   %s: back"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
     sprintf(line, tr("%s: default value"), BUTTON_C);
     add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
@@ -1291,6 +1322,8 @@ void screen_render(int opaque)
             }
         }
     }
+    if (g_state == ST_SETTINGS && seed_entry_open())
+        draw_box(24, SEED_BOX_Y, 592, 64, 0xC0101010u, 0xFFFFE080u);
     for (wau = 0; wau < g_label_count; wau++)
         g_labels[wau].draw();
     for (wau = 0; wau < g_input_draw_count; wau++) {

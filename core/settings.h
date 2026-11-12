@@ -15,6 +15,9 @@
  * limit would need its own patch, so settings may not go above this for now. */
 #define STS_GAME_COPY_LIMIT 4
 
+/* A set seed: up to this many letters, digits, '-' and '_', and a NUL. */
+#define STS_SEED_SIZE 25
+
 /* The longest match limit. A run's history keeps more (STS_RUN_HISTORY_MAX), so a finished run
  * always has every match. */
 #define STS_MATCH_LIMIT_MAX 20
@@ -76,6 +79,10 @@ typedef struct {
     int allow_rule_changes;
     /* How many matches a run lasts, 0 for no limit. The last one gives no offer: the run is finished. */
     int match_limit;
+    /* A set seed for events, or empty for a random one. With one, every run of a character starts from
+     * the same random state, so the draft is the same for everyone, and on starting over. Capitals
+     * and small letters differ. */
+    char seed[STS_SEED_SIZE];
     /* Is the deck so far shown while drafting? It changes nothing about the deck or what is
      * offered, so a run can carry on when it changes: not part of the fingerprint. */
     int draft_show_deck;

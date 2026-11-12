@@ -149,6 +149,10 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_offer_rows("reward", tr("Each offer gives a random number of copies in this range."));
         break;
     case SETTINGS_MENU_RUN:
+        row = add_row("run", "seed", tr("Set seed"), NULL);
+        add_value_help(row, "", tr("Off: each draft is random."));
+        add_help_line(row, tr("A set seed fixes the draft and rewards."));
+        add_help_line(row, tr("Accepts letters, digits, hyphens, and underscores."));
         row = add_row("run", "matches", tr("Match limit"), tr("How many matches a run lasts."));
         add_value_help(row, "0", tr("Endless: the run goes on until you start over."));
         add_help_line(row, tr("The last match gives no offer: the run ends and shows its score."));
@@ -216,6 +220,8 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
         words = tr("Player chooses a card");
     else if (strcmp(row->key, "matches") == 0 && strcmp(raw, "0") == 0)
         words = tr("Endless");
+    else if (strcmp(row->key, "seed") == 0)
+        words = raw[0] ? raw : tr("Off");
     else
         words = choice_text(raw);
     _snprintf(out, size - 1, "%s", words ? words : raw);
@@ -758,6 +764,125 @@ static void close_menu(void)
     g_dirty = 1;
 }
 
+/* ---------- the seed's text box ---------- */
+
+static int g_seed_entry_is_open = 0;
+char g_seed_entry[STS_SEED_SIZE];
+static unsigned char g_key_was_down[256];
+static int g_backspace_frames = 0;   /* how long Backspace has been held, for deleting while held */
+static int g_backspace_waiting = 0;  /* held when the box opened, so not counted until let go */
+
+int seed_entry_open(void)
+{
+    return g_seed_entry_is_open;
+}
+
+static int key_down(int key)
+{
+    return (GetAsyncKeyState(key) & 0x8000) != 0;
+}
+
+/* The keys held when the box opens (the confirm key, which may be a letter) only count once let go. */
+static void open_seed_entry(void)
+{
+    int key;
+
+    _snprintf(g_seed_entry, sizeof g_seed_entry - 1, "%s", g_settings_edit.seed);
+    g_seed_entry[sizeof g_seed_entry - 1] = 0;
+    for (key = 0; key < 256; key++)
+        g_key_was_down[key] = (unsigned char)key_down(key);
+    /* Held already, it waits to be let go, as the other keys do. */
+    g_backspace_frames = 0;
+    g_backspace_waiting = key_down(VK_BACK);
+    g_seed_entry_is_open = 1;
+    g_error[0] = 0;
+    g_status[0] = 0;
+    g_dirty = 1;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+}
+
+/* 1 on the frame a key goes down. */
+static int key_pressed(int key)
+{
+    int down = key_down(key), pressed = down && !g_key_was_down[key];
+
+    g_key_was_down[key] = (unsigned char)down;
+    return pressed;
+}
+
+static void add_seed_letter(char letter)
+{
+    size_t length = strlen(g_seed_entry);
+
+    if (length + 1 >= sizeof g_seed_entry) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        return;
+    }
+    g_seed_entry[length] = letter;
+    g_seed_entry[length + 1] = 0;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+    g_dirty = 1;
+}
+
+/* Letters as typed (seeds tell capitals from small letters), digits, - and _. Enter keeps it, Esc
+ * leaves it as it was. */
+void seed_entry_update(void)
+{
+    DWORD process = 0;
+    int key;
+
+    GetWindowThreadProcessId(GetForegroundWindow(), &process);
+    if (process != GetCurrentProcessId())
+        return;
+    for (key = 'A'; key <= 'Z'; key++) {
+        int capital = key_down(VK_SHIFT) != ((GetKeyState(VK_CAPITAL) & 1) != 0);
+
+        if (key_pressed(key))
+            add_seed_letter((char)(capital ? key : key - 'A' + 'a'));
+    }
+    for (key = '0'; key <= '9'; key++)
+        if (key_pressed(key))
+            add_seed_letter((char)key);
+    for (key = VK_NUMPAD0; key <= VK_NUMPAD9; key++)
+        if (key_pressed(key))
+            add_seed_letter((char)('0' + key - VK_NUMPAD0));
+    if (key_pressed(VK_OEM_MINUS))
+        add_seed_letter(key_down(VK_SHIFT) ? '_' : '-');
+    if (key_pressed(VK_SUBTRACT))
+        add_seed_letter('-');
+    /* Held, it goes on deleting at the pace a held direction moves through a menu. */
+    if (!key_down(VK_BACK))
+        g_backspace_waiting = 0;
+    g_backspace_frames = key_down(VK_BACK) && !g_backspace_waiting ? g_backspace_frames + 1 : 0;
+    if (g_backspace_frames > 0 && repeats_while_held(g_backspace_frames) && g_seed_entry[0]) {
+        g_seed_entry[strlen(g_seed_entry) - 1] = 0;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_dirty = 1;
+    }
+    if (key_pressed(VK_RETURN)) {
+        sts_settings_set(&g_settings_edit, "run", "seed", g_seed_entry);
+        g_seed_entry_is_open = 0;
+        rebuild_rows_keeping_cursor();
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_dirty = 1;
+    } else if (key_pressed(VK_ESCAPE)) {
+        g_seed_entry_is_open = 0;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_dirty = 1;
+    }
+}
+
+static int on_seed_row(void)
+{
+    return g_settings_menu >= 0 && g_cursor < g_settings_row_count && g_settings_rows[g_cursor].key
+        && strcmp(g_settings_rows[g_cursor].key, "seed") == 0;
+}
+
+int settings_on_seed_row(void)
+{
+    return on_seed_row();
+}
+
 void on_settings_event(screen_event event)
 {
     if (event != EV_CANCEL && g_settings_leave_armed) {
@@ -784,7 +909,13 @@ void on_settings_event(screen_event event)
     case EV_DOWN:  move_settings_cursor(1); break;
     case EV_LEFT:  change_setting(-1); break;
     case EV_RIGHT: change_setting(1); break;
-    case EV_CONFIRM: save_settings(0); break;
+    case EV_CONFIRM:
+        /* On the seed, the confirm button types one instead of saving. */
+        if (on_seed_row())
+            open_seed_entry();
+        else
+            save_settings(0);
+        break;
     case EV_CANCEL:  close_menu(); break;
     case EV_ALT:     reset_setting(); break;
     default: break;

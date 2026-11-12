@@ -113,6 +113,13 @@ The defaults are provisional, until the community has played with them.
 
 `[run] matches` sets how many matches a run lasts, up to 20, or 0 for no limit (the default).
 
+For events, a set seed (Settings, Runs, or `[run] seed`) is a word such as `OCE2026`, typed with the
+keyboard: press the confirm button on it, then Enter when done or Esc to cancel. Capitals count. Everyone
+on the same character then gets the same draft offers, and starting over gives the same draft back.
+Rewards follow on from the choices each player makes. The character screen shows the seed while one
+is set, and the score screen shows the seed, the rules fingerprint, and how many times that
+character's run was started over under those rules, for a screenshot.
+
 If you change the rules, opening a run made under the old rules offers to go back to its rules, which
 puts them back in `settings.ini` (runs started before v0.4 cannot, as they did not save their rules).
 It first lists each setting that would change, and any other runs that would then show Rules changed.

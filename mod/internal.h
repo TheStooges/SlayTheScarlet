@@ -15,6 +15,7 @@ extern "C" {
 #include "pool.h"
 #include "run.h"
 #include "settings.h"
+#include "state.h"
 #include "util.h"
 }
 
@@ -24,7 +25,7 @@ using SokuLib::DrawUtils::Sprite;
 /* Run decks replace this deck slot, in memory only. A local choice, not a game rule. */
 #define RUN_DECK_SLOT 0
 
-/* Saves and active.txt live here, inside the DLL's folder. */
+/* Saves and state.txt live here, inside the DLL's folder. */
 #define RUNS_FOLDER "runs\\"
 
 #define SCREEN_W 640
@@ -152,6 +153,9 @@ int write_active_deck(char *why, size_t why_size);
 const char *blocking_mod(void);
 void remember_real_deck(void);
 void save_active_file(void);
+/* How many runs of this character were started over under these rules, and counting one more. */
+int restart_count(int character, uint32_t rules_hash);
+void count_restart(int character, uint32_t rules_hash);
 void deactivate_run_deck(void);
 int activate_run_deck(void);
 int run_deck_in_use(void);
@@ -177,6 +181,9 @@ choose_toggle choose_toggle_for(int character);
 void set_error(const char *what, const char *detail);
 void maybe_start_reward(void);
 void go_to_chooser_at(int cursor);
+/* True on the first frame a button is held, then again every few frames while it stays held, as
+ * menus move while a direction is held. held counts frames, negative for left and up. */
+int repeats_while_held(int held);
 int rules_option_count(void);
 rules_option rules_option_at(int index);
 extern screen_state g_state;
@@ -238,6 +245,12 @@ int rule_table_rows(void);
 #define RULE_TABLE_ROW_H 19
 extern int g_rule_table_top;
 void open_settings(void);
+/* The seed's text box, typed into with the keyboard. While it is open, the screen's buttons do
+ * nothing: seed_entry_update reads the keys instead. */
+int seed_entry_open(void);
+int settings_on_seed_row(void);
+void seed_entry_update(void);
+extern char g_seed_entry[STS_SEED_SIZE];
 void on_settings_event(screen_event event);
 void on_settings_confirm_event(screen_event event);
 void settings_value_text(const settings_row *row, char *out, size_t size);

@@ -355,18 +355,35 @@ static void next_available_type(int direction)
     }
 }
 
+/* A run this character has is about to go, by starting over or deleting it: one more started over
+ * under the rules it was made under. */
+static void count_discarded_run(int character)
+{
+    char path[MAX_PATH + 32];
+    static sts_run old;
+
+    run_path(path, sizeof path, character);
+    if (!run_file_exists(character))
+        return;
+    count_restart(character, sts_run_load(path, &old) == STS_RUN_OK ? old.settings_hash : sts_settings_hash(&g_settings));
+}
+
 static void start_new_run(int character)
 {
     LARGE_INTEGER ticks;
     sts_run_status status;
+    static sts_run fresh;
 
-    /* Offers are only seen by this player, so a local seed is fine. */
+    /* Offers are only seen by this player, so a local seed is fine, unless the rules set one. */
     QueryPerformanceCounter(&ticks);
-    status = sts_run_start(&g_run, &g_db, &g_settings, character, (uint64_t)ticks.QuadPart);
+    status = sts_run_start(&fresh, &g_db, &g_settings, character, sts_run_seed(&g_settings, (uint64_t)ticks.QuadPart));
     if (status != STS_RUN_OK) {
         set_error(tr("Could not start a run"), sts_run_status_str(status));
         return;
     }
+    count_discarded_run(character);
+    g_run = fresh;
+    g_run.restarts = restart_count(character, g_run.settings_hash);
     /* That character's old run deck is finished with. */
     if (g_active && g_active_character == character)
         deactivate_run_deck();
@@ -570,6 +587,7 @@ static void delete_run(int character)
         g_rules_changed_character = -1;
         save_active_file();
     }
+    count_discarded_run(character);
     run_path(path, sizeof path, character);
     if (remove(path) != 0) {
         set_error(character_label(character), tr("the run could not be deleted"));
@@ -1158,8 +1176,7 @@ void screen_open(void)
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
-/* True on the first frame held, then repeatedly while held. */
-static int repeats(int held)
+int repeats_while_held(int held)
 {
     if (held < 0)
         held = -held;
@@ -1168,13 +1185,17 @@ static int repeats(int held)
 
 void screen_update(const SokuLib::KeyInput &input)
 {
-    if (input.horizontalAxis < 0 && repeats(input.horizontalAxis))
+    if (seed_entry_open()) {
+        seed_entry_update();
+        return;
+    }
+    if (input.horizontalAxis < 0 && repeats_while_held(input.horizontalAxis))
         handle_event(EV_LEFT);
-    else if (input.horizontalAxis > 0 && repeats(input.horizontalAxis))
+    else if (input.horizontalAxis > 0 && repeats_while_held(input.horizontalAxis))
         handle_event(EV_RIGHT);
-    if (input.verticalAxis < 0 && repeats(input.verticalAxis))
+    if (input.verticalAxis < 0 && repeats_while_held(input.verticalAxis))
         handle_event(EV_UP);
-    else if (input.verticalAxis > 0 && repeats(input.verticalAxis))
+    else if (input.verticalAxis > 0 && repeats_while_held(input.verticalAxis))
         handle_event(EV_DOWN);
     if (input.a == 1)
         handle_event(EV_CONFIRM);

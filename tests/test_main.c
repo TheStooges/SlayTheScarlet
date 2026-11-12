@@ -32,6 +32,7 @@ int main(void)
     test_run_endurance();
     test_run_adopt_rules();
     test_real_profile_cards();
+    test_state();
     printf("%d checks, %d failed\n", g_run, g_fail);
     return g_fail ? 1 : 0;
 }

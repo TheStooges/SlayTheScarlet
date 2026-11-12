@@ -1,6 +1,7 @@
 /* The run deck in the game: writing it into the deck slot, remembering which run is in
  * use, putting the player's real deck back, and refusing to run alongside deck editing mods. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "internal.h"
 
@@ -128,26 +129,93 @@ static void restore_real_deck(void)
     g_have_real_deck = 0;
 }
 
-/* active.txt remembers which run is in use across restarts. */
-static void active_file_path(char *out)
+/* state.txt remembers which run is in use across restarts, and how many runs were started over. */
+static sts_state g_saved_state;
+static int g_saved_state_loaded = 0;
+
+static void state_file_path(char *out)
 {
-    sprintf(out, "%s" RUNS_FOLDER "active.txt", g_dir);
+    sprintf(out, "%s" RUNS_FOLDER "state.txt", g_dir);
+}
+
+/* A new file replaces the old one in one step, so a failed write cannot leave half a file. */
+static void write_state_file(void)
+{
+    char path[MAX_PATH + 32], temporary[MAX_PATH + 40], text[STS_STATE_TEXT_MAX];
+    size_t length = sts_state_serialize(&g_saved_state, text, sizeof text);
+    FILE *file;
+    int ok;
+
+    sprintf(path, "%s" RUNS_FOLDER, g_dir);
+    CreateDirectoryA(path, NULL);
+    state_file_path(path);
+    sprintf(temporary, "%s.new", path);
+    file = length ? fopen(temporary, "wb") : NULL;
+    ok = file && fwrite(text, 1, length, file) == length;
+    if (file)
+        ok = fclose(file) == 0 && ok;
+    if (ok)
+        ok = MoveFileExA(temporary, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+    if (!ok) {
+        remove(temporary);
+        slog("could not write state.txt");
+    }
+}
+
+/* Before v0.4 the run in use was the only thing kept, in active.txt. It moves into state.txt once. */
+static void load_state_file(void)
+{
+    char path[MAX_PATH + 32];
+    size_t length = 0;
+    char *text;
+
+    if (g_saved_state_loaded)
+        return;
+    g_saved_state_loaded = 1;
+    sts_state_init(&g_saved_state);
+    state_file_path(path);
+    text = sts_read_file(path, &length);
+    if (text) {
+        if (!sts_state_parse(text, length, &g_saved_state))
+            slog("state.txt could not be read, so no run is in use and no runs were started over");
+        free(text);
+        return;
+    }
+    sprintf(path, "%s" RUNS_FOLDER "active.txt", g_dir);
+    {
+        FILE *file = fopen(path, "r");
+        int character = -1;
+
+        if (!file)
+            return;
+        if (fscanf(file, "%d", &character) != 1 || character < 0 || character >= STS_NUM_CHARACTERS)
+            character = -1;
+        fclose(file);
+        g_saved_state.active = character;
+        write_state_file();
+        remove(path);
+        slog("moved active.txt into state.txt");
+    }
 }
 
 void save_active_file(void)
 {
-    char path[MAX_PATH + 32];
+    load_state_file();
+    g_saved_state.active = g_active ? g_active_character : -1;
+    write_state_file();
+}
 
-    active_file_path(path);
-    if (g_active) {
-        FILE *file = fopen(path, "w");
-        if (file) {
-            fprintf(file, "%d\n", g_active_character);
-            fclose(file);
-        }
-    } else {
-        remove(path);
-    }
+int restart_count(int character, uint32_t rules_hash)
+{
+    load_state_file();
+    return sts_state_restarts(&g_saved_state, character, rules_hash);
+}
+
+void count_restart(int character, uint32_t rules_hash)
+{
+    load_state_file();
+    sts_state_add_restart(&g_saved_state, character, rules_hash);
+    write_state_file();
 }
 
 void deactivate_run_deck(void)
@@ -212,23 +280,19 @@ void resume_active_run(void)
     static int done = 0;
     char path[MAX_PATH + 32];
     int character = -1;
-    FILE *file;
 
     if (done)
         return;
     done = 1;
-    /* active.txt stays, so the run comes back once the other mod is disabled. */
+    /* state.txt keeps naming it, so the run comes back once the other mod is disabled. */
     if (blocking_mod()) {
         slog("%s is loaded, so no run deck will be used", blocking_mod());
         return;
     }
-    active_file_path(path);
-    file = fopen(path, "r");
-    if (!file)
+    load_state_file();
+    character = g_saved_state.active;
+    if (character < 0)
         return;
-    if (fscanf(file, "%d", &character) != 1)
-        character = -1;
-    fclose(file);
 
     if (character >= 0 && character < STS_NUM_CHARACTERS) {
         sts_run_status status;
@@ -259,13 +323,13 @@ void resume_active_run(void)
         }
         slog("could not resume the run for character %d: %s", character, sts_run_status_str(status));
     }
-    /* Whatever active.txt named cannot be used, so stop asking for it. */
-    active_file_path(path);
-    remove(path);
+    /* Whatever state.txt named cannot be used, so stop asking for it. */
+    g_saved_state.active = -1;
+    write_state_file();
 }
 
 /* New settings changed the rules of the run in use. As at start-up, the player's own deck goes back
- * and active.txt keeps naming the run, so it comes back if the rules are changed back. */
+ * and state.txt keeps naming the run, so it comes back if the rules are changed back. */
 void suspend_run_deck_for_rules(void)
 {
     if (!g_active)

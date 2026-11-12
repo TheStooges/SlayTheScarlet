@@ -139,6 +139,17 @@ sts_run_status sts_run_start(sts_run *run, const sts_card_db *db, const sts_sett
     return advance_draft(run, db, settings);
 }
 
+uint64_t sts_run_seed(const sts_settings *settings, uint64_t random_seed)
+{
+    size_t length = strlen(settings->seed);
+
+    if (length == 0)
+        return random_seed;
+    /* Two different hashes of the word make the 64 bits. */
+    return ((uint64_t)sts_fnv1a(STS_FNV_START, settings->seed, length) << 32)
+        | sts_fnv1a(STS_FNV_START ^ 0x5EED5EEDu, settings->seed, length);
+}
+
 const char *sts_run_check_starters(const sts_card_db *db, const sts_settings *settings)
 {
     static char message[96];

@@ -8,7 +8,8 @@ add_executable(sts_tests
   test_pool.c
   test_rng.c
   test_run.c
-  test_settings.c)
+  test_settings.c
+  test_state.c)
 target_link_libraries(sts_tests PRIVATE sts_core)
 # The mod's sources, so the tests can check every tr("...") has a translation. The list is taken
 # when CMake configures, so a new file in mod/ needs CMake to run again.

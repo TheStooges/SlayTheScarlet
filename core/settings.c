@@ -223,11 +223,11 @@ static int character_key(const char *key)
 
 /* What kind of value a setting holds, and where it lives in sts_settings. Every setting is found
  * through find_setting, so parsing, the settings screen and rewriting the file agree on them. */
-typedef enum { KIND_INT, KIND_BOOL, KIND_NAMED, KIND_CARD_TYPES } value_kind;
+typedef enum { KIND_INT, KIND_BOOL, KIND_NAMED, KIND_CARD_TYPES, KIND_SEED } value_kind;
 
 typedef struct {
     value_kind kind;
-    void *field;                /* int (or an enum, which is int-sized), or sts_offer_settings */
+    void *field;                /* int (or an enum, which is int-sized), sts_offer_settings, or a seed */
     const named_value *names;   /* KIND_NAMED */
     int step_min, step_max;     /* KIND_INT: the range the settings screen steps through */
     int step_size;              /* KIND_INT: how far one step goes, 0 meaning 1 */
@@ -333,6 +333,8 @@ static int find_setting(sts_settings *settings, const char *section, const char 
             set_ref(ref, KIND_BOOL, &settings->allow_rule_changes, g_bool, 0, 0);
         else if (strcmp(key, "matches") == 0)
             set_ref(ref, KIND_INT, &settings->match_limit, NULL, 0, STS_MATCH_LIMIT_MAX);
+        else if (strcmp(key, "seed") == 0)
+            set_ref(ref, KIND_SEED, settings->seed, NULL, 0, 0);
         else
             return 0;
         return 1;
@@ -375,6 +377,23 @@ static int set_from_text(const setting_ref *ref, char *value)
             return 0;
         apply_card_types((sts_offer_settings *)ref->field, number);
         return 1;
+    case KIND_SEED: {
+        /* Plain characters only, so it reads the same anywhere and fits in a run's save as one word.
+         * Capitals and small letters differ, as in most seeds. */
+        size_t length = strlen(value), wau;
+
+        if (length >= STS_SEED_SIZE)
+            return 0;
+        for (wau = 0; wau < length; wau++) {
+            char letter = value[wau];
+
+            if (!((letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')
+                  || letter == '-' || letter == '_'))
+                return 0;
+        }
+        strcpy((char *)ref->field, value);
+        return 1;
+    }
     }
     return 0;
 }
@@ -409,6 +428,9 @@ static void format_value(const setting_ref *ref, char *out, size_t size)
         strcpy(text, value >= 0 ? g_card_types[value].name : "custom");
         break;
     }
+    case KIND_SEED:
+        strcpy(text, (const char *)ref->field);
+        break;
     }
     if (size > 0) {
         strncpy(out, text, size - 1);
@@ -808,6 +830,11 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     /* And endless runs keep theirs. */
     if (settings->match_limit != 0)
         hash = hash_int(hash, settings->match_limit + 2000);
+    /* And runs with a random seed. */
+    if (settings->seed[0]) {
+        hash = hash_int(hash, 3000);
+        hash = sts_fnv1a(hash, settings->seed, strlen(settings->seed));
+    }
     return hash;
 }
 
@@ -825,7 +852,7 @@ static const setting_key g_keys[] = {
     {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
-    {"run", "matches"}, {"run", "allow_rule_changes"},
+    {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"},
 };
 #define KEY_COUNT ((int)(sizeof g_keys / sizeof g_keys[0]))
 #define KEY_NAME_SIZE 24
@@ -928,6 +955,8 @@ int sts_settings_step(sts_settings *settings, const char *section, const char *k
         apply_card_types(offer_settings, (current + direction + count) % count);
         return 1;
     }
+    case KIND_SEED:
+        return 0;   /* a word, typed in the file */
     }
     return 0;
 }

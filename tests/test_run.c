@@ -1167,9 +1167,37 @@ static void test_deck_after(void)
     CHECK(!sts_run_deck_after(&run, -1, &worked_out));
 }
 
+/* With a set seed, a character's draft is the same every time, whatever the local seed; other
+ * characters and other seeds get other drafts. Without one, the local seed decides. */
+static void test_set_seed(void)
+{
+    static sts_run first, again, other;
+    sts_settings settings, random_seed;
+    int line = 0;
+
+    CHECK(parse_ini("[run]\nseed=OCE2026\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_defaults(&random_seed);
+    CHECK(sts_run_seed(&random_seed, 12345) == 12345);
+    CHECK(sts_run_seed(&settings, 1) == sts_run_seed(&settings, 2) && sts_run_seed(&settings, 1) != 1);
+
+    ready_run(&first, &settings, 4, sts_run_seed(&settings, 111));
+    ready_run(&again, &settings, 4, sts_run_seed(&settings, 222));
+    CHECK(decks_equal(&first.deck, &again.deck) && first.seed == again.seed);
+    ready_run(&other, &settings, 5, sts_run_seed(&settings, 111));
+    CHECK(!decks_equal(&first.deck, &other.deck));
+    CHECK(parse_ini("[run]\nseed=OCE2027\n", &settings, &line) == STS_SETTINGS_OK);
+    ready_run(&other, &settings, 4, sts_run_seed(&settings, 111));
+    CHECK(!decks_equal(&first.deck, &other.deck));
+    ready_run(&first, &random_seed, 4, sts_run_seed(&random_seed, 111));
+    ready_run(&again, &random_seed, 4, sts_run_seed(&random_seed, 222));
+    CHECK(!decks_equal(&first.deck, &again.deck));
+}
+
 void test_run_save(void)
 {
     static sts_run run;
+
+    test_set_seed();
 
     test_match_limit();
     test_deck_after();

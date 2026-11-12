@@ -65,5 +65,6 @@ void test_run_save(void);
 void test_run_endurance(void);
 void test_run_adopt_rules(void);
 void test_real_profile_cards(void);
+void test_state(void);
 
 #endif

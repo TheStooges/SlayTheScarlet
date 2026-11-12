@@ -13,6 +13,12 @@ What changed in each release of Slay the Scarlet. Releases are on the
   the ones it took out in red, and can open that deck to look through. Deck 1
   goes back to the player's own deck. A finished run's score can still be viewed from the character
   screen.
+- A set seed for events (Settings, Runs, typed with the keyboard, or `[run] seed`; off by default,
+  and capitals count). Everyone on the same
+  character gets the same draft, and starting over gives the same draft back. The score screen shows
+  the seed, the rules fingerprint, and how many times the character's run was started over.
+- `runs/active.txt` is replaced by `runs/state.txt`, which also counts runs started over. An
+  existing `active.txt` is moved into it.
 - When the rules have changed since a run was made, it can go back to its own rules: the rules
   screen offers to put them back in `settings.ini`, first listing each setting that would change
   and any other runs that would then show Rules changed. Runs from before this release did not save their rules, so they cannot.

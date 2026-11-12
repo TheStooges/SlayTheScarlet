@@ -736,6 +736,49 @@ static void test_settings_match_limit(void)
     CHECK(sts_settings_step(&settings, "run", "matches", 1) && settings.match_limit == STS_MATCH_LIMIT_MAX);
 }
 
+/* The set seed: blank by default, a word of plain characters, part of the fingerprint only when set,
+ * only changed in the file, and saved with a run's rules. */
+static void test_settings_seed(void)
+{
+    sts_settings settings, before, copy;
+    char text[64];
+    int line = 0, wau;
+
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(settings.seed[0] == 0);
+    CHECK(parse_ini("[run]\nseed=\n", &settings, &line) == STS_SETTINGS_OK && settings.seed[0] == 0);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before));
+    CHECK(parse_ini("[run]\nseed=OCE-2026_a\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(strcmp(settings.seed, "OCE-2026_a") == 0 && sts_settings_validate(&settings) == NULL);
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&before));
+    copy = settings;
+    CHECK(parse_ini("[run]\nseed=OCE-2026_b\n", &copy, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_hash(&copy) != sts_settings_hash(&settings));
+    /* Capitals and small letters differ. */
+    CHECK(parse_ini("[run]\nseed=oce-2026_a\n", &copy, &line) == STS_SETTINGS_OK);
+    CHECK(strcmp(copy.seed, "oce-2026_a") == 0 && sts_settings_hash(&copy) != sts_settings_hash(&settings));
+
+    /* Spaces, other characters, and words too long are refused. */
+    CHECK(parse_ini("[run]\nseed=two words\n", &copy, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[run]\nseed=a.b\n", &copy, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[run]\nseed=abcdefghijklmnopqrstuvwxy\n", &copy, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[run]\nseed=abcdefghijklmnopqrstuvwx\n", &copy, &line) == STS_SETTINGS_OK);
+
+    /* Left and right do not change it. */
+    CHECK(!sts_settings_step(&settings, "run", "seed", 1) && strcmp(settings.seed, "OCE-2026_a") == 0);
+    CHECK(sts_settings_get(&settings, "run", "seed", text, sizeof text) && strcmp(text, "OCE-2026_a") == 0);
+
+    /* A run saves it with its rules, including no seed at all. */
+    sts_settings_defaults(&copy);
+    for (wau = 0; wau < sts_settings_rule_count(); wau++) {
+        CHECK(sts_settings_rule_text(&settings, wau, text, sizeof text));
+        CHECK(sts_settings_set_rule(&copy, text) == STS_SETTINGS_OK);
+    }
+    CHECK(strcmp(copy.seed, "OCE-2026_a") == 0 && sts_settings_hash(&copy) == sts_settings_hash(&settings));
+    CHECK(sts_settings_set_rule(&copy, "run.seed=") == STS_SETTINGS_OK && copy.seed[0] == 0);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -752,4 +795,5 @@ void test_settings(void)
     test_settings_rewrite();
     test_settings_rules_text();
     test_settings_match_limit();
+    test_settings_seed();
 }

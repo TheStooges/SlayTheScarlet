@@ -107,6 +107,10 @@ sts_run_status sts_run_start(sts_run *run, const sts_card_db *db, const sts_sett
  * first one who cannot. sts_settings_validate checks the starter's size and copies. */
 const char *sts_run_check_starters(const sts_card_db *db, const sts_settings *settings);
 
+/* The seed sts_run_start should get: random_seed, or one made from the settings' set seed if they
+ * have one. sts_run_start gives each character its own sequence from it either way. */
+uint64_t sts_run_seed(const sts_settings *settings, uint64_t random_seed);
+
 /* Takes offer `index`. Rolls the next offers, or moves to READY when the picks are used
  * up or the deck is full. */
 sts_run_status sts_run_draft_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings, int index);
