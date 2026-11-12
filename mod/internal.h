@@ -55,6 +55,7 @@ typedef enum {
     ST_REWARD_REMOVE,   /* REPLACE by choice: which cards leave */
     ST_REWARD_CONFIRM,  /* REPLACE by choice: last check before the swap */
     ST_RULES,           /* the run was made under other rules: carry on or start over? */
+    ST_RULES_RESTORE,   /* going back to the run's own rules: what settings.ini would change */
     ST_SETTINGS,        /* settings.ini as a list to change */
     ST_SETTINGS_CONFIRM,/* saving would change the rules of saved runs: save anyway? */
     ST_SCORE            /* a finished run: its results and each match */
@@ -82,10 +83,11 @@ typedef struct {
     int copies;
 } deck_change;
 
-/* The choices on the rule change screen. Carrying on is left out when it is not possible. */
-typedef enum { RULES_CARRY_ON, RULES_BACK, RULES_START_OVER } rules_option;
+/* The choices on the rule change screen. Carrying on, and going back to the run's own rules, are left
+ * out when they are not possible. */
+typedef enum { RULES_CARRY_ON, RULES_RESTORE, RULES_BACK, RULES_START_OVER, RULES_OPTION_COUNT } rules_option;
 #define RULES_ROW_Y 150
-#define RULES_ROW_PITCH 70
+#define RULES_ROW_PITCH 64
 
 /* One setting on the settings screen. Its help is a few lines: some always shown, and some about one
  * value (help_value, as the file writes it), shown only while that value is selected. */
@@ -189,6 +191,7 @@ extern int g_has_save[STS_NUM_CHARACTERS];
 extern int g_saved_rules_changed[STS_NUM_CHARACTERS];
 extern uint32_t g_saved_hash[STS_NUM_CHARACTERS];
 extern int g_rules_start_over_armed;
+extern int g_rules_restore_others;   /* other runs that going back to this run's rules would affect */
 extern char g_rules_problem[128];
 extern int g_pending_offer;
 extern int g_selected[MAX_DECK_ART];
@@ -208,6 +211,32 @@ extern int g_viewed_match;
 
 /* settings_screen.cpp */
 const char *offers_off_screen(const sts_settings *settings);
+/* How many saved runs follow the current rules but would not follow settings.ini with these rules in
+ * it, named in g_settings_affected. */
+int runs_following_other_rules(const sts_settings *rules);
+/* Writes these rules into settings.ini (the settings that are not rules stay as they are) and loads
+ * it. Returns 0, with g_error set, if that fails. */
+int restore_rules(const sts_settings *rules);
+/* Each setting that putting these rules into settings.ini would change, as the settings screen names
+ * it and its values, in menu order. Settings the screen does not show are only counted. */
+typedef struct {
+    int menu;
+    const char *label;
+    char now[96];
+    char restored[96];
+} rule_change;
+#define RULE_CHANGE_MAX (SETTINGS_MENU_COUNT * MAX_SETTINGS_ROWS)
+void describe_rule_changes(const sts_settings *rules);
+extern rule_change g_rule_changes[RULE_CHANGE_MAX];
+extern int g_rule_change_count;
+extern int g_rule_changes_hidden;   /* changes to settings only settings.ini has */
+/* The table's lines: a heading for each menu, then its settings. It scrolls when they are more than
+ * fit above the notes under it. */
+int rule_table_line_count(void);
+int rule_table_rows(void);
+#define RULE_TABLE_Y 107
+#define RULE_TABLE_ROW_H 19
+extern int g_rule_table_top;
 void open_settings(void);
 void on_settings_event(screen_event event);
 void on_settings_confirm_event(screen_event event);

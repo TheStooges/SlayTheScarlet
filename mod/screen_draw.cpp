@@ -632,6 +632,58 @@ static void rebuild_reward_remove(void)
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
+/* What going back to the run's rules would change in settings.ini, before it does. */
+#define RULE_TABLE_NOW_X 266
+#define RULE_TABLE_RUN_X 446
+static void rebuild_rules_restore(void)
+{
+    char line[256];
+    int pos_y = RULE_TABLE_Y - 21, wau, menu = -1, line_number = 0, lines = rule_table_line_count();
+
+    sprintf(line, tr("%s: go back to this run's rules"), character_label(g_run.character));
+    add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    add_label(tr("These settings in settings.ini would change:"), g_font_small, 40, 58, 580, 20, COLOR_WHITE);
+
+    /* A table: the setting, its value now, and its value under this run's rules, under each menu. */
+    add_label(tr("Current settings"), g_font_small, RULE_TABLE_NOW_X, pos_y, 170, 20, COLOR_GREY);
+    add_label(tr("This run's rules"), g_font_small, RULE_TABLE_RUN_X, pos_y, 190, 20, COLOR_GREY);
+    /* Only the lines in view, when there are more than fit. */
+    for (wau = 0; wau < g_rule_change_count; wau++) {
+        const rule_change *change = &g_rule_changes[wau];
+        int row;
+
+        if (change->menu != menu) {
+            menu = change->menu;
+            row = line_number++ - g_rule_table_top;
+            if (row >= 0 && row < rule_table_rows())
+                add_label(settings_menu_name(menu), g_font_small, 40, RULE_TABLE_Y + row * RULE_TABLE_ROW_H, 200, 20,
+                          COLOR_GOLD);
+        }
+        row = line_number++ - g_rule_table_top;
+        if (row < 0 || row >= rule_table_rows())
+            continue;
+        pos_y = RULE_TABLE_Y + row * RULE_TABLE_ROW_H;
+        add_label(change->label, g_font_small, 56, pos_y, RULE_TABLE_NOW_X - 64, 20, COLOR_WHITE);
+        add_label(change->now, g_font_small, RULE_TABLE_NOW_X, pos_y, RULE_TABLE_RUN_X - RULE_TABLE_NOW_X - 8, 20, COLOR_WHITE);
+        add_label(change->restored, g_font_small, RULE_TABLE_RUN_X, pos_y, 610 - RULE_TABLE_RUN_X, 20, COLOR_GREEN);
+    }
+    pos_y = RULE_TABLE_Y + (lines < rule_table_rows() ? lines : rule_table_rows()) * RULE_TABLE_ROW_H;
+    if (g_rule_changes_hidden > 0) {
+        add_label(tr("Settings that are only in settings.ini change too."), g_font_small, 40, pos_y + 4, 580, 20, COLOR_GREY);
+        pos_y += 23;
+    }
+    if (g_rules_restore_others > 0) {
+        _snprintf(line, sizeof line - 1, tr("Then these runs would show Rules changed: %s"), g_settings_affected);
+        line[sizeof line - 1] = 0;
+        add_wrapped(line, g_font_small, 40, pos_y + 6, 580, 17, HELP_COLUMNS, 1, 2, COLOR_RED);
+    }
+    if (lines > rule_table_rows())
+        sprintf(line, tr("Up/Down: scroll   %s: change the rules   %s: back"), BUTTON_A, BUTTON_B);
+    else
+        sprintf(line, tr("%s: change the rules   %s: back"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
 static void rebuild_rules(void)
 {
     char line[192];
@@ -652,6 +704,12 @@ static void rebuild_rules(void)
             add_label(tr("Carry on under the current rules"), g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
             note = tr("Your deck and progress stay as they are.");
             break;
+        case RULES_RESTORE:
+            add_label(tr("Go back to this run's rules"), g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
+            note = tr("Changes settings.ini back to the rules this run was made under.");
+            break;
+        case RULES_OPTION_COUNT:
+            break;
         case RULES_BACK:
             add_label(tr("Back"), g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
             note = tr("Leaves the run as it is.");
@@ -661,7 +719,8 @@ static void rebuild_rules(void)
             note = tr("Discards this run's deck and progress.");
             break;
         }
-        add_label(note, g_font_small, 72, pos_y + 26, 500, 20, COLOR_GREY);
+        if (note)
+            add_label(note, g_font_small, 72, pos_y + 26, 540, 20, COLOR_GREY);
     }
     if (g_rules_start_over_armed)
         sprintf(line, tr("Press %s again to discard this run.   %s: cancel"), BUTTON_A, BUTTON_B);
@@ -915,6 +974,7 @@ static void rebuild(void)
         break;
     case ST_REWARD_TYPE:   rebuild_reward_type(); break;
     case ST_RULES:         rebuild_rules(); break;
+    case ST_RULES_RESTORE: rebuild_rules_restore(); break;
     case ST_SCORE:         rebuild_score(); break;
     case ST_SETTINGS:
     case ST_SETTINGS_CONFIRM:
@@ -1153,6 +1213,14 @@ void screen_render(int opaque)
             draw_box(616, SETTINGS_LIST_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
             draw_box(616, SETTINGS_LIST_Y + offset, 4, thumb, 0xC0FFE080u, 0xC0FFE080u);
         }
+    } else if (g_state == ST_RULES_RESTORE && rule_table_line_count() > rule_table_rows()) {
+        /* Where the lines shown are in the whole table. */
+        int lines = rule_table_line_count();
+        int track = rule_table_rows() * RULE_TABLE_ROW_H;
+
+        draw_box(616, RULE_TABLE_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
+        draw_box(616, RULE_TABLE_Y + track * g_rule_table_top / lines, 4, track * rule_table_rows() / lines,
+                 0xC0FFE080u, 0xC0FFE080u);
     } else if (g_state == ST_SCORE) {
         int entries = score_entry_count();
 

@@ -18,8 +18,11 @@ int g_saved_picks[STS_NUM_CHARACTERS];
 int g_has_save[STS_NUM_CHARACTERS];
 int g_saved_rules_changed[STS_NUM_CHARACTERS];
 uint32_t g_saved_hash[STS_NUM_CHARACTERS];
-static int g_rules_can_continue = 0;
+static rules_option g_rules_options[RULES_OPTION_COUNT];
+static int g_rules_option_count = 0;
 int g_rules_start_over_armed = 0;
+int g_rules_restore_others = 0;
+int g_rule_table_top = 0;
 char g_rules_problem[128];
 
 /* The reward being resolved. */
@@ -377,12 +380,12 @@ static void start_new_run(int character)
 
 int rules_option_count(void)
 {
-    return g_rules_can_continue ? 3 : 2;
+    return g_rules_option_count;
 }
 
 rules_option rules_option_at(int index)
 {
-    return (rules_option)(g_rules_can_continue ? index : index + 1);
+    return g_rules_options[index];
 }
 
 /* Works out whether g_run, made under other rules, can carry on under the current ones. */
@@ -390,6 +393,8 @@ static void enter_rules_screen(void)
 {
     static sts_run trial;
     sts_run_status status;
+
+    int can_continue, can_restore;
 
     g_state = ST_RULES;
     g_cursor = 0;
@@ -399,7 +404,15 @@ static void enter_rules_screen(void)
 
     trial = g_run;
     status = sts_run_adopt_rules(&trial, &g_db, &g_settings);
-    g_rules_can_continue = g_settings.allow_rule_changes && status == STS_RUN_OK;
+    can_continue = g_settings.allow_rule_changes && status == STS_RUN_OK;
+    can_restore = sts_run_rules_restorable(&g_run);
+    g_rules_option_count = 0;
+    if (can_continue)
+        g_rules_options[g_rules_option_count++] = RULES_CARRY_ON;
+    if (can_restore)
+        g_rules_options[g_rules_option_count++] = RULES_RESTORE;
+    g_rules_options[g_rules_option_count++] = RULES_BACK;
+    g_rules_options[g_rules_option_count++] = RULES_START_OVER;
     if (!g_settings.allow_rule_changes) {
         sprintf(g_rules_problem, tr("The current settings do not allow a run to carry on under new rules."));
     } else if (status != STS_RUN_OK) {
@@ -976,6 +989,40 @@ static void carry_on_under_new_rules(void)
     enter_phase();
 }
 
+/* First shows what settings.ini would change, and which other runs it would affect. */
+static void ask_to_go_back_to_run_rules(void)
+{
+    g_error[0] = 0;
+    describe_rule_changes(&g_run.rules);
+    g_rules_restore_others = runs_following_other_rules(&g_run.rules);
+    g_rule_table_top = 0;
+    g_state = ST_RULES_RESTORE;
+    g_dirty = 1;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+}
+
+/* Puts the rules the run was made under back into settings.ini, so it carries on as it was. */
+static void go_back_to_run_rules(void)
+{
+    sts_run_status status;
+
+    g_dirty = 1;
+    if (!restore_rules(&g_run.rules)) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        return;
+    }
+    /* The restored file is loaded and checked like any other, so check the run fits it. */
+    status = sts_run_validate(&g_run, &g_db, &g_settings);
+    if (status != STS_RUN_OK) {
+        set_error(tr("Could not carry on"), sts_run_status_str(status));
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        return;
+    }
+    slog("run for character %d carries on under its own rules again", g_run.character);
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    enter_phase();
+}
+
 static void start_over_from_rules(void)
 {
     /* A second press is needed, so one slip cannot lose the run. */
@@ -1013,6 +1060,11 @@ static void on_rules_event(screen_event event)
         case RULES_CARRY_ON:
             carry_on_under_new_rules();
             break;
+        case RULES_RESTORE:
+            ask_to_go_back_to_run_rules();
+            break;
+        case RULES_OPTION_COUNT:
+            break;
         case RULES_BACK:
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
             go_to_chooser();
@@ -1036,6 +1088,34 @@ static void on_rules_event(screen_event event)
     }
 }
 
+static void on_rules_restore_event(screen_event event)
+{
+    int last_top = rule_table_line_count() - rule_table_rows();
+
+    switch (event) {
+    /* Up and down scroll the table, when it is too long for the screen. */
+    case EV_UP:
+    case EV_DOWN:
+        if ((event == EV_UP && g_rule_table_top > 0) || (event == EV_DOWN && g_rule_table_top < last_top)) {
+            g_rule_table_top += event == EV_UP ? -1 : 1;
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+            g_dirty = 1;
+        }
+        break;
+    case EV_CONFIRM:
+        go_back_to_run_rules();
+        break;
+    case EV_CANCEL:
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_error[0] = 0;
+        g_state = ST_RULES;
+        g_dirty = 1;
+        break;
+    default:
+        break;
+    }
+}
+
 static void handle_event(screen_event event)
 {
     if (event != EV_ALT && g_alt_armed) {
@@ -1051,6 +1131,7 @@ static void handle_event(screen_event event)
     case ST_REWARD_REMOVE:  on_reward_remove_event(event); break;
     case ST_REWARD_CONFIRM: on_reward_confirm_event(event); break;
     case ST_RULES:          on_rules_event(event); break;
+    case ST_RULES_RESTORE:  on_rules_restore_event(event); break;
     case ST_SETTINGS:       on_settings_event(event); break;
     case ST_SETTINGS_CONFIRM: on_settings_confirm_event(event); break;
     case ST_SCORE:          on_score_event(event); break;

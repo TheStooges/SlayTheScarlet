@@ -150,9 +150,14 @@ Rule interpretations in `core/` that may need revisiting with the community:
 
 Runs save their random state and any offers on screen, so reloading cannot reroll a pick. A run made
 under different settings is detected through the fingerprint. By default the player can then only
-start over. With `allow_rule_changes=true` (off by default, not part of the fingerprint) they may also
-carry on under the new rules if the deck is legal under them; offers on screen survive this if still
-possible, so editing the settings is not a free reroll.
+start over, or go back to the run's own rules (suggested by a community member, v0.4): offered when
+`sts_run_rules_restorable` (the run saved its rules, format 3, and they still give its fingerprint).
+It first shows each setting that would change (named as the settings screen names it) and the other
+runs that would then show Rules changed, then rewrites `settings.ini` with those rules, keeping the
+settings that are not rules. With
+`allow_rule_changes=true` (off by default, not part of the fingerprint) they may also carry on under
+the new rules if the deck is legal under them; offers on screen survive this if still possible, so
+editing the settings is not a free reroll.
 
 A match finished while an offer still waits (see the disconnect finding under netplay) does not lose
 its reward: it is owed, saved with the run (`owed` line, save format 2; version 1 saves still load),

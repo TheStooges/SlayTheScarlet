@@ -489,3 +489,27 @@ en=Replaced
 ja=入れ替えたカード
 en=%s: the final deck
 ja=%s: 最終デッキ
+
+# Rule change screen: going back to the run's rules
+en=Go back to this run's rules
+ja=このランのルールに戻す
+en=Changes settings.ini back to the rules this run was made under.
+ja=settings.iniを、このランを作ったときのルールに戻します。
+en=Then these runs would show Rules changed: %s
+ja=そうすると、次のランが「ルール変更あり」になります: %s
+en=Cannot go back to these rules
+ja=このルールに戻せません
+en=%s: go back to this run's rules
+ja=%s: このランのルールに戻す
+en=These settings in settings.ini would change:
+ja=settings.iniの次の設定が変わります:
+en=Settings that are only in settings.ini change too.
+ja=settings.iniにだけある設定も変わります。
+en=%s: change the rules   %s: back
+ja=%s: ルールを変更   %s: 戻る
+en=Current settings
+ja=現在の設定
+en=Up/Down: scroll   %s: change the rules   %s: back
+ja=上下: スクロール   %s: ルールを変更   %s: 戻る
+en=This run's rules
+ja=このランのルール

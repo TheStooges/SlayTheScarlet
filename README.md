@@ -113,8 +113,11 @@ The defaults are provisional, until the community has played with them.
 
 `[run] matches` sets how many matches a run lasts, up to 20, or 0 for no limit (the default).
 
-If you change the rules, a run made under the old rules can only be started over. To let runs carry
-on under the new rules when their deck is still legal, set `allow_rule_changes=true`.
+If you change the rules, opening a run made under the old rules offers to go back to its rules, which
+puts them back in `settings.ini` (runs started before v0.4 cannot, as they did not save their rules).
+It first lists each setting that would change, and any other runs that would then show Rules changed.
+Otherwise the run can only be started over. To let runs carry on under the new rules when their deck
+is still legal, set `allow_rule_changes=true`.
 
 ## Current limits
 

@@ -586,6 +586,138 @@ static void save_settings(int confirmed)
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
+/* settings.ini as it is now, with these rules in place of its own. The settings that are not rules
+ * keep the file's values. Returns 0, with g_error set, if the file cannot be read. */
+static int file_with_rules(const sts_settings *rules, sts_settings *out)
+{
+    char rule[64];
+    int wau;
+
+    if (!read_settings_file(out))
+        return 0;
+    for (wau = 0; wau < sts_settings_rule_count(); wau++)
+        if (sts_settings_rule_text(rules, wau, rule, sizeof rule))
+            sts_settings_set_rule(out, rule);
+    return 1;
+}
+
+int runs_following_other_rules(const sts_settings *rules)
+{
+    static sts_settings changed;
+
+    g_settings_affected[0] = 0;
+    if (!file_with_rules(rules, &changed))
+        return 0;
+    sts_settings_force_compatible(&changed);
+    return list_affected_runs(sts_settings_hash(&changed));
+}
+
+rule_change g_rule_changes[RULE_CHANGE_MAX];
+int g_rule_change_count = 0;
+int g_rule_changes_hidden = 0;
+
+int rule_table_rows(void)
+{
+    return 16 - (g_rule_changes_hidden > 0) - 2 * (g_rules_restore_others > 0);
+}
+
+int rule_table_line_count(void)
+{
+    int wau, count = 0;
+
+    for (wau = 0; wau < g_rule_change_count; wau++)
+        count += 1 + (wau == 0 || g_rule_changes[wau].menu != g_rule_changes[wau - 1].menu);
+    return count;
+}
+
+void describe_rule_changes(const sts_settings *rules)
+{
+    static sts_settings current, changed;
+    static settings_row rows[MAX_SETTINGS_ROWS];
+    const char *seen_section[SETTINGS_MENU_COUNT * MAX_SETTINGS_ROWS], *seen_key[SETTINGS_MENU_COUNT * MAX_SETTINGS_ROWS];
+    int seen_count = 0, described = 0, differing = 0;
+    int menu, pass, wau, j;
+
+    g_rule_change_count = 0;
+    g_rule_changes_hidden = 0;
+    if (!read_settings_file(&current) || !file_with_rules(rules, &changed))
+        return;
+    /* Some rows only show for some values (the chance of an offer), so the rows under both settings. */
+    for (menu = 0; menu < SETTINGS_MENU_COUNT; menu++) {
+        for (pass = 0; pass < 2; pass++) {
+            int count;
+
+            g_settings_edit = pass == 0 ? current : changed;
+            count = build_menu_rows(menu, rows);
+            for (wau = 0; wau < count && g_rule_change_count < RULE_CHANGE_MAX; wau++) {
+                rule_change *change = &g_rule_changes[g_rule_change_count];
+                char before[128], after[128];
+
+                if (!rows[wau].key)
+                    continue;
+                for (j = 0; j < seen_count; j++)
+                    if (strcmp(seen_section[j], rows[wau].section) == 0 && strcmp(seen_key[j], rows[wau].key) == 0)
+                        break;
+                if (j < seen_count)
+                    continue;
+                seen_section[seen_count] = rows[wau].section;
+                seen_key[seen_count++] = rows[wau].key;
+                g_settings_edit = current;
+                settings_value_text(&rows[wau], before, sizeof before);
+                g_settings_edit = changed;
+                settings_value_text(&rows[wau], after, sizeof after);
+                g_settings_edit = pass == 0 ? current : changed;
+                if (strcmp(before, after) == 0)
+                    continue;
+                change->menu = menu;
+                change->label = rows[wau].label;
+                _snprintf(change->now, sizeof change->now - 1, "%s", before);
+                change->now[sizeof change->now - 1] = 0;
+                _snprintf(change->restored, sizeof change->restored - 1, "%s", after);
+                change->restored[sizeof change->restored - 1] = 0;
+                g_rule_change_count++;
+                described++;
+            }
+        }
+    }
+    for (wau = 0; wau < sts_settings_rule_count(); wau++) {
+        char before[64], after[64];
+
+        sts_settings_rule_text(&current, wau, before, sizeof before);
+        sts_settings_rule_text(&changed, wau, after, sizeof after);
+        differing += strcmp(before, after) != 0;
+    }
+    g_rule_changes_hidden = differing > described ? differing - described : 0;
+    g_settings_edit = current;
+}
+
+int restore_rules(const sts_settings *rules)
+{
+    const char *problem;
+
+    g_error[0] = 0;
+    if (!file_with_rules(rules, &g_settings_edit))
+        return 0;
+    if (!read_settings_file(&g_settings_file))
+        return 0;
+    problem = sts_settings_validate(&g_settings_edit);
+    if (!problem)
+        problem = offers_off_screen(&g_settings_edit);
+    if (problem) {
+        set_error(tr("Cannot go back to these rules"), problem);
+        return 0;
+    }
+    if (!write_settings_file())
+        return 0;
+    slog("settings.ini now holds the rules of the run for character %d", g_run.character);
+    g_settings_file = g_settings_edit;
+    g_data_ok = 0;
+    if (!load_data())
+        return 0;
+    apply_rules_to_active_run();
+    return 1;
+}
+
 static void leave_settings(void)
 {
     if (has_unsaved_changes() && !g_settings_leave_armed) {
