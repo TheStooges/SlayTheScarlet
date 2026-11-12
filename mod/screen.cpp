@@ -128,6 +128,262 @@ static int on_reward_screen(void)
         || g_state == ST_REWARD_CONFIRM;
 }
 
+/* ---------- the roulette ----------
+ * A pick made at random is shown, not made, here: the result is known first, and the cursor runs
+ * through the offers, slowing down, to land on it. The confirm button skips to the end. */
+
+typedef enum { ROULETTE_THEN_SHOW, ROULETTE_THEN_TIME_OUT } roulette_then;
+
+/* Frames between steps: fast, then slowing down, 144 frames, and a pause on the pick: 3 seconds. */
+static const int g_roulette_gaps[] = {3, 3, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 8, 9, 10, 12, 14, 16, 19};
+#define ROULETTE_STEPS ((int)(sizeof g_roulette_gaps / sizeof g_roulette_gaps[0]))
+#define ROULETTE_HOLD 36
+
+sts_offer g_roulette_offers[STS_OFFER_MAX];
+int g_roulette_count = 0;
+static int g_roulette_target = 0;
+static int g_roulette_step = 0;
+static int g_roulette_wait = 0;
+static roulette_then g_roulette_then = ROULETTE_THEN_SHOW;
+
+static void start_deck_timer(void);
+static void time_out_reward_at(int index);
+static void start_pending_sweep(void);
+static int g_sweep_pending = 0;   /* a sweep is set up, to start when the roulette ends */
+
+/* Returns 0, showing nothing, if the roulette is off or there was only one offer. */
+static int start_roulette(const sts_offer *offers, int count, int target, roulette_then then)
+{
+    if (!g_settings.reward_roulette || count < 2 || count > STS_OFFER_MAX || target < 0 || target >= count)
+        return 0;
+    memcpy(g_roulette_offers, offers, sizeof offers[0] * (size_t)count);
+    g_roulette_count = count;
+    g_roulette_target = target;
+    g_roulette_then = then;
+    g_roulette_step = 0;
+    g_roulette_wait = g_roulette_gaps[0];
+    /* Starting this far back, the last step lands on the pick. */
+    g_cursor = ((target - ROULETTE_STEPS) % count + count) % count;
+    g_alt_armed = 0;
+    g_state = ST_ROULETTE;
+    g_dirty = 1;
+    return 1;
+}
+
+static void finish_roulette(void)
+{
+    g_dirty = 1;
+    if (g_roulette_then == ROULETTE_THEN_TIME_OUT) {
+        g_state = ST_REWARD;
+        time_out_reward_at(g_roulette_target);
+        return;
+    }
+    if (g_sweep_pending) {
+        start_pending_sweep();
+        return;
+    }
+    enter_phase();
+    if (g_state == ST_DECK)
+        start_deck_timer();
+}
+
+static void tick_roulette(void)
+{
+    if (g_state != ST_ROULETTE || --g_roulette_wait > 0)
+        return;
+    if (g_roulette_step == ROULETTE_STEPS) {
+        finish_roulette();
+        return;
+    }
+    g_cursor = (g_cursor + 1) % g_roulette_count;
+    g_roulette_step++;
+    g_dirty = 1;
+    if (g_roulette_step == ROULETTE_STEPS) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_roulette_wait = ROULETTE_HOLD;
+    } else {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_roulette_wait = g_roulette_gaps[g_roulette_step];
+    }
+}
+
+static void on_roulette_event(screen_event event)
+{
+    if (event != EV_CONFIRM)
+        return;
+    g_cursor = g_roulette_target;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    finish_roulette();
+}
+
+/* ---------- the sweep ----------
+ * Cards that left the deck at random are shown the same way: the deck as it was, the cursor running
+ * over the cards that could leave and slowing onto each that did, marking it. About 3 seconds
+ * whatever the number of cards. The change is already made and saved; this only shows it. */
+
+typedef enum { SWEEP_THEN_ENTER_PHASE, SWEEP_THEN_SHOW_DECK } sweep_then;
+
+#define SWEEP_FRAMES 150        /* moving, shared between the cards that leave */
+#define SWEEP_LANDING_HOLD 18   /* the pause on each card but the last */
+#define SWEEP_FINAL_HOLD 36
+
+int g_sweep_candidate[MAX_DECK_ART];
+static sweep_then g_sweep_then = SWEEP_THEN_ENTER_PHASE;
+static sts_deck g_sweep_before, g_sweep_after;
+static int g_sweep_list[MAX_DECK_ART];      /* the cards that could leave, as grid positions in order */
+static int g_sweep_list_count = 0;
+static int g_sweep_targets[MAX_DECK_ART];   /* places in g_sweep_list of the cards that left, in order */
+static int g_sweep_target_count = 0;
+static int g_sweep_next = 0;                /* the next target */
+static int g_sweep_place = 0;               /* where the cursor is in g_sweep_list */
+static int g_sweep_steps = 0, g_sweep_step = 0, g_sweep_wait = 0, g_sweep_weights = 0;
+
+/* Steps get longer towards the landing: their weights are d*d + 4*i*i, shared out over the frames. */
+static int sweep_gap(int step)
+{
+    int gap = (SWEEP_FRAMES / g_sweep_target_count) * (g_sweep_steps * g_sweep_steps + 4 * step * step) / g_sweep_weights;
+
+    return gap < 2 ? 2 : gap;
+}
+
+static void begin_sweep_segment(void)
+{
+    int minimum = g_sweep_next == 0 ? 10 : 4, wau;
+
+    g_sweep_steps = (g_sweep_targets[g_sweep_next] - g_sweep_place + g_sweep_list_count) % g_sweep_list_count;
+    while (g_sweep_steps < minimum)
+        g_sweep_steps += g_sweep_list_count;
+    g_sweep_weights = 0;
+    for (wau = 0; wau < g_sweep_steps; wau++)
+        g_sweep_weights += g_sweep_steps * g_sweep_steps + 4 * wau * wau;
+    g_sweep_step = 0;
+    g_sweep_wait = sweep_gap(0);
+}
+
+/* After a reward that took cards out at random (from `before`, the deck now being the new one): sets
+ * up the sweep for start_pending_sweep. Returns 0 if there is nothing to show, or the setting is off. */
+static int prepare_sweep(const sts_deck *before, sweep_then then)
+{
+    int used[MAX_DECK_ART] = {0};
+    int change, copy, wau, by_type = g_settings.reward.replace == STS_REPLACE_BY_TYPE, leaving_type = -1;
+    uint16_t incoming = g_changes_added_count > 0 ? g_changes_added[0].id : 0xFFFF;
+
+    g_sweep_pending = 0;
+    if (!g_settings.reward_roulette || g_changes_removed_count == 0 || before->count > MAX_DECK_ART)
+        return 0;
+    if (by_type) {
+        const sts_card *card = sts_card_db_find(&g_db, g_run.character, g_changes_removed[0].id);
+        leaving_type = card ? (int)card->type : -1;
+    }
+    g_sweep_list_count = 0;
+    for (wau = 0; wau < before->count; wau++) {
+        const sts_card *card = sts_card_db_find(&g_db, g_run.character, before->ids[wau]);
+
+        g_sweep_candidate[wau] = before->ids[wau] != incoming && (!by_type || (card && (int)card->type == leaving_type));
+        if (g_sweep_candidate[wau])
+            g_sweep_list[g_sweep_list_count++] = wau;
+    }
+    /* Each copy that left, at a place of its own, in deck order. */
+    g_sweep_target_count = 0;
+    for (wau = 0; wau < g_sweep_list_count; wau++) {
+        uint16_t id = before->ids[g_sweep_list[wau]];
+
+        for (change = 0; change < g_changes_removed_count; change++) {
+            int taken = 0;
+
+            if (g_changes_removed[change].id != id)
+                continue;
+            for (copy = 0; copy < wau; copy++)
+                taken += used[copy] && before->ids[g_sweep_list[copy]] == id;
+            if (taken < g_changes_removed[change].copies) {
+                used[wau] = 1;
+                g_sweep_targets[g_sweep_target_count++] = wau;
+            }
+        }
+    }
+    if (g_sweep_list_count < 2 || g_sweep_target_count == 0)
+        return 0;
+    g_sweep_before = *before;
+    g_sweep_after = g_run.deck;
+    g_sweep_then = then;
+    g_sweep_pending = 1;
+    return 1;
+}
+
+static void start_pending_sweep(void)
+{
+    g_sweep_pending = 0;
+    g_run.deck = g_sweep_before;
+    g_deck_art_dirty = 1;
+    memset(g_selected, 0, sizeof g_selected);
+    g_sweep_next = 0;
+    g_sweep_place = (g_sweep_targets[0] - 10 + 10 * g_sweep_list_count) % g_sweep_list_count;
+    begin_sweep_segment();
+    g_cursor = g_sweep_list[g_sweep_place];
+    g_alt_armed = 0;
+    g_state = ST_SWEEP;
+    g_dirty = 1;
+}
+
+static void finish_sweep(void)
+{
+    g_run.deck = g_sweep_after;
+    g_deck_art_dirty = 1;
+    memset(g_selected, 0, sizeof g_selected);
+    g_selected_count = 0;
+    if (g_sweep_then == SWEEP_THEN_SHOW_DECK)
+        show_deck();
+    else
+        enter_phase();
+    if (g_state == ST_DECK)
+        start_deck_timer();
+}
+
+static void tick_sweep(void)
+{
+    if (g_state != ST_SWEEP || --g_sweep_wait > 0)
+        return;
+    if (g_sweep_step == g_sweep_steps) {
+        /* The pause after a landing is over. */
+        if (g_sweep_next < g_sweep_target_count)
+            begin_sweep_segment();
+        else
+            finish_sweep();
+        return;
+    }
+    g_sweep_place = (g_sweep_place + 1) % g_sweep_list_count;
+    g_cursor = g_sweep_list[g_sweep_place];
+    g_sweep_step++;
+    g_dirty = 1;
+    if (g_sweep_step < g_sweep_steps) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_sweep_wait = sweep_gap(g_sweep_step);
+        return;
+    }
+    g_selected[g_cursor] = 1;
+    g_sweep_next++;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    g_sweep_wait = g_sweep_next < g_sweep_target_count ? SWEEP_LANDING_HOLD : SWEEP_FINAL_HOLD;
+}
+
+static void on_sweep_event(screen_event event)
+{
+    if (event != EV_CONFIRM)
+        return;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    finish_sweep();
+}
+
+/* Offers just picked at random by the run (offer_pick random) are shown by the roulette, once. */
+static int roulette_for_rolled_pick(void)
+{
+    int shown = g_run.rolled_count > 1
+        && start_roulette(g_run.rolled, g_run.rolled_count, g_run.rolled_pick, ROULETTE_THEN_SHOW);
+
+    g_run.rolled_count = 0;
+    return shown;
+}
+
 /* The run just ended: Deck 1 goes back to the player's own deck. */
 static void on_run_finished(void)
 {
@@ -192,8 +448,11 @@ void maybe_start_reward(void)
 
         /* An offer still waiting from before is shown again, and this match's reward is owed. */
         status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
-        if (outcome == STS_REWARD_AUTO)
+        g_sweep_pending = 0;
+        if (outcome == STS_REWARD_AUTO) {
             describe_deck_change(&before);
+            prepare_sweep(&before, SWEEP_THEN_ENTER_PHASE);
+        }
         slog("reward: won %d, status %s, outcome %d, owed %d", g_match_result.won, sts_run_status_str(status),
              (int)outcome, g_run.owed_count);
         if (status != STS_RUN_OK)
@@ -214,10 +473,16 @@ void maybe_start_reward(void)
     g_error[0] = 0;
     g_status[0] = 0;
     g_close_after_deck = 1;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    if (new_match && roulette_for_rolled_pick())
+        return;
+    if (g_sweep_pending) {
+        start_pending_sweep();
+        return;
+    }
     enter_phase();
     if (g_state == ST_DECK)
         start_deck_timer();
-    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
 /* Records what a reward changed, comparing the deck with its old contents. */
@@ -257,7 +522,7 @@ static void clear_deck_change(void)
 }
 
 /* Applies the chosen offer and shows the new deck. */
-static void after_reward_taken(const sts_deck *before);
+static void after_reward_taken(const sts_deck *before, int random_removal);
 
 static void commit_reward(const sts_replace_choice *choice)
 {
@@ -270,24 +535,40 @@ static void commit_reward(const sts_replace_choice *choice)
         return;
     }
     slog("reward taken: card %u", (unsigned)g_run.offers[g_pending_offer].id);
-    after_reward_taken(&before);
+    after_reward_taken(&before, g_settings.reward.mode == STS_REWARD_REPLACE && g_settings.reward.replace != STS_REPLACE_CHOOSE);
 }
 
-/* The time limit ran out: the choices made so far are kept and the rest made at random. */
+/* The time limit ran out: the choices made so far are kept and the rest made at random. With no offer
+ * chosen yet, the roulette shows which one is taken first. */
 static void time_out_reward(void)
+{
+    if (g_state == ST_REWARD && g_run.offer_count > 1 && g_settings.reward_roulette) {
+        int index = sts_run_random_offer(&g_run);
+
+        if (!start_roulette(g_run.offers, g_run.offer_count, index, ROULETTE_THEN_TIME_OUT))
+            time_out_reward_at(index);
+        return;
+    }
+    time_out_reward_at(-1);
+}
+
+/* index: the offer, or -1 for the one being looked at (or one at random, if none is yet). */
+static void time_out_reward_at(int index)
 {
     static int failed = 0;
     uint16_t ids[MAX_DECK_ART];
     sts_deck before = g_run.deck;
-    int wau, count = 0, index = -1;
+    int wau, count = 0, copies;
     sts_run_status status;
 
-    if (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE)
+    if (index < 0 && (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE))
         index = g_pending_offer;
     if (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM)
         for (wau = 0; wau < g_run.deck.count && wau < MAX_DECK_ART; wau++)
             if (g_selected[wau])
                 ids[count++] = g_run.deck.ids[wau];
+    /* All the cards that leave had been chosen only if as many as the offer's copies were. */
+    copies = index >= 0 && index < g_run.offer_count ? g_run.offers[index].copies : STS_MAX_DECK;
     status = sts_run_reward_time_out(&g_run, &g_db, &g_settings, index, ids, count, -1);
     if (status != STS_RUN_OK) {
         /* Not expected, as offers are only made if they can be taken. Once, so it is not every frame. */
@@ -298,31 +579,33 @@ static void time_out_reward(void)
     }
     failed = 0;
     slog("time ran out: reward taken at random, %d cards had been chosen", count);
-    after_reward_taken(&before);
+    after_reward_taken(&before, g_settings.reward.mode == STS_REWARD_REPLACE
+                                && (g_settings.reward.replace != STS_REPLACE_CHOOSE || count < copies));
 }
 
 /* The same after any reward: the deck screen shows what changed, then the score or more offers. */
-static void after_reward_taken(const sts_deck *before)
+static void after_reward_taken(const sts_deck *before, int random_removal)
 {
+    sweep_then then = g_run.phase == STS_PHASE_READY ? SWEEP_THEN_ENTER_PHASE : SWEEP_THEN_SHOW_DECK;
+
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     g_selected_count = 0;
     describe_deck_change(before);
     save_run();
-    if (g_run.phase == STS_PHASE_FINISHED) {
-        /* The match owed behind this offer was the last: this change first, then the score. */
-        on_run_finished();
-        show_deck();
-        start_deck_timer();
-        return;
-    }
-    if (g_run.phase == STS_PHASE_REWARD) {
-        /* A reward was owed: the deck screen shows this change, then moves on to its offers. */
+    if (g_run.phase == STS_PHASE_FINISHED)
+        on_run_finished();   /* the match owed behind this offer was the last: this change, then the score */
+    if (g_run.phase == STS_PHASE_REWARD)
         slog("owed reward: new offers, %d more owed", g_run.owed_count);
-        show_deck();
-        start_deck_timer();
+    /* Cards that left at random are shown leaving first. */
+    if (random_removal && prepare_sweep(before, then)) {
+        start_pending_sweep();
         return;
     }
-    enter_phase();
+    g_sweep_pending = 0;
+    if (then == SWEEP_THEN_SHOW_DECK)
+        show_deck();
+    else
+        enter_phase();
     start_deck_timer();
 }
 
@@ -347,6 +630,8 @@ static void on_deck_event(screen_event event);
  * goes on from where it was, and the deck screen's. */
 static void tick_timers(void)
 {
+    tick_roulette();
+    tick_sweep();
     if (reward_seconds_left() >= 0) {
         g_run.offer_frames++;
         if (g_run.offer_frames % 60 == 0) {
@@ -905,7 +1190,8 @@ static void on_deck_event(screen_event event)
         clear_deck_change();
         if (g_run.phase == STS_PHASE_REWARD) {
             SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
-            enter_phase();
+            if (!roulette_for_rolled_pick())
+                enter_phase();
             break;
         }
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
@@ -1241,6 +1527,8 @@ static void handle_event(screen_event event)
     case ST_REWARD_TYPE:    on_reward_type_event(event); break;
     case ST_REWARD_REMOVE:  on_reward_remove_event(event); break;
     case ST_REWARD_CONFIRM: on_reward_confirm_event(event); break;
+    case ST_ROULETTE:       on_roulette_event(event); break;
+    case ST_SWEEP:          on_sweep_event(event); break;
     case ST_RULES:          on_rules_event(event); break;
     case ST_RULES_RESTORE:  on_rules_restore_event(event); break;
     case ST_SETTINGS:       on_settings_event(event); break;

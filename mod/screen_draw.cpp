@@ -486,10 +486,22 @@ static int draft_deck_shown(void)
     return g_state == ST_DRAFT && g_settings.draft_show_deck;
 }
 
+/* The offers on screen: the run's, or the ones the roulette runs through. */
+static const sts_offer *shown_offers(int *count)
+{
+    if (g_state == ST_ROULETTE) {
+        *count = g_roulette_count;
+        return g_roulette_offers;
+    }
+    *count = g_run.offer_count;
+    return g_run.offers;
+}
+
 static void rebuild_draft(void)
 {
     char line[192];
-    int wau;
+    int wau, offer_count;
+    const sts_offer *offers = shown_offers(&offer_count);
 
     if (draft_deck_shown()) {
         if (g_deck_art_dirty)
@@ -497,8 +509,9 @@ static void rebuild_draft(void)
         add_label(tr("Your deck so far"), g_font_small, DRAFT_DECK_X, DRAFT_DECK_Y - 24, 320, 20, COLOR_GREY);
     }
 
-    if (g_state == ST_REWARD) {
-        const char *format = g_settings.reward.mode == STS_REWARD_ADD ? tr("%s: choose a card to add")
+    if (g_state == ST_REWARD || g_state == ST_ROULETTE) {
+        const char *format = g_state == ST_ROULETTE ? tr("%s: a card is picked at random")
+                           : g_settings.reward.mode == STS_REWARD_ADD ? tr("%s: choose a card to add")
                            : g_settings.reward.mode == STS_REWARD_REMOVE ? tr("%s: choose a card to remove")
                            : g_settings.offer_pick == STS_OFFER_PICK_RANDOM ? tr("%s: this card swaps in")
                            : tr("%s: choose a card to swap in");
@@ -518,11 +531,11 @@ static void rebuild_draft(void)
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     }
 
-    for (wau = 0; wau < g_run.offer_count && wau < STS_OFFER_MAX; wau++) {
-        const sts_offer *offer = &g_run.offers[wau];
+    for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++) {
+        const sts_offer *offer = &offers[wau];
         const card_text *entry = find_text(offer->id);
         const sts_card *card = sts_card_db_find(&g_db, g_run.character, offer->id);
-        int pos_x = offer_x(wau, g_run.offer_count);
+        int pos_x = offer_x(wau, offer_count);
 
         load_art(wau, offer->id, pos_x + 8, OFFER_Y + 8);
         add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3,
@@ -534,13 +547,15 @@ static void rebuild_draft(void)
             add_label(line, g_font_big, pos_x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
         }
     }
-    if (g_cursor < g_run.offer_count) {
-        const card_text *entry = find_text(g_run.offers[g_cursor].id);
+    if (g_cursor < offer_count) {
+        const card_text *entry = find_text(offers[g_cursor].id);
         if (entry)
             add_wrapped(entry->desc, g_font_small, 24, OFFER_Y + 236, 592, 17, description_row_bytes(), 0, 6,
                         COLOR_WHITE);
     }
-    if (g_state == ST_REWARD && g_run.offer_count == 1)
+    if (g_state == ST_ROULETTE)
+        sprintf(line, tr("%s: skip"), BUTTON_A);
+    else if (g_state == ST_REWARD && g_run.offer_count == 1)
         sprintf(line, tr("%s: take"), BUTTON_A);
     else if (g_state == ST_REWARD)
         sprintf(line, tr("Left/Right: choose   %s: take"), BUTTON_A);
@@ -732,6 +747,26 @@ static void rebuild_rules(void)
     else
         sprintf(line, tr("Up/Down: choose   %s: select   %s: back"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, g_rules_start_over_armed ? COLOR_RED : COLOR_GREY);
+}
+
+/* Cards leaving at random: the deck as it was, the cursor on it. */
+static void rebuild_sweep(void)
+{
+    char line[192];
+    const card_text *entry = g_changes_added_count > 0 ? find_text(g_changes_added[0].id) : NULL;
+
+    if (g_deck_art_dirty)
+        load_deck_art();
+    sprintf(line, tr("%s: cards leave at random"), character_label(g_run.character));
+    add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    if (g_cursor < g_run.deck.count)
+        add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+    if (g_changes_added_count > 0) {
+        sprintf(line, tr("Replacing with %dx %.90s."), g_changes_added[0].copies, entry ? entry->name : "?");
+        add_reward_notice(line, REWARD_NOTICE_Y, COLOR_GOLD);
+    }
+    sprintf(line, tr("%s: skip"), BUTTON_A);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
 /* The type choices, below the two rows of the deck. */
@@ -996,6 +1031,7 @@ static void rebuild(void)
     case ST_CHOOSE: rebuild_choose(); break;
     case ST_DRAFT:
     case ST_REWARD:
+    case ST_ROULETTE:
         rebuild_draft();
         break;
     case ST_DECK:          rebuild_deck(); break;
@@ -1004,6 +1040,7 @@ static void rebuild(void)
         rebuild_reward_remove();
         break;
     case ST_REWARD_TYPE:   rebuild_reward_type(); break;
+    case ST_SWEEP:         rebuild_sweep(); break;
     case ST_RULES:         rebuild_rules(); break;
     case ST_RULES_RESTORE: rebuild_rules_restore(); break;
     case ST_SCORE:         rebuild_score(); break;
@@ -1285,10 +1322,13 @@ void screen_render(int opaque)
         draw_box(44, RULES_ROW_Y - 6 + g_cursor * RULES_ROW_PITCH, 552, 58,
                  g_rules_start_over_armed ? 0x60FF6060u : 0x60FFE080u,
                  g_rules_start_over_armed ? 0xFFFF6060u : 0xFFFFE080u);
-    } else if (g_state == ST_DRAFT || g_state == ST_REWARD) {
-        for (wau = 0; wau < g_run.offer_count && wau < STS_OFFER_MAX; wau++) {
+    } else if (g_state == ST_DRAFT || g_state == ST_REWARD || g_state == ST_ROULETTE) {
+        int offer_count;
+
+        shown_offers(&offer_count);
+        for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++) {
             int selected = wau == g_cursor;
-            draw_box(offer_x(wau, g_run.offer_count), OFFER_Y, OFFER_W, 226,
+            draw_box(offer_x(wau, offer_count), OFFER_Y, OFFER_W, 226,
                      selected ? 0x60FFE080u : 0x40FFFFFFu, selected ? 0xFFFFE080u : 0x80FFFFFFu);
             if (g_has_art[wau])
                 g_art[wau].draw();
@@ -1296,7 +1336,8 @@ void screen_render(int opaque)
         if (draft_deck_shown())
             draw_draft_deck();
     }
-    if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE) {
+    if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE
+        || g_state == ST_SWEEP) {
         /* Two rows fit above the card details. A larger deck scrolls with the cursor, except on the
          * type screen, whose cursor is on the types. */
         int on_cards = g_state != ST_REWARD_TYPE;
@@ -1306,7 +1347,7 @@ void screen_render(int opaque)
             int pos_x = DECK_X + (wau % DECK_COLS) * DECK_PITCH_X;
             int pos_y = DECK_Y + (wau / DECK_COLS - top) * DECK_PITCH_Y;
 
-            int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM) && g_selected[wau];
+            int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_SWEEP) && g_selected[wau];
 
             /* The draft screen draws these same images smaller. */
             if (g_has_deck_art[wau])
@@ -1326,8 +1367,9 @@ void screen_render(int opaque)
             }
             if (g_has_deck_art[wau]) {
                 /* Copies of the incoming card are greyed out on the removal screens. */
-                int blocked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE)
-                    && g_run.deck.ids[wau] == g_run.offers[g_pending_offer].id;
+                int blocked = g_state == ST_SWEEP ? !g_sweep_candidate[wau]
+                    : (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE)
+                      && g_run.deck.ids[wau] == g_run.offers[g_pending_offer].id;
 
                 g_deck_art[wau].tint = blocked ? 0xFF505050u : COLOR_WHITE;
                 g_deck_art[wau].setPosition({pos_x, pos_y});

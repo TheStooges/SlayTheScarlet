@@ -216,8 +216,18 @@ static sts_apply_status apply_reward(sts_run *run, const sts_card_db *db, const 
  * as the only offer, so a restart cannot change which card it was. */
 static void keep_one_offer_at_random(sts_run *run)
 {
-    run->offers[0] = run->offers[sts_rng_below(&run->rng, (uint32_t)run->offer_count)];
+    int pick = (int)sts_rng_below(&run->rng, (uint32_t)run->offer_count);
+
+    memcpy(run->rolled, run->offers, sizeof run->offers[0] * (size_t)run->offer_count);
+    run->rolled_count = run->offer_count;
+    run->rolled_pick = pick;
+    run->offers[0] = run->offers[pick];
     run->offer_count = 1;
+}
+
+int sts_run_random_offer(sts_run *run)
+{
+    return run->offer_count > 0 ? (int)sts_rng_below(&run->rng, (uint32_t)run->offer_count) : -1;
 }
 
 /* The reward for one match, from READY, before it is recorded. */
@@ -227,6 +237,7 @@ static void decide_reward(sts_run *run, const sts_card_db *db, const sts_setting
     int gets_offer;
 
     *outcome = STS_REWARD_NONE;
+    run->rolled_count = 0;
     switch (settings->who_picks) {
     case STS_WHO_BOTH:   gets_offer = 1; break;
     case STS_WHO_WINNER: gets_offer = won != 0; break;

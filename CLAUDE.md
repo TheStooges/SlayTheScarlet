@@ -564,6 +564,12 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    `who_picks` winner and nobody. Reward modes add and remove do NOT work in game yet: they change the
    deck size, the mod only overwrites a slot of the same size, and the game rejects non-20 decks.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
+   Everything up to v0.4 is client-side: it works against vanilla players, sends no custom packets
+   and changes none (the network hooks only read, for logging). First step, moved past v0.4 by
+   decision: a modded spectator's loading screen shows each player's deck change, from the
+   `GAME_MATCH` decks it already receives, tied to the match id (still no packets; needs a spectator
+   test with other people). Then live picks over a Giuroll-dropped packet type (0x6F-0x80), relayed
+   by the client down the spectator tree.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
 7. (done for v0.2, played in game) Starting deck, as in Slay the Spire: the draft starts
    from built-in starter cards (`default_starter` in `core/settings.c`) and the picks fill the rest.
@@ -613,7 +619,17 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    the timer (a small save format change). In compatible mode only the local player sees the timer;
    showing it to a modded opponent needs full mode messages. See how much players stall in phase 2
    before setting a default.
-10. Roulette for random picks (after v0.2): instead of jumping to the deck-changed screen, the cursor
+10. (built for v0.4, not yet played in game) Roulette: `[reward] roulette`,
+   on by default, not a rule (left out of the fingerprint and of a run's saved rules). With
+   `offer_pick=random` the core keeps the offers it picked from in `sts_run.rolled` (not saved, so a
+   restart just shows the pick); on a time-out with no offer chosen, `sts_run_random_offer` draws the
+   index first (the same draw the time-out makes) so the roulette can show it, and the time-out
+   takes it afterwards. 20 steps from 3 to 19 frames apart, then a pause: 3 s; the start is chosen so
+   the last step lands on the pick. The sweep (`ST_SWEEP`) shows cards that left at random (replace
+   random or by type, or a time-out that picked some): the deck as it was, the cards that could leave
+   lit, the cursor slowing onto each that left and marking it, 150 frames of movement shared between
+   them. The change is made and saved first; g_run.deck stands in for the old deck while it shows.
+   Original plan: instead of jumping to the deck-changed screen, the cursor
    runs through the offers, fast at first and slowing down (gaps from a few frames to about 15,
    about 2 s in all, move sound per step, confirm sound at the end), and settles on the result.
    Used on a time-out (item 9), with `offer_pick=random`, and possibly over the deck grid when

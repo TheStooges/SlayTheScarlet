@@ -16,6 +16,11 @@ What changed in each release of Slay the Scarlet. Releases are on the
 - A time limit on rewards (Settings, Rewards; `[reward] time_limit`, up to 90 seconds, off by
   default). When it runs out, choices already made are kept and the rest are made at random, and the
   deck screen after a reward moves on by itself after 15 seconds.
+- A card picked at random (with "What comes into the deck" on Random, or when the time limit runs
+  out before an offer is chosen) is shown by the cursor running through the offers and slowing down
+  onto it. Cards that leave the deck at random are shown the same way, over the deck. Each takes
+  about 3 seconds; the confirm button skips it, and "Show random picks" in Settings, Rewards turns it
+  off.
 - A set seed for events (Settings, Runs, typed with the keyboard, or `[run] seed`; off by default,
   and capitals count). Everyone on the same
   character gets the same draft, and starting over gives the same draft back. The score screen shows

@@ -55,6 +55,8 @@ typedef enum {
     ST_REWARD_TYPE,     /* REPLACE by type: which type leaves */
     ST_REWARD_REMOVE,   /* REPLACE by choice: which cards leave */
     ST_REWARD_CONFIRM,  /* REPLACE by choice: last check before the swap */
+    ST_ROULETTE,        /* a pick made at random, shown by the cursor running through the offers */
+    ST_SWEEP,           /* cards that left at random, shown by the cursor running over the deck */
     ST_RULES,           /* the run was made under other rules: carry on or start over? */
     ST_RULES_RESTORE,   /* going back to the run's own rules: what settings.ini would change */
     ST_SETTINGS,        /* settings.ini as a list to change */
@@ -188,6 +190,11 @@ int repeats_while_held(int held);
 int reward_seconds_left(void);
 /* Seconds before the deck screen after a reward moves on by itself, or -1. */
 int deck_seconds_left(void);
+/* The offers the roulette runs through, which may be ones no longer on offer. */
+extern sts_offer g_roulette_offers[STS_OFFER_MAX];
+extern int g_roulette_count;
+/* On the sweep: the cards that could have left, and which are drawn dimmed otherwise. */
+extern int g_sweep_candidate[MAX_DECK_ART];
 int rules_option_count(void);
 rules_option rules_option_at(int index);
 extern screen_state g_state;

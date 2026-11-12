@@ -806,6 +806,25 @@ static void test_settings_time_limit(void)
     CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 0);
 }
 
+/* The roulette is only for show: on by default, and neither in the fingerprint nor in a run's rules. */
+static void test_settings_roulette(void)
+{
+    sts_settings settings, before;
+    char text[64];
+    int line = 0, wau;
+
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(settings.reward_roulette == 1);
+    CHECK(parse_ini("[reward]\nroulette=false\n", &settings, &line) == STS_SETTINGS_OK && settings.reward_roulette == 0);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before) && !sts_settings_equal(&settings, &before));
+    for (wau = 0; wau < sts_settings_rule_count(); wau++) {
+        CHECK(sts_settings_rule_text(&settings, wau, text, sizeof text));
+        CHECK(strncmp(text, "reward.roulette=", 16) != 0);
+    }
+    CHECK(sts_settings_set_rule(&settings, "reward.roulette=true") == STS_SETTINGS_UNKNOWN_KEY);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -824,4 +843,5 @@ void test_settings(void)
     test_settings_match_limit();
     test_settings_seed();
     test_settings_time_limit();
+    test_settings_roulette();
 }

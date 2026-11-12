@@ -1269,11 +1269,54 @@ static void test_reward_time_out(void)
     }
 }
 
+/* A pick made at random keeps the offers it was made from, for the screen to show, but only until the
+ * run is saved; and drawing the time-out's offer first picks the one the time-out would. */
+static void test_roulette_picks(void)
+{
+    static sts_run run, again, loaded;
+    sts_settings settings;
+    sts_reward_outcome out;
+    int line = 0, index;
+
+    CHECK(parse_ini("[reward]\noffer_pick=random\n", &settings, &line) == STS_SETTINGS_OK);
+    ready_run(&run, &settings, 8, 180);
+    CHECK(run.rolled_count == 0);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(run.offer_count == 1 && run.rolled_count == 3 && run.rolled_pick >= 0 && run.rolled_pick < 3);
+    CHECK(run.rolled[run.rolled_pick].id == run.offers[0].id && run.rolled[run.rolled_pick].copies == run.offers[0].copies);
+    CHECK(save_and_load(&run, &loaded) && loaded.rolled_count == 0);
+
+    /* The swap that makes itself keeps them too, and the next match starts afresh. */
+    CHECK(parse_ini("[reward]\noffer_pick=random\nreplacement=random\n", &settings, &line) == STS_SETTINGS_OK);
+    ready_run(&run, &settings, 8, 181);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_AUTO);
+    CHECK(run.offer_count == 0 && run.rolled_count == 3 && run.history[0].added[0] == run.rolled[run.rolled_pick].id);
+    settings.who_picks = STS_WHO_WINNER;
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_NONE && run.rolled_count == 0);
+
+    /* With a choice to make there is nothing rolled. */
+    sts_settings_defaults(&settings);
+    ready_run(&run, &settings, 8, 182);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && run.offer_count == 3 && run.rolled_count == 0);
+
+    /* The time-out's offer, drawn first, is the one it would draw itself. */
+    settings.reward.replace = STS_REPLACE_RANDOM;
+    ready_run(&run, &settings, 8, 183);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+    again = run;
+    index = sts_run_random_offer(&run);
+    CHECK(index >= 0 && index < 3);
+    CHECK(sts_run_reward_time_out(&run, &g_db, &settings, index, NULL, 0, -1) == STS_RUN_OK);
+    CHECK(sts_run_reward_time_out(&again, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_OK);
+    CHECK(decks_equal(&run.deck, &again.deck) && run.rng.state == again.rng.state);
+}
+
 void test_run_save(void)
 {
     static sts_run run;
 
     test_reward_time_out();
+    test_roulette_picks();
 
     test_set_seed();
 

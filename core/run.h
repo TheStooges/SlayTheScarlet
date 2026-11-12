@@ -77,6 +77,12 @@ typedef struct {
     sts_match_record history[STS_RUN_HISTORY_MAX];   /* oldest first */
     int history_count;
     int history_forgotten;  /* matches dropped from the front, so history[0] is match history_forgotten + 1 */
+    /* The offers rolled before one was kept at random (offer_pick random), and which one was kept,
+     * for the screen to show the pick being made. Set by the call that made the pick and not saved:
+     * after a restart only the pick is left. */
+    sts_offer rolled[STS_OFFER_MAX];
+    int rolled_count;
+    int rolled_pick;
 } sts_run;
 
 typedef enum {
@@ -146,6 +152,10 @@ typedef struct {
  * offers stay, so the screen can simply ask again. choice may be NULL unless the mode needs it. */
 sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                    int index, const sts_replace_choice *choice);
+
+/* Draws which offer a time-out takes, from the run's random state, as sts_run_reward_time_out does
+ * for index -1: so the screen can show the pick before passing it on. */
+int sts_run_random_offer(sts_run *run);
 
 /* The time limit ran out: takes offer `index`, or one at random for -1, and chooses what is left of
  * the reward at random from the run's random state (so a restart cannot change it). For REPLACE by

@@ -553,3 +553,17 @@ en=Next offer in %d
 ja=次の報酬まで %d
 en=Closes in %d
 ja=閉じるまで %d
+
+# Roulette for random picks
+en=%s: a card is picked at random
+ja=%s: カードをランダムに選んでいます
+en=%s: skip
+ja=%s: スキップ
+en=Show random picks
+ja=ランダムな選択を見せる
+en=On: a pick made at random runs through the offers, or the deck, before it lands.
+ja=オン: ランダムな選択は、候補やデッキを順に巡ってから止まります。
+en=%s: cards leave at random
+ja=%s: 抜けるカードをランダムに選んでいます
+en=Off: a pick made at random is shown straight away.
+ja=オフ: ランダムな選択はすぐに表示されます。

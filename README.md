@@ -75,7 +75,10 @@ character screen, until you start the character's run over.
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
 new ones. A time limit can be set (Settings, Rewards; off by default): when it runs out, any
 choices you made are kept and the rest are made at random, so your opponent never waits long. The
-deck screen after a reward then moves on by itself after 15 seconds. The time spent is saved, so
+deck screen after a reward then moves on by itself after 15 seconds. A card picked for you at random
+is shown by the cursor running through the offers and slowing down onto it, and cards that leave at
+random by the cursor running over your deck and marking them (turn this off with "Show random picks"
+in Settings, Rewards; the confirm button skips it). The time spent is saved, so
 closing the game does not give you more.
 
 If the connection drops during an offer, the game goes back to the title, and the offer stays on screen.

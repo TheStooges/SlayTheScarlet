@@ -166,6 +166,7 @@ void sts_settings_defaults(sts_settings *settings)
     settings->items_enabled = 0;
     settings->allow_rule_changes = 0;
     settings->draft_show_deck = 1;
+    settings->reward_roulette = 1;
     default_starter(settings);
 }
 
@@ -302,6 +303,8 @@ static int find_setting(sts_settings *settings, const char *section, const char 
         }
         else if (strcmp(key, "offer_pick") == 0)
             set_ref(ref, KIND_NAMED, &settings->offer_pick, g_offer_picks, 0, 0);
+        else if (strcmp(key, "roulette") == 0)
+            set_ref(ref, KIND_BOOL, &settings->reward_roulette, g_bool, 0, 0);
         else if (strcmp(key, "time_limit") == 0) {
             set_ref(ref, KIND_INT, &settings->time_limit, NULL, 0, STS_TIME_LIMIT_MAX);
             ref->step_size = STS_TIME_LIMIT_STEP;
@@ -862,7 +865,7 @@ static const setting_key g_keys[] = {
     {"starter", "enabled"},
     {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "random_chance"}, {"reward", "offers"}, {"reward", "copies_min"},
     {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
-    {"reward", "time_limit"},
+    {"reward", "time_limit"}, {"reward", "roulette"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
     {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"},
@@ -994,6 +997,7 @@ int sts_settings_equal(const sts_settings *first, const sts_settings *second)
 static int is_rule_key(int index)
 {
     return !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
+        && !(strcmp(g_keys[index].section, "reward") == 0 && strcmp(g_keys[index].key, "roulette") == 0)
         && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "allow_rule_changes") == 0);
 }
 

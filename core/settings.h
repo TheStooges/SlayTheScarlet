@@ -94,6 +94,8 @@ typedef struct {
     /* Is the deck so far shown while drafting? It changes nothing about the deck or what is
      * offered, so a run can carry on when it changes: not part of the fingerprint. */
     int draft_show_deck;
+    /* Does a random pick spin through the offers before it lands? Only for show: not a rule. */
+    int reward_roulette;
 } sts_settings;
 
 typedef enum {
@@ -182,7 +184,7 @@ sts_settings_status sts_settings_set(sts_settings *settings, const char *section
 int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction);
 
 /* The rule settings one by one, for a run to save the rules it was made under: every setting except
- * the ones that say how to play rather than being rules (show_deck, allow_rule_changes). */
+ * the ones that say how to play rather than being rules (show_deck, roulette, allow_rule_changes). */
 int sts_settings_rule_count(void);
 
 /* Writes the index-th rule as "section.key=value". Returns 0 past the end or if it does not fit. */
