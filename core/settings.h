@@ -158,6 +158,17 @@ sts_settings_status sts_settings_set(sts_settings *settings, const char *section
  * validate. */
 int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction);
 
+/* The rule settings one by one, for a run to save the rules it was made under: every setting except
+ * the ones that say how to play rather than being rules (show_deck, allow_rule_changes). */
+int sts_settings_rule_count(void);
+
+/* Writes the index-th rule as "section.key=value". Returns 0 past the end or if it does not fit. */
+int sts_settings_rule_text(const sts_settings *settings, int index, char *out, size_t size);
+
+/* Sets one rule from text written by sts_settings_rule_text. Any other setting is refused as
+ * STS_SETTINGS_UNKNOWN_KEY, and a bad value changes nothing. */
+sts_settings_status sts_settings_set_rule(sts_settings *settings, const char *text);
+
 /* 1 if every setting is the same, including ones outside the fingerprint. */
 int sts_settings_equal(const sts_settings *first, const sts_settings *second);
 

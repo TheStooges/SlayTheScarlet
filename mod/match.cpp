@@ -9,9 +9,10 @@ static int g_match_used_run_deck = 0;
 static int g_match_run_on_right = 0;
 static int g_match_score_left = 0;
 static int g_match_score_right = 0;
+static int g_match_opponent = -1;
 int g_match_reward_due = 0;
 int g_match_new = 0;
-int g_match_won = 0;
+sts_match_result g_match_result = {0, 0, 0, -1};
 int g_match_no_offer = 0;
 
 /* Called when a scene after the battle starts: was that a finished match with the run deck? */
@@ -27,7 +28,10 @@ static void finish_match(void)
         slog("match was not finished, no reward");
         return;
     }
-    g_match_won = g_match_run_on_right ? right > left : left > right;
+    g_match_result.rounds_won = g_match_run_on_right ? right : left;
+    g_match_result.rounds_lost = g_match_run_on_right ? left : right;
+    g_match_result.won = g_match_result.rounds_won > g_match_result.rounds_lost;
+    g_match_result.opponent = g_match_opponent;
     g_match_reward_due = 1;
     g_match_new = 1;
 }
@@ -166,6 +170,7 @@ void deck_on_battle_frame(void)
              * spectating. Offline the run deck only reaches the left player; online, the local
              * player's own side. */
             g_match_run_on_right = client;
+            g_match_opponent = (int)(client ? SokuLib::leftPlayerInfo.character : SokuLib::rightPlayerInfo.character);
             g_match_used_run_deck = SokuLib::subMode != SokuLib::BATTLE_SUBMODE_REPLAY
                 && (((offline || host) && left) || (client && right));
             g_match_score_left = 0;

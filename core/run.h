@@ -18,12 +18,40 @@
 typedef enum {
     STS_PHASE_DRAFT,    /* building the starting deck; offers are waiting */
     STS_PHASE_READY,    /* the deck is legal and can be played */
-    STS_PHASE_REWARD    /* a match ended and offers are waiting */
+    STS_PHASE_REWARD,   /* a match ended and offers are waiting */
+    STS_PHASE_FINISHED  /* the run is over: its deck can be viewed but not played */
 } sts_run_phase;
 
 /* Matches whose reward waits behind an offer still on screen, as after a disconnect during an
  * offer and a reconnect without taking it. */
 #define STS_RUN_OWED_MAX 32
+
+/* How a match went, from this player's side. */
+typedef struct {
+    int won;
+    int rounds_won;
+    int rounds_lost;
+    int opponent;   /* the opponent's character, or -1 if not known */
+} sts_match_result;
+
+/* The most cards one reward can bring in or take out. */
+#define STS_RUN_CHANGE_MAX 8
+
+/* The most matches a run remembers. An endless run past this forgets its oldest. */
+#define STS_RUN_HISTORY_MAX 100
+
+/* One match of a run and what its reward changed. */
+typedef struct {
+    uint8_t won;
+    uint8_t rounds_won;
+    uint8_t rounds_lost;
+    int8_t opponent;        /* -1 if not known */
+    uint8_t pending;        /* its reward is still on screen or owed, so the change is not known yet */
+    uint8_t added_count;
+    uint8_t removed_count;
+    uint16_t added[STS_RUN_CHANGE_MAX];
+    uint16_t removed[STS_RUN_CHANGE_MAX];
+} sts_match_record;
 
 typedef struct {
     uint32_t settings_hash;
@@ -38,6 +66,16 @@ typedef struct {
     /* Oldest first: whether each owed match was won. Only non-empty in REWARD. */
     uint8_t owed_won[STS_RUN_OWED_MAX];
     int owed_count;
+    /* Added in save format 3; a save from before it loads with these zero, has_rules 0 and an
+     * empty history. */
+    uint64_t seed;          /* what the run was started with */
+    int restarts;           /* how many times this character's run was started over before this one */
+    int offer_frames;       /* frames spent on the offers on screen; the mod counts, the core resets */
+    int has_rules;
+    sts_settings rules;     /* the rules the run was made under (only the rule settings are saved) */
+    sts_match_record history[STS_RUN_HISTORY_MAX];   /* oldest first */
+    int history_count;
+    int history_forgotten;  /* matches dropped from the front, so history[0] is match history_forgotten + 1 */
 } sts_run;
 
 typedef enum {
@@ -80,12 +118,12 @@ typedef enum {
     STS_REWARD_OFFERS   /* offers are waiting; call sts_run_reward_pick */
 } sts_reward_outcome;
 
-/* Call once when a match ends, from READY or REWARD. From REWARD the offers on screen stay, the
- * match's reward is owed until they are taken, and *outcome is OFFERS. Returns
- * STS_RUN_WRONG_PHASE from DRAFT, or when STS_RUN_OWED_MAX rewards are already owed, leaving
- * *outcome as NONE. */
+/* Call once when a match ends, from READY or REWARD. The match joins the history. From REWARD the
+ * offers on screen stay, the match's reward is owed until they are taken, and *outcome is OFFERS.
+ * Returns STS_RUN_WRONG_PHASE from DRAFT or FINISHED, or when STS_RUN_OWED_MAX rewards are already
+ * owed, leaving *outcome as NONE and the history as it was. */
 sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
-                                    int won, sts_reward_outcome *outcome);
+                                    const sts_match_result *result, sts_reward_outcome *outcome);
 
 /* What a REPLACE removes. Only the field matching settings.reward.replace is read. */
 typedef struct {
@@ -103,8 +141,8 @@ sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const st
 
 /* ---------- save format ---------- */
 
-/* Big enough for the largest deck and all offers. */
-#define STS_RUN_TEXT_MAX 4096
+/* Big enough for the largest deck, all offers, the rules and a full history. */
+#define STS_RUN_TEXT_MAX 16384
 
 /* Writes the run as ASCII text ending in a checksum. Returns bytes written, 0 if cap is
  * too small. */
@@ -122,12 +160,17 @@ sts_run_status sts_run_save(const char *path, const sts_run *run);
 sts_run_status sts_run_load(const char *path, sts_run *out);
 
 /* Checks a loaded run against the current rules: settings fingerprint, character, phase,
- * deck and offers. Returns STS_RUN_OK if it can be continued. */
+ * deck, offers and history. Returns STS_RUN_OK if it can be continued. */
 sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const sts_settings *settings);
 
 /* Moves a run made under other rules onto these. Returns STS_RUN_ILLEGAL, changing nothing, if
  * its deck breaks them. Offers on screen are kept if still possible, so editing the settings is
  * not a free reroll; otherwise they are rolled again, which may end a reward or a draft. */
 sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const sts_settings *settings);
+
+/* 1 if the run knows the rules it was made under and they still give its fingerprint, so putting
+ * them back would let it carry on. A save from before format 3 cannot, and nor can a run whose
+ * built-in starter cards have changed since. */
+int sts_run_rules_restorable(const sts_run *run);
 
 #endif

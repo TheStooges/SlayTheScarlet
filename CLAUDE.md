@@ -158,6 +158,16 @@ A match finished while an offer still waits (see the disconnect finding under ne
 its reward: it is owed, saved with the run (`owed` line, save format 2; version 1 saves still load),
 and its offers come up once the waiting offer is taken, after the deck screen shows that change.
 
+Save format 3 (v0.4) adds, after the `owed` line: the run's `seed`, `restarts` (starts over before
+this run, for the set seed), `offer_frames` (time on the offers on screen, for the time limit), the
+`rules` the run was made under (every rule setting as `section.key=value`, not `show_deck` or
+`allow_rule_changes`, for putting them back), and a `history` of up to 100 matches (won, rounds,
+opponent, and the cards that came in and left), plus a `finished` phase. A match joins the history
+pending when it ends, and its change is filled in when its reward is settled, oldest first, so owed
+rewards line up. An endless run forgets its oldest matches past 100 (`history_forgotten` keeps the
+numbering). Version 1 and 2 saves load with these empty; such a run cannot put its rules back.
+Older releases refuse a format 3 save as from a different version.
+
 Keep `core/` free of game dependencies so the logic can be developed and tested without the game.
 Use integer maths for anything that could affect a match (determinism across machines).
 

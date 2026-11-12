@@ -1,6 +1,19 @@
 /* Tests: Runs: draft, rewards, the save format, rule changes. */
 #include "test_util.h"
 
+/* A match ends, 2 rounds to 0 for the winner, against Marisa. */
+static sts_run_status begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings, int won,
+                                   sts_reward_outcome *outcome)
+{
+    sts_match_result result;
+
+    result.won = won;
+    result.rounds_won = won ? 2 : 0;
+    result.rounds_lost = won ? 0 : 2;
+    result.opponent = 1;
+    return sts_run_begin_reward(run, db, settings, &result, outcome);
+}
+
 /* Finishes a draft by always taking the first offer. */
 static sts_run_status finish_draft(sts_run *run, const sts_settings *settings)
 {
@@ -153,7 +166,7 @@ static void test_rewards_replace_choose(void)
     sts_settings_defaults(&settings);
     ready_run(&run, &settings, 0, 7);
     CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_WRONG_PHASE);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
     CHECK(out == STS_REWARD_OFFERS && run.phase == STS_PHASE_REWARD && run.offer_count == 3);
     CHECK(run.matches_played == 1);
     CHECK(sts_run_draft_pick(&run, &g_db, &settings, 0) == STS_RUN_WRONG_PHASE);
@@ -199,7 +212,7 @@ static void test_rewards_who_picks(void)
         settings.who_picks = cases[k].who;
         ready_run(&run, &settings, 3, 11);
         before = run;
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, cases[k].won, &out) == STS_RUN_OK);
+        CHECK(begin_reward(&run, &g_db, &settings, cases[k].won, &out) == STS_RUN_OK);
         CHECK(out == (cases[k].offers ? STS_REWARD_OFFERS : STS_REWARD_NONE));
         CHECK(run.phase == (cases[k].offers ? STS_PHASE_REWARD : STS_PHASE_READY));
         CHECK(decks_equal(&run.deck, &before.deck));
@@ -223,7 +236,7 @@ static void test_rewards_automatic(void)
         ready_run(&run, &settings, 9, 21);
         for (j = 0; j < 100; j++) {
             before = run;
-            CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau, &out) == STS_RUN_OK);
+            CHECK(begin_reward(&run, &g_db, &settings, wau, &out) == STS_RUN_OK);
             CHECK(out == STS_REWARD_AUTO && run.phase == STS_PHASE_READY && run.offer_count == 0);
             CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
             if (!decks_equal(&run.deck, &before.deck)) changed++;
@@ -254,7 +267,7 @@ static void test_rewards_automatic_ignores_types(void)
     add_copies(&run.deck, 0, 2);
     add_copies(&run.deck, 100, 2);
     add_copies(&run.deck, 200, 2);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_AUTO);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_AUTO);
     CHECK(run.deck.count == 6);
 }
 
@@ -273,7 +286,7 @@ static void test_rewards_offer_pick(void)
     sts_settings_defaults(&settings);
     settings.offer_pick = STS_OFFER_PICK_RANDOM;
     ready_run(&run, &settings, 5, 95);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     CHECK(run.phase == STS_PHASE_REWARD && run.offer_count == 1);
     count = sts_run_serialize(&run, text, sizeof text);
     CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK);
@@ -290,14 +303,14 @@ static void test_rewards_offer_pick(void)
     /* It goes with when an offer comes: no offer after a win under loser. */
     settings.who_picks = STS_WHO_LOSER;
     ready_run(&run, &settings, 5, 96);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     CHECK(run.offer_count == 1);
 
     /* The default still shows them all. */
     sts_settings_defaults(&settings);
     ready_run(&run, &settings, 5, 97);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && run.offer_count == 3);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && run.offer_count == 3);
 }
 
 /* skip: no offers for anyone, with or without a picker. */
@@ -312,14 +325,14 @@ static void test_rewards_skip(void)
     settings.offer_pick = STS_OFFER_PICK_RANDOM;
     ready_run(&run, &settings, 0, 3);
     before = run;
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     CHECK(decks_equal(&run.deck, &before.deck));
 
     sts_settings_defaults(&settings);
     settings.reward.mode = STS_REWARD_SKIP;
     ready_run(&run, &settings, 0, 3);
     before = run;
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     CHECK(decks_equal(&run.deck, &before.deck) && run.phase == STS_PHASE_READY);
 }
 
@@ -338,7 +351,7 @@ static void test_rewards_by_type(void)
     for (j = 0; j < 50; j++) {
         int type;
         int types_before[3], types_after[3];
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         for (type = 0; type < 3; type++)
             types_before[type] = count_type_in_deck(&run.deck, run.character, type);
         choice.remove_ids = NULL;
@@ -376,7 +389,7 @@ static void test_rewards_random(void)
     settings.reward.replace = STS_REPLACE_RANDOM;
     ready_run(&run, &settings, 2, 32);
     for (j = 0; j < 50; j++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, (int)(j % 3), NULL) == STS_RUN_OK);
         CHECK(run.deck.count == 20 && sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
     }
@@ -394,9 +407,9 @@ static void test_rewards_owed(void)
     sts_settings_defaults(&settings);
     settings.reward.replace = STS_REPLACE_RANDOM;
     ready_run(&run, &settings, 5, 77);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     before = run;
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     CHECK(run.owed_count == 1 && run.owed_won[0] == 0 && run.matches_played == 2);
     CHECK(run.offer_count == before.offer_count && run.offers[0].id == before.offers[0].id);
     CHECK(sts_run_validate(&run, &g_db, &settings) == STS_RUN_OK);
@@ -410,9 +423,9 @@ static void test_rewards_owed(void)
     /* Owed matches that give no offer (a loss under winner) are passed over. */
     settings.who_picks = STS_WHO_WINNER;
     ready_run(&run, &settings, 5, 78);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     CHECK(run.owed_count == 2 && run.matches_played == 3);
     CHECK(sts_run_reward_pick(&run, &g_db, &settings, 1, NULL) == STS_RUN_OK);
     CHECK(run.phase == STS_PHASE_REWARD && run.owed_count == 0);
@@ -420,19 +433,19 @@ static void test_rewards_owed(void)
     CHECK(run.phase == STS_PHASE_READY);
     settings.who_picks = STS_WHO_LOSER;
     ready_run(&run, &settings, 5, 79);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
     CHECK(run.phase == STS_PHASE_READY && run.owed_count == 0 && run.offer_count == 0);
 
     /* The queue has a limit, and a full one refuses without changing anything. */
     settings.who_picks = STS_WHO_BOTH;
     ready_run(&run, &settings, 5, 80);
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
     for (wau = 0; wau < STS_RUN_OWED_MAX; wau++)
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
+        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
     before = run;
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_WRONG_PHASE && out == STS_REWARD_NONE);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_WRONG_PHASE && out == STS_REWARD_NONE);
     CHECK(run.owed_count == STS_RUN_OWED_MAX && run.matches_played == before.matches_played);
     for (wau = 0; wau <= STS_RUN_OWED_MAX; wau++)
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 2, NULL) == STS_RUN_OK);
@@ -441,7 +454,7 @@ static void test_rewards_owed(void)
 
     /* Nothing is owed during a draft. */
     CHECK(sts_run_start(&drafting, &g_db, &settings, 5, 81) == STS_RUN_OK);
-    CHECK(sts_run_begin_reward(&drafting, &g_db, &settings, 1, &out) == STS_RUN_WRONG_PHASE && drafting.owed_count == 0);
+    CHECK(begin_reward(&drafting, &g_db, &settings, 1, &out) == STS_RUN_WRONG_PHASE && drafting.owed_count == 0);
 }
 
 /* who_picks random: about half of all matches give an offer, whatever the result, and with none the
@@ -462,8 +475,8 @@ static void test_rewards_at_random(void)
         int won = wau % 2;
         sts_deck before = run.deck;
 
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, won, &out) == STS_RUN_OK);
-        CHECK(sts_run_begin_reward(&again, &g_db, &settings, won, &out_again) == STS_RUN_OK);
+        CHECK(begin_reward(&run, &g_db, &settings, won, &out) == STS_RUN_OK);
+        CHECK(begin_reward(&again, &g_db, &settings, won, &out_again) == STS_RUN_OK);
         CHECK(out == out_again);
         if (out == STS_REWARD_OFFERS) {
             offers[won]++;
@@ -484,19 +497,19 @@ static void test_rewards_at_random(void)
     settings.random_chance = 0;
     ready_run(&run, &settings, 5, 91);
     for (wau = 0; wau < 50; wau++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     }
     settings.random_chance = 100;
     ready_run(&run, &settings, 5, 92);
     for (wau = 0; wau < 50; wau++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
     }
     settings.random_chance = 25;
     ready_run(&run, &settings, 5, 93);
     offers[0] = 0;
     for (wau = 0; wau < 400; wau++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
+        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
         if (out == STS_REWARD_OFFERS) {
             offers[0]++;
             CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
@@ -517,11 +530,11 @@ static void test_rewards_add_and_remove(void)
     CHECK(sts_settings_validate(&settings) == NULL);
     ready_run(&run, &settings, 4, 41);
     for (j = 0; j < 3; j++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
         CHECK(run.deck.count == 21 + j);
     }
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     CHECK(run.phase == STS_PHASE_READY && run.deck.count == 23);
 
     /* The draft stops at the smallest deck, so add grows it to the largest first. */
@@ -530,19 +543,19 @@ static void test_rewards_add_and_remove(void)
     ready_run(&run, &settings, 4, 42);
     CHECK(run.deck.count == 18);
     for (j = 0; j < 2; j++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
     }
     CHECK(run.deck.count == 20);
     settings.reward.mode = STS_REWARD_REMOVE;
     CHECK(sts_settings_validate(&settings) == NULL);
     for (j = 0; j < 2; j++) {
-        CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         CHECK(sts_deck_count_of(&run.deck, run.offers[0].id) > 0);
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
         CHECK(run.deck.count == 19 - j);
     }
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     CHECK(run.deck.count == 18);
 }
 
@@ -561,6 +574,21 @@ void test_run_rewards(void)
     test_rewards_at_random();
 }
 
+/* Only the settings a run saves. */
+static int rules_equal(const sts_settings *first, const sts_settings *second)
+{
+    char first_text[64], second_text[64];
+    int wau;
+
+    for (wau = 0; wau < sts_settings_rule_count(); wau++) {
+        if (!sts_settings_rule_text(first, wau, first_text, sizeof first_text)
+            || !sts_settings_rule_text(second, wau, second_text, sizeof second_text)
+            || strcmp(first_text, second_text) != 0)
+            return 0;
+    }
+    return 1;
+}
+
 static int runs_equal(const sts_run *first, const sts_run *second)
 {
     int wau;
@@ -577,6 +605,21 @@ static int runs_equal(const sts_run *first, const sts_run *second)
     if (first->owed_count != second->owed_count
         || memcmp(first->owed_won, second->owed_won, (size_t)first->owed_count) != 0)
         return 0;
+    if (first->seed != second->seed || first->restarts != second->restarts
+        || first->offer_frames != second->offer_frames || first->has_rules != second->has_rules
+        || (first->has_rules && !rules_equal(&first->rules, &second->rules))
+        || first->history_count != second->history_count || first->history_forgotten != second->history_forgotten)
+        return 0;
+    for (wau = 0; wau < first->history_count; wau++) {
+        const sts_match_record *one = &first->history[wau], *other = &second->history[wau];
+
+        if (one->won != other->won || one->rounds_won != other->rounds_won || one->rounds_lost != other->rounds_lost
+            || one->opponent != other->opponent || one->pending != other->pending
+            || one->added_count != other->added_count || one->removed_count != other->removed_count
+            || memcmp(one->added, other->added, one->added_count * sizeof one->added[0]) != 0
+            || memcmp(one->removed, other->removed, one->removed_count * sizeof one->removed[0]) != 0)
+            return 0;
+    }
     return 1;
 }
 
@@ -617,14 +660,14 @@ static void test_save_round_trip(sts_run *run)
     CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
     CHECK(loaded.phase == STS_PHASE_READY && sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
 
-    CHECK(sts_run_begin_reward(run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     count = sts_run_serialize(run, text, sizeof text);
     CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(run, &loaded));
     CHECK(loaded.phase == STS_PHASE_REWARD && sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
 
     loaded = *run;
-    CHECK(sts_run_begin_reward(&loaded, &g_db, &settings, 0, &out) == STS_RUN_OK);
-    CHECK(sts_run_begin_reward(&loaded, &g_db, &settings, 1, &out) == STS_RUN_OK);
+    CHECK(begin_reward(&loaded, &g_db, &settings, 0, &out) == STS_RUN_OK);
+    CHECK(begin_reward(&loaded, &g_db, &settings, 1, &out) == STS_RUN_OK);
     {
         static sts_run owed;
         count = sts_run_serialize(&loaded, text, sizeof text);
@@ -654,6 +697,28 @@ static void test_save_limits(const sts_run *run)
         other.offers[pick].id = 0xFFFF;
         other.offers[pick].type = STS_CARD_SPELL;
         other.offers[pick].copies = STS_MAX_DECK;
+    }
+    other.seed = 0xFFFFFFFFFFFFFFFFull;
+    other.restarts = 1000000000;
+    other.offer_frames = 1000000000;
+    other.has_rules = 1;
+    sts_settings_defaults(&other.rules);
+    other.rules.reward.replace = STS_REPLACE_BY_TYPE;   /* the longest value */
+    other.history_count = STS_RUN_HISTORY_MAX;
+    other.history_forgotten = 1000000000;
+    for (pick = 0; pick < STS_RUN_HISTORY_MAX; pick++) {
+        sts_match_record *record = &other.history[pick];
+        int card;
+
+        record->won = 1;
+        record->rounds_won = 255;
+        record->rounds_lost = 255;
+        record->opponent = STS_NUM_CHARACTERS - 1;
+        record->pending = 1;
+        record->added_count = STS_RUN_CHANGE_MAX;
+        record->removed_count = STS_RUN_CHANGE_MAX;
+        for (card = 0; card < STS_RUN_CHANGE_MAX; card++)
+            record->added[card] = record->removed[card] = 0xFFFF;
     }
     count = sts_run_serialize(&other, text, sizeof text);
     CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK && runs_equal(&other, &loaded));
@@ -697,6 +762,28 @@ static void test_save_text(const sts_run *run)
         check = sts_fnv1a(STS_FNV_START, broken, body);
         written_length = body + (size_t)sprintf(broken + body, "check %08x\n", (unsigned)check);
         CHECK(sts_run_parse(broken, written_length, &loaded) == STS_RUN_BAD_VERSION);
+    }
+
+    /* A version 2 save, from before the seed, rules and history, loads without them. */
+    {
+        uint32_t check;
+        size_t body, written_length;
+        char *seed_line;
+        static sts_run old;
+
+        memcpy(broken, text, count);
+        broken[count] = 0;
+        broken[8] = '2';
+        seed_line = strstr(broken, "seed ");
+        CHECK(seed_line != NULL);
+        if (seed_line) {
+            body = (size_t)(seed_line - broken);
+            check = sts_fnv1a(STS_FNV_START, broken, body);
+            written_length = body + (size_t)sprintf(broken + body, "check %08x\n", (unsigned)check);
+            CHECK(sts_run_parse(broken, written_length, &old) == STS_RUN_OK);
+            CHECK(old.owed_count == run->owed_count && old.deck.count == run->deck.count && old.seed == 0);
+            CHECK(!old.has_rules && !sts_run_rules_restorable(&old) && old.history_count == 0 && old.restarts == 0);
+        }
     }
 
     /* A version 1 save, from before owed rewards, loads with none owed. */
@@ -826,9 +913,154 @@ static void test_save_files(const sts_run *run)
     CHECK(strcmp(sts_run_status_str(STS_RUN_DAMAGED), "save file is damaged") == 0);
 }
 
+/* 1 if the record holds `copies` copies of id, and nothing else, among the cards that came in. */
+static int added_only(const sts_match_record *record, uint16_t id, int copies)
+{
+    int wau;
+
+    if (record->added_count != copies)
+        return 0;
+    for (wau = 0; wau < record->added_count; wau++)
+        if (record->added[wau] != id)
+            return 0;
+    return 1;
+}
+
+static int save_and_load(const sts_run *run, sts_run *loaded)
+{
+    static char text[STS_RUN_TEXT_MAX];
+    size_t count = sts_run_serialize(run, text, sizeof text);
+
+    return count > 0 && sts_run_parse(text, count, loaded) == STS_RUN_OK && runs_equal(run, loaded);
+}
+
+/* Each match joins the history, and what its reward changed is filled in once it is settled,
+ * oldest first. */
+static void test_history(void)
+{
+    static sts_run run, loaded, other;
+    sts_settings settings, winner, automatic;
+    sts_reward_outcome out;
+    sts_match_result result;
+    sts_deck before;
+    sts_offer offer;
+    int wau;
+
+    sts_settings_defaults(&settings);
+    settings.reward.replace = STS_REPLACE_RANDOM;
+    ready_run(&run, &settings, 3, 91);
+    CHECK(run.history_count == 0 && run.history_forgotten == 0 && run.seed == 91 && run.restarts == 0);
+    CHECK(run.has_rules && sts_settings_hash(&run.rules) == run.settings_hash && sts_run_rules_restorable(&run));
+
+    /* A match with offers waits, pending, and so does a match owed behind it. */
+    result.won = 1;
+    result.rounds_won = 2;
+    result.rounds_lost = 1;
+    result.opponent = 14;
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, &result, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(run.history_count == 1 && run.history[0].pending && run.history[0].won == 1);
+    CHECK(run.history[0].rounds_won == 2 && run.history[0].rounds_lost == 1 && run.history[0].opponent == 14);
+    result.won = 0;
+    result.rounds_won = 0;
+    result.rounds_lost = 2;
+    result.opponent = 99;   /* not a character, so not known */
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, &result, &out) == STS_RUN_OK);
+    CHECK(run.history_count == 2 && run.history[1].pending && run.history[1].opponent == -1 && run.history[1].won == 0);
+    CHECK(sts_run_begin_reward(&run, &g_db, &settings, NULL, &out) == STS_RUN_BAD_ARGUMENT && run.history_count == 2);
+    CHECK(save_and_load(&run, &loaded) && sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
+
+    /* Taking the offer settles the first match with its swap; the owed one is still to come. */
+    before = run.deck;
+    offer = run.offers[0];
+    CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK && run.phase == STS_PHASE_REWARD);
+    CHECK(!run.history[0].pending && run.history[1].pending);
+    CHECK(added_only(&run.history[0], offer.id, offer.copies) && run.history[0].removed_count == offer.copies);
+    for (wau = 0; wau < run.history[0].removed_count; wau++)
+        CHECK(sts_deck_count_of(&before, run.history[0].removed[wau]) > 0 && run.history[0].removed[wau] != offer.id);
+    CHECK(run.deck.count == before.count);
+    offer = run.offers[1];
+    CHECK(sts_run_reward_pick(&run, &g_db, &settings, 1, NULL) == STS_RUN_OK && run.phase == STS_PHASE_READY);
+    CHECK(!run.history[1].pending && added_only(&run.history[1], offer.id, offer.copies));
+    CHECK(save_and_load(&run, &loaded) && sts_run_validate(&loaded, &g_db, &settings) == STS_RUN_OK);
+
+    /* A match with no offer is settled at once, with no change. An endless run remembers its
+     * last STS_RUN_HISTORY_MAX matches. */
+    winner = settings;
+    winner.who_picks = STS_WHO_WINNER;
+    ready_run(&run, &winner, 3, 92);
+    for (wau = 0; wau < STS_RUN_HISTORY_MAX + 5; wau++) {
+        result.won = 0;
+        result.rounds_won = wau % 2;
+        result.rounds_lost = wau;   /* not a real score: tells the records apart */
+        result.opponent = wau % STS_NUM_CHARACTERS;
+        CHECK(sts_run_begin_reward(&run, &g_db, &winner, &result, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+    }
+    CHECK(run.history_count == STS_RUN_HISTORY_MAX && run.history_forgotten == 5 && run.matches_played == 105);
+    CHECK(run.history[0].rounds_lost == 5 && run.history[STS_RUN_HISTORY_MAX - 1].rounds_lost == 104);
+    CHECK(!run.history[0].pending && run.history[0].added_count == 0 && run.history[0].removed_count == 0);
+    CHECK(save_and_load(&run, &loaded) && sts_run_validate(&loaded, &g_db, &winner) == STS_RUN_OK);
+
+    /* A change with nothing to choose is settled at once too. */
+    automatic = settings;
+    automatic.offer_pick = STS_OFFER_PICK_RANDOM;
+    ready_run(&run, &automatic, 3, 93);
+    CHECK(begin_reward(&run, &g_db, &automatic, 1, &out) == STS_RUN_OK && out == STS_REWARD_AUTO);
+    CHECK(run.history_count == 1 && !run.history[0].pending && run.history[0].added_count > 0
+          && run.history[0].added_count == run.history[0].removed_count && run.history[0].opponent == 1);
+
+    /* A finished run keeps its history, carries no offers and takes no more matches. */
+    other = run;
+    other.phase = STS_PHASE_FINISHED;
+    CHECK(sts_run_validate(&other, &g_db, &automatic) == STS_RUN_OK);
+    CHECK(save_and_load(&other, &loaded) && loaded.phase == STS_PHASE_FINISHED);
+    CHECK(begin_reward(&other, &g_db, &automatic, 1, &out) == STS_RUN_WRONG_PHASE && other.history_count == 1);
+    other.offer_count = 1;
+    CHECK(sts_run_validate(&other, &g_db, &automatic) == STS_RUN_ILLEGAL);
+
+    /* A draft has played no matches. */
+    CHECK(sts_run_start(&other, &g_db, &settings, 3, 94) == STS_RUN_OK);
+    other.history_count = 1;
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+    other.history_count = 0;
+    other.history_forgotten = 1;
+    CHECK(sts_run_validate(&other, &g_db, &settings) == STS_RUN_ILLEGAL);
+}
+
+/* A run saves the rules it was made under, so they can be put back; adopting new rules replaces them. */
+static void test_saved_rules(void)
+{
+    static sts_run run, loaded;
+    sts_settings settings, changed;
+    int line = 0;
+
+    CHECK(parse_ini("[reward]\nwho_picks=random\nrandom_chance=25\nreplacement=random\n", &settings, &line)
+          == STS_SETTINGS_OK);
+    ready_run(&run, &settings, 9, 95);
+    CHECK(save_and_load(&run, &loaded) && loaded.has_rules && sts_run_rules_restorable(&loaded));
+    CHECK(loaded.rules.who_picks == STS_WHO_RANDOM && loaded.rules.random_chance == 25);
+    CHECK(sts_settings_hash(&loaded.rules) == sts_settings_hash(&settings));
+
+    changed = settings;
+    changed.reward.offer_count = 2;
+    CHECK(sts_run_validate(&loaded, &g_db, &changed) == STS_RUN_SETTINGS_CHANGED);
+    CHECK(sts_run_adopt_rules(&loaded, &g_db, &changed) == STS_RUN_OK);
+    CHECK(loaded.rules.reward.offer_count == 2 && sts_run_rules_restorable(&loaded));
+
+    /* Rules that no longer give the run's fingerprint, as when the built-in starter changes. */
+    loaded.settings_hash ^= 1;
+    CHECK(!sts_run_rules_restorable(&loaded));
+    loaded.settings_hash ^= 1;
+    loaded.has_rules = 0;
+    CHECK(!sts_run_rules_restorable(&loaded));
+    CHECK(save_and_load(&loaded, &run) && !run.has_rules);
+}
+
 void test_run_save(void)
 {
     static sts_run run;
+
+    test_history();
+    test_saved_rules();
 
     test_save_round_trip(&run);
     test_save_limits(&run);
@@ -872,7 +1104,7 @@ void test_run_endurance(void)
                 uint16_t remove_ids[4];
                 int k, deck_position;
 
-                if (sts_run_begin_reward(&run, &g_db, &settings, match & 1, &out) != STS_RUN_OK)
+                if (begin_reward(&run, &g_db, &settings, match & 1, &out) != STS_RUN_OK)
                     violations++;
 
                 /* Quit and reload with offers on screen. */
@@ -946,7 +1178,7 @@ void test_run_adopt_rules(void)
 
     /* Offers that are still possible stay, whatever else changed: no free reroll. */
     run = before;
-    CHECK(sts_run_begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
     before = run;
     changed = settings;
     changed.reward.replace = STS_REPLACE_RANDOM;

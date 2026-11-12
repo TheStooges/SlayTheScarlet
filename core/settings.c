@@ -939,6 +939,64 @@ int sts_settings_equal(const sts_settings *first, const sts_settings *second)
     return 1;
 }
 
+/* Settings that say how to play rather than being rules, so a run does not save them. */
+static int is_rule_key(int index)
+{
+    return !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
+        && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "allow_rule_changes") == 0);
+}
+
+/* The index of the index-th rule in g_keys, or -1. */
+static int rule_key_index(int index)
+{
+    int wau;
+
+    for (wau = 0; wau < KEY_COUNT; wau++)
+        if (is_rule_key(wau) && index-- == 0)
+            return wau;
+    return -1;
+}
+
+int sts_settings_rule_count(void)
+{
+    int wau, count = 0;
+
+    for (wau = 0; wau < KEY_COUNT; wau++)
+        count += is_rule_key(wau);
+    return count;
+}
+
+int sts_settings_rule_text(const sts_settings *settings, int index, char *out, size_t size)
+{
+    char value[VALUE_SIZE];
+    int key = rule_key_index(index);
+    int written;
+
+    if (key < 0 || !sts_settings_get(settings, g_keys[key].section, g_keys[key].key, value, sizeof value))
+        return 0;
+    written = snprintf(out, size, "%s.%s=%s", g_keys[key].section, g_keys[key].key, value);
+    return written > 0 && (size_t)written < size;
+}
+
+sts_settings_status sts_settings_set_rule(sts_settings *settings, const char *text)
+{
+    const char *dot = strchr(text, '.');
+    const char *equals = dot ? strchr(dot, '=') : NULL;
+    char section[KEY_NAME_SIZE], key[KEY_NAME_SIZE];
+    int wau;
+
+    if (!dot || !equals || (size_t)(dot - text) >= sizeof section || (size_t)(equals - dot - 1) >= sizeof key)
+        return STS_SETTINGS_UNKNOWN_KEY;
+    memcpy(section, text, (size_t)(dot - text));
+    section[dot - text] = 0;
+    memcpy(key, dot + 1, (size_t)(equals - dot - 1));
+    key[equals - dot - 1] = 0;
+    for (wau = 0; wau < KEY_COUNT; wau++)
+        if (is_rule_key(wau) && strcmp(g_keys[wau].section, section) == 0 && strcmp(g_keys[wau].key, key) == 0)
+            return sts_settings_set(settings, section, key, equals + 1);
+    return STS_SETTINGS_UNKNOWN_KEY;
+}
+
 /* One line of the text being rewritten: [start, end) without the newline, next is where the
  * following line starts. */
 typedef struct {

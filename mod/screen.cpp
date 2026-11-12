@@ -122,9 +122,9 @@ void maybe_start_reward(void)
          * menu and the player reconnected from there. This match's reward waits behind it, and
          * comes up once it is taken. */
         if (new_match && on_reward_screen() && g_run.character == g_active_character) {
-            status = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+            status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
             slog("reward: won %d, owed behind the offer on screen, status %s, owed %d",
-                 g_match_won, sts_run_status_str(status), g_run.owed_count);
+                 g_match_result.won, sts_run_status_str(status), g_run.owed_count);
             if (status == STS_RUN_OK)
                 save_run();
             g_dirty = 1;
@@ -148,10 +148,10 @@ void maybe_start_reward(void)
         sts_deck before = g_run.deck;
 
         /* An offer still waiting from before is shown again, and this match's reward is owed. */
-        status = sts_run_begin_reward(&g_run, &g_db, &g_settings, g_match_won, &outcome);
+        status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
         if (outcome == STS_REWARD_AUTO)
             describe_deck_change(&before);
-        slog("reward: won %d, status %s, outcome %d, owed %d", g_match_won, sts_run_status_str(status),
+        slog("reward: won %d, status %s, outcome %d, owed %d", g_match_result.won, sts_run_status_str(status),
              (int)outcome, g_run.owed_count);
         if (status != STS_RUN_OK)
             return;

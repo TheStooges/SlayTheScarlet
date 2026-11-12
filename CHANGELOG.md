@@ -10,6 +10,9 @@ What changed in each release of Slay the Scarlet. Releases are on the
 - The card table and the Japanese translation are now built into `SlayTheScarlet.dll`, so the zip
   holds only the DLL, `settings.ini`, and the documents. When updating, `cards.csv` and the `lang`
   folder from an older release can be deleted; the mod no longer reads them.
+- Runs now remember each match (won or lost, the rounds, the opponent, and what the reward changed)
+  and the rules they were made under, for features coming in this release. Runs from older releases
+  still load. Once saved by this release, a run cannot be loaded by an older one.
 
 ## 0.3.2 - 2026-11-11
 

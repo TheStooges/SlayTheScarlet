@@ -4,9 +4,11 @@
 #include "run.h"
 #include "util.h"
 
-#define RUN_FORMAT_VERSION 2   /* 2 added the owed line; version 1 saves still load */
+/* 2 added the owed line; 3 the seed, restarts, offer time, rules and history. Versions 1 and 2 still
+ * load. */
+#define RUN_FORMAT_VERSION 3
 #define CHECK_LINE_SIZE 15   /* "check " + 8 hex digits + newline */
-#define MAX_TOKEN 24
+#define MAX_TOKEN 64         /* the longest is a rule, such as "reward.replacement=by_type" */
 
 const char *sts_run_status_str(sts_run_status status)
 {
@@ -32,6 +34,74 @@ static void roll_offers(sts_run *run, const sts_card_db *db, const sts_rules *ru
     int count = sts_offer_generate(db, run->character, &run->deck, rules, cfg, &run->rng, run->offers, STS_OFFER_MAX);
 
     run->offer_count = count > 0 ? count : 0;
+    run->offer_frames = 0;
+}
+
+/* ---------- history ---------- */
+
+static int copies_in(const sts_deck *deck, uint16_t id)
+{
+    int wau, count = 0;
+
+    for (wau = 0; wau < deck->count; wau++)
+        count += deck->ids[wau] == id;
+    return count;
+}
+
+/* Lists, in out, each card with more copies in the deck `more` than in `fewer`, once per extra copy. */
+static int cards_gained(const sts_deck *more, const sts_deck *fewer, uint16_t *out)
+{
+    int wau, earlier, count = 0;
+
+    for (wau = 0; wau < more->count; wau++) {
+        uint16_t id = more->ids[wau];
+        int extra;
+
+        for (earlier = 0; earlier < wau; earlier++)
+            if (more->ids[earlier] == id)
+                break;
+        if (earlier < wau)
+            continue;   /* counted already */
+        for (extra = copies_in(more, id) - copies_in(fewer, id); extra > 0 && count < STS_RUN_CHANGE_MAX; extra--)
+            out[count++] = id;
+    }
+    return count;
+}
+
+static void add_to_history(sts_run *run, const sts_match_result *result)
+{
+    sts_match_record *record;
+
+    if (run->history_count == STS_RUN_HISTORY_MAX) {
+        memmove(run->history, run->history + 1, sizeof run->history[0] * (STS_RUN_HISTORY_MAX - 1));
+        run->history_count--;
+        run->history_forgotten++;
+    }
+    record = &run->history[run->history_count++];
+    memset(record, 0, sizeof *record);
+    record->won = (uint8_t)(result->won != 0);
+    record->rounds_won = (uint8_t)(result->rounds_won < 0 ? 0 : result->rounds_won > 255 ? 255 : result->rounds_won);
+    record->rounds_lost = (uint8_t)(result->rounds_lost < 0 ? 0 : result->rounds_lost > 255 ? 255 : result->rounds_lost);
+    record->opponent = (int8_t)(result->opponent >= 0 && result->opponent < STS_NUM_CHARACTERS ? result->opponent : -1);
+    record->pending = 1;
+}
+
+/* A match's reward is settled: records what it changed, from the deck as it was before. Rewards are
+ * settled oldest first, so it belongs to the oldest match still pending. */
+static void settle_reward(sts_run *run, const sts_deck *before)
+{
+    int wau;
+
+    for (wau = 0; wau < run->history_count; wau++) {
+        sts_match_record *record = &run->history[wau];
+
+        if (record->pending) {
+            record->pending = 0;
+            record->added_count = (uint8_t)cards_gained(&run->deck, before, record->added);
+            record->removed_count = (uint8_t)cards_gained(before, &run->deck, record->removed);
+            return;
+        }
+    }
 }
 
 /* Rolls the next draft offers or finishes the draft, which ends when the deck reaches size_min. */
@@ -43,6 +113,7 @@ static sts_run_status advance_draft(sts_run *run, const sts_card_db *db, const s
             return STS_RUN_OK;
     }
     run->offer_count = 0;
+    run->offer_frames = 0;
     if (sts_deck_validate(&run->deck, &settings->rules, NULL) != STS_DECK_OK)
         return STS_RUN_STUCK;
     run->phase = STS_PHASE_READY;
@@ -58,6 +129,9 @@ sts_run_status sts_run_start(sts_run *run, const sts_card_db *db, const sts_sett
     run->settings_hash = sts_settings_hash(settings);
     run->character = character;
     run->phase = STS_PHASE_DRAFT;
+    run->seed = seed;
+    run->has_rules = 1;
+    run->rules = *settings;
     sts_rng_seed(&run->rng, seed, (uint64_t)character);
     sts_settings_starter(settings, character, &run->deck);
     if (!sts_deck_cards_legal(db, character, &run->deck, NULL))
@@ -135,9 +209,9 @@ static void keep_one_offer_at_random(sts_run *run)
     run->offer_count = 1;
 }
 
-/* The reward for one match, from READY. */
-static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_settings *settings,
-                             int won, sts_reward_outcome *outcome)
+/* The reward for one match, from READY, before it is recorded. */
+static void decide_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
+                          int won, sts_reward_outcome *outcome)
 {
     int gets_offer;
 
@@ -173,6 +247,17 @@ static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_sett
     *outcome = STS_REWARD_OFFERS;
 }
 
+/* The reward for one match, from READY. Unless offers wait, it is settled at once. */
+static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_settings *settings,
+                             int won, sts_reward_outcome *outcome)
+{
+    sts_deck before = run->deck;
+
+    decide_reward(run, db, settings, won, outcome);
+    if (*outcome != STS_REWARD_OFFERS)
+        settle_reward(run, &before);
+}
+
 /* From READY: starts owed rewards, oldest first, until one gives offers or none are left. */
 static void start_owed_rewards(sts_run *run, const sts_card_db *db, const sts_settings *settings)
 {
@@ -188,34 +273,42 @@ static void start_owed_rewards(sts_run *run, const sts_card_db *db, const sts_se
 }
 
 sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
-                                    int won, sts_reward_outcome *outcome)
+                                    const sts_match_result *result, sts_reward_outcome *outcome)
 {
     *outcome = STS_REWARD_NONE;
+    if (!result)
+        return STS_RUN_BAD_ARGUMENT;
     if (run->phase == STS_PHASE_REWARD) {
         if (run->owed_count >= STS_RUN_OWED_MAX)
             return STS_RUN_WRONG_PHASE;
         run->matches_played++;
-        run->owed_won[run->owed_count++] = (uint8_t)(won != 0);
+        add_to_history(run, result);
+        run->owed_won[run->owed_count++] = (uint8_t)(result->won != 0);
         *outcome = STS_REWARD_OFFERS;
         return STS_RUN_OK;
     }
     if (run->phase != STS_PHASE_READY)
         return STS_RUN_WRONG_PHASE;
     run->matches_played++;
-    reward_for_match(run, db, settings, won, outcome);
+    add_to_history(run, result);
+    reward_for_match(run, db, settings, result->won, outcome);
     return STS_RUN_OK;
 }
 
 sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                    int index, const sts_replace_choice *choice)
 {
+    sts_deck before = run->deck;
+
     if (run->phase != STS_PHASE_REWARD)
         return STS_RUN_WRONG_PHASE;
     if (index < 0 || index >= run->offer_count)
         return STS_RUN_BAD_INDEX;
     if (apply_reward(run, db, settings, &run->offers[index], settings->reward.replace, choice) != STS_APPLY_OK)
         return STS_RUN_BAD_CHOICE;
+    settle_reward(run, &before);
     run->offer_count = 0;
+    run->offer_frames = 0;
     run->phase = STS_PHASE_READY;
     start_owed_rewards(run, db, settings);
     return STS_RUN_OK;
@@ -229,6 +322,7 @@ static const char *phase_name(sts_run_phase phase)
     case STS_PHASE_DRAFT:  return "draft";
     case STS_PHASE_READY:  return "ready";
     case STS_PHASE_REWARD: return "reward";
+    case STS_PHASE_FINISHED: return "finished";
     }
     return "?";
 }
@@ -268,6 +362,40 @@ size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
     for (wau = 0; wau < run->owed_count; wau++)
         PUT(" %d", (int)run->owed_won[wau]);
     PUT("\n");
+    PUT("seed %08x %08x\n", (unsigned)(run->seed >> 32), (unsigned)(run->seed & 0xFFFFFFFFu));
+    PUT("restarts %d\n", run->restarts);
+    PUT("offer_frames %d\n", run->offer_frames);
+    if (run->has_rules) {
+        int count = sts_settings_rule_count();
+
+        PUT("rules %d", count);
+        for (wau = 0; wau < count; wau++) {
+            char rule[MAX_TOKEN];
+
+            if (!sts_settings_rule_text(&run->rules, wau, rule, sizeof rule))
+                return 0;
+            PUT(" %s", rule);
+        }
+        PUT("\n");
+    } else {
+        PUT("rules 0\n");
+    }
+    /* One line per match: won, rounds won and lost, opponent + 1 (0 if not known), pending, then
+     * the cards that came in and the cards that left, each as a count and the IDs. */
+    PUT("history %d %d\n", run->history_count, run->history_forgotten);
+    for (wau = 0; wau < run->history_count; wau++) {
+        const sts_match_record *record = &run->history[wau];
+        int card;
+
+        PUT("match %d %d %d %d %d %d", (int)record->won, (int)record->rounds_won, (int)record->rounds_lost,
+            record->opponent + 1, (int)record->pending, (int)record->added_count);
+        for (card = 0; card < record->added_count; card++)
+            PUT(" %u", (unsigned)record->added[card]);
+        PUT(" %d", (int)record->removed_count);
+        for (card = 0; card < record->removed_count; card++)
+            PUT(" %u", (unsigned)record->removed[card]);
+        PUT("\n");
+    }
     check = sts_fnv1a(STS_FNV_START, buf, offset);
     PUT("check %08x\n", (unsigned)check);
 #undef PUT
@@ -339,8 +467,81 @@ static int read_phase(reader *stream, sts_run_phase *out)
         *out = STS_PHASE_READY;
     else if (strcmp(token, "reward") == 0)
         *out = STS_PHASE_REWARD;
+    else if (strcmp(token, "finished") == 0)
+        *out = STS_PHASE_FINISHED;
     else
         return 0;
+    return 1;
+}
+
+/* A count and that many card IDs. */
+static int read_cards(reader *stream, uint16_t *ids, uint8_t *count)
+{
+    int number, wau, value;
+
+    if (!read_int(stream, STS_RUN_CHANGE_MAX, &number))
+        return 0;
+    for (wau = 0; wau < number; wau++) {
+        if (!read_int(stream, 0xFFFF, &value))
+            return 0;
+        ids[wau] = (uint16_t)value;
+    }
+    *count = (uint8_t)number;
+    return 1;
+}
+
+/* The lines version 3 added. Rules this version does not know (or values it refuses) are not
+ * damage: the run just cannot put its rules back. */
+static int parse_version_3(reader *stream, sts_run *out)
+{
+    uint32_t seed_high, seed_low;
+    int count, wau, value;
+
+    if (!expect(stream, "seed") || !read_hex32(stream, &seed_high) || !read_hex32(stream, &seed_low)
+        || !expect(stream, "restarts") || !read_int(stream, 1000000000, &out->restarts)
+        || !expect(stream, "offer_frames") || !read_int(stream, 1000000000, &out->offer_frames)
+        || !expect(stream, "rules") || !read_int(stream, 1000, &count))
+        return 0;
+    out->seed = ((uint64_t)seed_high << 32) | seed_low;
+
+    sts_settings_defaults(&out->rules);
+    out->has_rules = count > 0;
+    for (wau = 0; wau < count; wau++) {
+        char rule[MAX_TOKEN];
+
+        if (!next_token(stream, rule))
+            return 0;
+        if (sts_settings_set_rule(&out->rules, rule) != STS_SETTINGS_OK)
+            out->has_rules = 0;
+    }
+    if (!out->has_rules)
+        memset(&out->rules, 0, sizeof out->rules);
+
+    if (!expect(stream, "history") || !read_int(stream, STS_RUN_HISTORY_MAX, &out->history_count)
+        || !read_int(stream, 1000000000, &out->history_forgotten))
+        return 0;
+    for (wau = 0; wau < out->history_count; wau++) {
+        sts_match_record *record = &out->history[wau];
+
+        if (!expect(stream, "match") || !read_int(stream, 1, &value))
+            return 0;
+        record->won = (uint8_t)value;
+        if (!read_int(stream, 255, &value))
+            return 0;
+        record->rounds_won = (uint8_t)value;
+        if (!read_int(stream, 255, &value))
+            return 0;
+        record->rounds_lost = (uint8_t)value;
+        if (!read_int(stream, STS_NUM_CHARACTERS, &value))
+            return 0;
+        record->opponent = (int8_t)(value - 1);
+        if (!read_int(stream, 1, &value))
+            return 0;
+        record->pending = (uint8_t)value;
+        if (!read_cards(stream, record->added, &record->added_count)
+            || !read_cards(stream, record->removed, &record->removed_count))
+            return 0;
+    }
     return 1;
 }
 
@@ -370,7 +571,7 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
     stream.end = text + body;
     if (!expect(&stream, "sts_run") || !read_int(&stream, 1000000, &version))
         return STS_RUN_DAMAGED;
-    if (version != 1 && version != RUN_FORMAT_VERSION)
+    if (version < 1 || version > RUN_FORMAT_VERSION)
         return STS_RUN_BAD_VERSION;
 
     if (!expect(&stream, "settings") || !read_hex32(&stream, &out->settings_hash)
@@ -416,6 +617,8 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
         }
         out->owed_count = count;
     }
+    if (version >= 3 && !parse_version_3(&stream, out))
+        return STS_RUN_DAMAGED;
     return STS_RUN_OK;
 }
 
@@ -496,9 +699,12 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
     if (sts_deck_validate(&run->deck, &partial, NULL) != STS_DECK_OK)
         return STS_RUN_ILLEGAL;
 
-    if (run->phase == STS_PHASE_READY && run->offer_count != 0)
+    /* Offers wait in the draft and after a match, and at no other time. */
+    if ((run->phase == STS_PHASE_DRAFT || run->phase == STS_PHASE_REWARD) != (run->offer_count != 0))
         return STS_RUN_ILLEGAL;
-    if (run->phase != STS_PHASE_READY && run->offer_count == 0)
+    if (run->history_count < 0 || run->history_count > STS_RUN_HISTORY_MAX || run->history_forgotten < 0)
+        return STS_RUN_ILLEGAL;
+    if (run->phase == STS_PHASE_DRAFT && run->history_count + run->history_forgotten > 0)
         return STS_RUN_ILLEGAL;
     if (run->owed_count < 0 || run->owed_count > STS_RUN_OWED_MAX
         || (run->owed_count > 0 && run->phase != STS_PHASE_REWARD))
@@ -519,6 +725,8 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
     int wau, offers_valid = 1;
 
     updated.settings_hash = sts_settings_hash(settings);
+    updated.has_rules = 1;
+    updated.rules = *settings;
     status = sts_run_validate(&updated, db, settings);
     if (status != STS_RUN_OK)
         return status;
@@ -535,6 +743,8 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
         } else {
             roll_offers(&updated, db, &settings->rules, cfg);
             if (updated.offer_count == 0) {
+                /* Nothing can be offered under the new rules, so this reward ends with no change. */
+                settle_reward(&updated, &updated.deck);
                 updated.phase = STS_PHASE_READY;
                 start_owed_rewards(&updated, db, settings);
             } else if (settings->offer_pick == STS_OFFER_PICK_RANDOM) {
@@ -544,4 +754,9 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
     }
     *run = updated;
     return STS_RUN_OK;
+}
+
+int sts_run_rules_restorable(const sts_run *run)
+{
+    return run->has_rules && sts_settings_hash(&run->rules) == run->settings_hash;
 }

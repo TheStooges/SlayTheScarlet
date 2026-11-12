@@ -152,7 +152,7 @@ extern int g_slot_differs;
  * to show an offer that was already waiting when the game started. */
 extern int g_match_reward_due;
 extern int g_match_new;
-extern int g_match_won;
+extern sts_match_result g_match_result;   /* the last finished match, from the run deck's side */
 extern int g_match_no_offer;
 
 /* screen.cpp */

@@ -677,6 +677,38 @@ static void test_settings_rewrite(void)
     free(shipped);
 }
 
+/* The rules a run saves: each written as section.key=value and read back, the settings that are
+ * not rules left out, and the fingerprint the same afterwards. */
+static void test_settings_rules_text(void)
+{
+    sts_settings settings, copy;
+    char text[64];
+    int wau, line = 0, count = sts_settings_rule_count();
+
+    CHECK(count > 10);
+    CHECK(parse_ini("[draft]\nshow_deck=false\ncard_types=mostly_skill\n[reward]\nwho_picks=random\n"
+                    "random_chance=75\nreplacement=by_type\noffer_pick=random\n[starter]\nenabled=true\n"
+                    "[run]\nallow_rule_changes=true\n", &settings, &line) == STS_SETTINGS_OK);
+    sts_settings_defaults(&copy);
+    for (wau = 0; wau < count; wau++) {
+        CHECK(sts_settings_rule_text(&settings, wau, text, sizeof text));
+        CHECK(strchr(text, '.') != NULL && strchr(text, '=') != NULL);
+        CHECK(strncmp(text, "draft.show_deck=", 16) != 0 && strncmp(text, "run.allow_rule_changes=", 23) != 0);
+        CHECK(sts_settings_set_rule(&copy, text) == STS_SETTINGS_OK);
+    }
+    CHECK(sts_settings_hash(&copy) == sts_settings_hash(&settings));
+    CHECK(copy.draft_show_deck == 1 && copy.allow_rule_changes == 0);   /* left as they were */
+
+    CHECK(!sts_settings_rule_text(&settings, count, text, sizeof text));
+    CHECK(!sts_settings_rule_text(&settings, 0, text, 4));
+    CHECK(sts_settings_set_rule(&copy, "draft.show_deck=true") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_set_rule(&copy, "run.allow_rule_changes=true") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_set_rule(&copy, "deck.no_such_key=1") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_set_rule(&copy, "no dot or equals") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_set_rule(&copy, "reward.random_chance=often") == STS_SETTINGS_BAD_VALUE);
+    CHECK(copy.random_chance == 75);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -691,4 +723,5 @@ void test_settings(void)
     test_settings_starter();
     test_settings_one_value();
     test_settings_rewrite();
+    test_settings_rules_text();
 }
