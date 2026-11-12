@@ -387,6 +387,16 @@ Netplay is a primary requirement. Each machine simulates both players from share
   something else in the bundle. Pick mod message IDs outside all of these.
 - **Port clash when testing on one PC:** `clientport` in `configex123.ini` must be 0 on the side that
   joins. If it matches the host's port, the two instances cannot connect.
+- **Spectating cannot be tested on one PC:** a third copy could not spectate two copies connected to
+  each other on the same machine. Spectator tests need at least one other person.
+- **Stall when testing on one PC (2026-11-11, not this mod):** after connecting, the host stopped
+  responding for about a minute before reaching character select, then carried on. It happened with
+  this mod disabled in both copies, so the cause is elsewhere (another mod, a hidden Windows prompt, or
+  the unfocused window). It went away after a restart, so it was probably something left over on the
+  PC rather than a setting. The copies also differed in `giuroll.ini` `soku2_compatibility_mode`; keep
+  it the same in both.
+- **Reward options online (v0.3.1, played by the developer):** changing the when-you-get-an-offer,
+  what-comes-in, what-leaves and copy settings in netplay worked, with no problems seen.
 - **Spectating (a modded spectator, run in use, watching two unmodded players over a real
   network, 8 matches):** the mod stayed out of it. No offer, select or result lines were logged, as
   the spectator scenes are not hooked. A spectator receives one `GAME_MATCH` per match holding BOTH
@@ -394,6 +404,15 @@ Netplay is a primary requirement. Each machine simulates both players from share
   for Y" fallback can work on a spectator from the decks alone. The spectator also sends each
   `GAME_MATCH` on with the same decks and a deck byte counting up (5, 6, 7, 8), presumably relaying
   to spectators connected through it. Mind this before sending custom messages to spectators.
+- **Spectating two modded players (v0.3.2, a real network, both with runs in use, the spectator
+  logging its scenes and requests, Japanese game):** the spectator's scenes are `LoadingWatch` then
+  `BattleWatch` (mode 6), and it sat on `LoadingWatch` for the whole offer and character select,
+  about 60 to 95 s between matches, as the developer described. Each new `GAME_MATCH` (99 bytes, both
+  decks) arrived just before its battle, numbered 1 to 4. Its replay requests read as the protocol
+  doc says (u32 frame, u8 match): the first asked for match 0 from frame 0xFFFFFFFF, then each match
+  from its start, with one reply per request (3,270 and 3,269 in match 1). The frame never went back,
+  so the catch-up replay was not seen this time. When a player disconnected, the spectator got QUIT
+  (0x0B). The player who stayed (client) took their offer after the QUIT, so the offer survived.
 - **Both players modded (v0.1, a real network, both with runs in use, 6 matches with each side as
   host):** each side sent its run deck and the other loaded exactly that deck in every match. Both got
   offers (`who_picks=both`), and the changed deck reached the opponent in the next match, including
