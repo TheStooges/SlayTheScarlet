@@ -46,6 +46,17 @@ static sts_deck g_final_deck;            /* the run's own deck, while g_run.deck
 static void describe_deck_change(const sts_deck *before);
 static void clear_deck_change(void);
 
+/* After a reward the deck screen shows the change, and with a time limit moves on by itself after
+ * this long, as if the confirm button were pressed. */
+#define DECK_SCREEN_FRAMES (15 * 60)
+static int g_deck_frames_left = 0;
+
+/* With a time limit, the deck screen after a reward moves on by itself. */
+static void start_deck_timer(void)
+{
+    g_deck_frames_left = g_settings.time_limit > 0 ? DECK_SCREEN_FRAMES : 0;
+}
+
 void set_error(const char *what, const char *detail)
 {
     _snprintf(g_error, sizeof g_error - 1, "%s: %s", what, detail);
@@ -204,6 +215,8 @@ void maybe_start_reward(void)
     g_status[0] = 0;
     g_close_after_deck = 1;
     enter_phase();
+    if (g_state == ST_DECK)
+        start_deck_timer();
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
@@ -244,6 +257,8 @@ static void clear_deck_change(void)
 }
 
 /* Applies the chosen offer and shows the new deck. */
+static void after_reward_taken(const sts_deck *before);
+
 static void commit_reward(const sts_replace_choice *choice)
 {
     sts_deck before = g_run.deck;
@@ -255,23 +270,101 @@ static void commit_reward(const sts_replace_choice *choice)
         return;
     }
     slog("reward taken: card %u", (unsigned)g_run.offers[g_pending_offer].id);
+    after_reward_taken(&before);
+}
+
+/* The time limit ran out: the choices made so far are kept and the rest made at random. */
+static void time_out_reward(void)
+{
+    static int failed = 0;
+    uint16_t ids[MAX_DECK_ART];
+    sts_deck before = g_run.deck;
+    int wau, count = 0, index = -1;
+    sts_run_status status;
+
+    if (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE)
+        index = g_pending_offer;
+    if (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM)
+        for (wau = 0; wau < g_run.deck.count && wau < MAX_DECK_ART; wau++)
+            if (g_selected[wau])
+                ids[count++] = g_run.deck.ids[wau];
+    status = sts_run_reward_time_out(&g_run, &g_db, &g_settings, index, ids, count, -1);
+    if (status != STS_RUN_OK) {
+        /* Not expected, as offers are only made if they can be taken. Once, so it is not every frame. */
+        if (!failed)
+            slog("time ran out, but the reward could not be taken at random: %s", sts_run_status_str(status));
+        failed = 1;
+        return;
+    }
+    failed = 0;
+    slog("time ran out: reward taken at random, %d cards had been chosen", count);
+    after_reward_taken(&before);
+}
+
+/* The same after any reward: the deck screen shows what changed, then the score or more offers. */
+static void after_reward_taken(const sts_deck *before)
+{
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     g_selected_count = 0;
-    describe_deck_change(&before);
+    describe_deck_change(before);
     save_run();
     if (g_run.phase == STS_PHASE_FINISHED) {
         /* The match owed behind this offer was the last: this change first, then the score. */
         on_run_finished();
         show_deck();
+        start_deck_timer();
         return;
     }
     if (g_run.phase == STS_PHASE_REWARD) {
         /* A reward was owed: the deck screen shows this change, then moves on to its offers. */
         slog("owed reward: new offers, %d more owed", g_run.owed_count);
         show_deck();
+        start_deck_timer();
         return;
     }
     enter_phase();
+    start_deck_timer();
+}
+
+int reward_seconds_left(void)
+{
+    int left;
+
+    if (g_settings.time_limit <= 0 || g_run.phase != STS_PHASE_REWARD || !on_reward_screen())
+        return -1;
+    left = g_settings.time_limit * 60 - g_run.offer_frames;
+    return left > 0 ? (left + 59) / 60 : 0;
+}
+
+int deck_seconds_left(void)
+{
+    return g_state == ST_DECK && g_deck_frames_left > 0 ? (g_deck_frames_left + 59) / 60 : -1;
+}
+
+static void on_deck_event(screen_event event);
+
+/* Once a frame while the mod's screen is open: the reward's clock, kept in the run so a restart
+ * goes on from where it was, and the deck screen's. */
+static void tick_timers(void)
+{
+    if (reward_seconds_left() >= 0) {
+        g_run.offer_frames++;
+        if (g_run.offer_frames % 60 == 0) {
+            save_run();
+            g_dirty = 1;
+        }
+        if (g_run.offer_frames >= g_settings.time_limit * 60)
+            time_out_reward();
+    }
+    if (g_state != ST_DECK) {
+        g_deck_frames_left = 0;
+    } else if (g_deck_frames_left > 0) {
+        g_deck_frames_left--;
+        if (g_deck_frames_left % 60 == 0)
+            g_dirty = 1;
+        if (g_deck_frames_left == 0)
+            on_deck_event(EV_CONFIRM);
+    }
 }
 
 static void commit_selected_removals(void)
@@ -1185,6 +1278,7 @@ int repeats_while_held(int held)
 
 void screen_update(const SokuLib::KeyInput &input)
 {
+    tick_timers();
     if (seed_entry_open()) {
         seed_entry_update();
         return;

@@ -160,6 +160,7 @@ void sts_settings_defaults(sts_settings *settings)
 
     settings->who_picks = STS_WHO_BOTH;
     settings->random_chance = 50;
+    settings->time_limit = STS_TIME_LIMIT_DEFAULT;
     settings->pick_visibility = STS_VISIBILITY_AFTER_CONFIRM;
     settings->opponent_deck = STS_OPPONENT_DECK_CHANGE;
     settings->items_enabled = 0;
@@ -301,6 +302,10 @@ static int find_setting(sts_settings *settings, const char *section, const char 
         }
         else if (strcmp(key, "offer_pick") == 0)
             set_ref(ref, KIND_NAMED, &settings->offer_pick, g_offer_picks, 0, 0);
+        else if (strcmp(key, "time_limit") == 0) {
+            set_ref(ref, KIND_INT, &settings->time_limit, NULL, 0, STS_TIME_LIMIT_MAX);
+            ref->step_size = STS_TIME_LIMIT_STEP;
+        }
         else if (strcmp(key, "replacement") == 0)
             set_ref(ref, KIND_NAMED, &settings->reward.replace, g_replace, 0, 0);
         else
@@ -693,6 +698,8 @@ sts_settings_problem sts_settings_check(const sts_settings *settings, sts_settin
         return STS_PROBLEM_RANDOM_CHANCE;
     if (settings->match_limit > STS_MATCH_LIMIT_MAX)
         return STS_PROBLEM_MATCH_LIMIT;
+    if (settings->time_limit > STS_TIME_LIMIT_MAX)
+        return STS_PROBLEM_TIME_LIMIT;
 
     if (settings->reward.mode != STS_REWARD_SKIP) {
         offer = check_offer(&settings->reward, rules);
@@ -724,6 +731,7 @@ const char *sts_settings_validate(const sts_settings *settings)
     case STS_PROBLEM_REWARD_SIZE:       return "reward mode add or remove needs size_min below size_max";
     case STS_PROBLEM_RANDOM_CHANCE:     return "random_chance cannot be above 100";
     case STS_PROBLEM_MATCH_LIMIT:       return "matches cannot be above 20";
+    case STS_PROBLEM_TIME_LIMIT:        return "time_limit cannot be above 90";
     case STS_PROBLEM_STARTER_TOO_BIG:
         name = sts_character_name(info.character);
         sprintf(message, "%s's starter has more cards than size_max", name);
@@ -830,6 +838,10 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     /* And endless runs keep theirs. */
     if (settings->match_limit != 0)
         hash = hash_int(hash, settings->match_limit + 2000);
+    /* The time limit changes how a reward can turn out. Hashed only when set, so runs from before it
+     * keep their fingerprint. */
+    if (settings->time_limit != STS_TIME_LIMIT_DEFAULT)
+        hash = hash_int(hash, settings->time_limit + 4000);
     /* And runs with a random seed. */
     if (settings->seed[0]) {
         hash = hash_int(hash, 3000);
@@ -850,6 +862,7 @@ static const setting_key g_keys[] = {
     {"starter", "enabled"},
     {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "random_chance"}, {"reward", "offers"}, {"reward", "copies_min"},
     {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
+    {"reward", "time_limit"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
     {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"},

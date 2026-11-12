@@ -1013,6 +1013,19 @@ static void rebuild(void)
         break;
     case ST_CLOSED:        break;
     }
+    /* The clocks, under the match number or the card count. */
+    {
+        char text[64];
+        int seconds = reward_seconds_left();
+
+        if (seconds >= 0) {
+            sprintf(text, tr("Time left: %d"), seconds);
+            add_label(text, g_font_small, 500, 40, 130, 20, seconds <= 10 ? COLOR_RED : COLOR_GOLD);
+        } else if ((seconds = deck_seconds_left()) >= 0) {
+            sprintf(text, g_run.phase == STS_PHASE_REWARD ? tr("Next offer in %d") : tr("Closes in %d"), seconds);
+            add_label(text, g_font_small, 500, 40, 130, 20, COLOR_GREY);
+        }
+    }
     /* The settings screen draws its own errors, which can be long. */
     if (g_state != ST_SETTINGS && g_state != ST_SETTINGS_CONFIRM)
         add_label(g_error, g_font_small, 20, 416, 600, 20, COLOR_RED);

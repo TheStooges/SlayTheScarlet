@@ -779,6 +779,33 @@ static void test_settings_seed(void)
     CHECK(sts_settings_set_rule(&copy, "run.seed=") == STS_SETTINGS_OK && copy.seed[0] == 0);
 }
 
+/* The reward's time limit: none by default, in the fingerprint only when set, 0 to 90 in steps of 15. */
+static void test_settings_time_limit(void)
+{
+    sts_settings settings, before;
+    int line = 0;
+
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(settings.time_limit == STS_TIME_LIMIT_DEFAULT && STS_TIME_LIMIT_DEFAULT == 0);
+    CHECK(parse_ini("[reward]\ntime_limit=0\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before));
+    CHECK(parse_ini("[reward]\ntime_limit=60\n", &settings, &line) == STS_SETTINGS_OK && settings.time_limit == 60);
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&before) && sts_settings_validate(&settings) == NULL);
+    CHECK(parse_ini("[reward]\ntime_limit=90\n", &settings, &line) == STS_SETTINGS_OK && sts_settings_validate(&settings) == NULL);
+    CHECK(parse_ini("[reward]\ntime_limit=91\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_check(&settings, NULL) == STS_PROBLEM_TIME_LIMIT && sts_settings_validate(&settings) != NULL);
+
+    sts_settings_defaults(&settings);
+    settings.time_limit = 60;
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 75);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 90);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 90);
+    settings.time_limit = 15;
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 0);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 0);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -796,4 +823,5 @@ void test_settings(void)
     test_settings_rules_text();
     test_settings_match_limit();
     test_settings_seed();
+    test_settings_time_limit();
 }

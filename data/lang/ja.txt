@@ -537,3 +537,19 @@ en=Letters, digits, - and _, up to 24, and capitals count. Empty turns the seed 
 ja=英字、数字、- と _ で24文字まで。大文字と小文字は区別されます。空にするとオフです。
 en=Enter: done   Esc: cancel   Backspace: delete
 ja=Enter: 決定   Esc: キャンセル   Backspace: 削除
+
+# Time limit
+en=Time limit
+ja=制限時間
+en=Seconds to take an offer. When it runs out, what is left is chosen at random.
+ja=報酬を選ぶまでの秒数。時間切れになると、残りはランダムに決まります。
+en=No limit: take as long as you like.
+ja=制限なし: 好きなだけ時間をかけられます。
+en=No limit
+ja=制限なし
+en=Time left: %d
+ja=残り時間: %d
+en=Next offer in %d
+ja=次の報酬まで %d
+en=Closes in %d
+ja=閉じるまで %d

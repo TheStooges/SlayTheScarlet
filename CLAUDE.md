@@ -600,7 +600,11 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    first. Details: play only once the cursor settles, so fast scrolling does not stack sounds; a
    setting to turn it off, cosmetic so not in the fingerprint (like `show_deck`). Cheaper fallback
    if it stalls: one shared game sound per card type (e.g. `SFX_SPELL_ACTIVATE` for spells).
-9. Time limit on the reward screen (after v0.2). Not needed technically (vanilla waited 28 minutes);
+9. (built for v0.4, not yet played in game) Time limit: `[reward] time_limit`, off (0) by default for now
+   (the developer's choice), 0 to 90 in steps of 15, hashed only when set. Counted in frames in the run's `offer_frames` (saved every second),
+   on every offer screen. On time-out `sts_run_reward_time_out` keeps the offer and cards already
+   chosen and rolls the rest from the run's RNG. With a limit, the deck screen after a reward moves on
+   by itself after 15 s (not saved; it only shows a change already made). Original plan: Not needed technically (vanilla waited 28 minutes);
    it keeps the opponent from waiting on a black screen. A setting, e.g. `[reward] time_limit`
    in seconds, 0 = none and the default, part of the fingerprint (it changes how a reward can turn
    out). On time-out, keep any choices already made and make the rest at random: the offer, then

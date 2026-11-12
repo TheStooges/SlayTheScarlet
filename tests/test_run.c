@@ -1193,9 +1193,87 @@ static void test_set_seed(void)
     CHECK(!decks_equal(&first.deck, &again.deck));
 }
 
+/* Copies of id the deck lost between before and after. */
+static int lost_copies(const sts_deck *before, const sts_deck *after, uint16_t id)
+{
+    return sts_deck_count_of(before, id) - sts_deck_count_of(after, id);
+}
+
+/* When time runs out, what is left to choose is chosen at random, the same way on every restart. */
+static void test_reward_time_out(void)
+{
+    static sts_run run, again;
+    sts_settings settings;
+    sts_reward_outcome out;
+    sts_deck before;
+    sts_offer offer;
+    uint16_t chosen[2];
+    int wau, lost, line = 0;
+
+    /* Nothing chosen and the swap is random: an offer is taken at random, as on restart. */
+    CHECK(parse_ini("[reward]\nreplacement=random\n", &settings, &line) == STS_SETTINGS_OK);
+    ready_run(&run, &settings, 2, 130);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    again = run;
+    CHECK(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_OK && run.phase == STS_PHASE_READY);
+    CHECK(sts_run_reward_time_out(&again, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_OK);
+    CHECK(decks_equal(&run.deck, &again.deck) && run.history[0].added_count == 1);
+    CHECK(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_WRONG_PHASE);
+
+    /* By choice, two copies: one card chosen before time ran out leaves, and a random one with it. */
+    CHECK(parse_ini("[reward]\nreplacement=choose\ncopies_min=2\ncopies_max=2\n", &settings, &line) == STS_SETTINGS_OK);
+    ready_run(&run, &settings, 2, 131);
+    CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    offer = run.offers[1];
+    for (wau = 0; wau < run.deck.count && run.deck.ids[wau] == offer.id; wau++)
+        ;
+    chosen[0] = run.deck.ids[wau];
+    before = run.deck;
+    again = run;
+    /* The card coming in cannot be one of those chosen, and nothing changes. */
+    chosen[1] = offer.id;
+    CHECK(sts_run_reward_time_out(&again, &g_db, &settings, 1, chosen + 1, 1, -1) == STS_RUN_BAD_CHOICE);
+    CHECK(again.phase == STS_PHASE_REWARD && decks_equal(&again.deck, &before));
+    CHECK(sts_run_reward_time_out(&run, &g_db, &settings, 1, chosen, 1, -1) == STS_RUN_OK && run.phase == STS_PHASE_READY);
+    CHECK(run.deck.count == before.count && lost_copies(&before, &run.deck, chosen[0]) >= 1);
+    CHECK(sts_deck_count_of(&run.deck, offer.id) == sts_deck_count_of(&before, offer.id) + 2);
+    lost = 0;
+    for (wau = 0; wau < run.history[0].removed_count; wau++)
+        lost += run.history[0].removed[wau] != offer.id;
+    CHECK(lost == 2 && run.history[0].removed_count == 2);
+
+    /* Nothing chosen: two random cards leave, never the one coming in. */
+    for (wau = 0; wau < 20; wau++) {
+        ready_run(&run, &settings, 2, (uint64_t)(140 + wau));
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+        offer = run.offers[0];
+        before = run.deck;
+        CHECK(sts_run_reward_time_out(&run, &g_db, &settings, 0, NULL, 0, -1) == STS_RUN_OK);
+        CHECK(sts_deck_count_of(&run.deck, offer.id) == sts_deck_count_of(&before, offer.id) + 2);
+        CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+    }
+
+    /* By type: the type chosen leaves, or a random type that can. */
+    CHECK(parse_ini("[reward]\nreplacement=by_type\n", &settings, &line) == STS_SETTINGS_OK);
+    for (wau = 0; wau < 20; wau++) {
+        int type = wau % 2 ? -1 : STS_CARD_SYSTEM;
+
+        ready_run(&run, &settings, 2, (uint64_t)(160 + wau));
+        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+        CHECK(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, type) == STS_RUN_OK);
+        CHECK(run.phase == STS_PHASE_READY && run.history[0].removed_count == 1);
+        if (type >= 0) {
+            const sts_card *card = sts_card_db_find(&g_db, 2, run.history[0].removed[0]);
+            CHECK(card && (int)card->type == type);
+        }
+    }
+}
+
 void test_run_save(void)
 {
     static sts_run run;
+
+    test_reward_time_out();
 
     test_set_seed();
 

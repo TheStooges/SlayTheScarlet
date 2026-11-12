@@ -184,6 +184,10 @@ void go_to_chooser_at(int cursor);
 /* True on the first frame a button is held, then again every few frames while it stays held, as
  * menus move while a direction is held. held counts frames, negative for left and up. */
 int repeats_while_held(int held);
+/* Seconds left to take the reward on screen, or -1 if there is no limit or no reward. */
+int reward_seconds_left(void);
+/* Seconds before the deck screen after a reward moves on by itself, or -1. */
+int deck_seconds_left(void);
 int rules_option_count(void);
 rules_option rules_option_at(int index);
 extern screen_state g_state;

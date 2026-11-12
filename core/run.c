@@ -360,6 +360,70 @@ sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const st
     return STS_RUN_OK;
 }
 
+sts_run_status sts_run_reward_time_out(sts_run *run, const sts_card_db *db, const sts_settings *settings,
+                                       int index, const uint16_t *chosen_ids, int chosen_count, int type)
+{
+    const sts_offer *offer;
+    sts_replace_choice choice;
+    uint16_t remove_ids[STS_MAX_DECK];
+    int candidates[STS_MAX_DECK];
+    int candidate_count = 0, wau, j;
+
+    if (run->phase != STS_PHASE_REWARD || run->offer_count <= 0)
+        return STS_RUN_WRONG_PHASE;
+    if (index < 0)
+        index = (int)sts_rng_below(&run->rng, (uint32_t)run->offer_count);
+    if (index >= run->offer_count)
+        return STS_RUN_BAD_INDEX;
+    offer = &run->offers[index];
+    if (settings->reward.mode != STS_REWARD_REPLACE || settings->reward.replace == STS_REPLACE_RANDOM)
+        return sts_run_reward_pick(run, db, settings, index, NULL);
+
+    memset(&choice, 0, sizeof choice);
+    if (settings->reward.replace == STS_REPLACE_BY_TYPE) {
+        unsigned mask = sts_replace_types_available(db, run->character, &run->deck, offer->id, offer->copies);
+        int types[3], type_count = 0;
+
+        if (type < 0 || !(mask & STS_TYPE_BIT(type))) {
+            for (wau = 0; wau < 3; wau++)
+                if (mask & STS_TYPE_BIT(wau))
+                    types[type_count++] = wau;
+            if (type_count == 0)
+                return STS_RUN_BAD_CHOICE;
+            type = types[sts_rng_below(&run->rng, (uint32_t)type_count)];
+        }
+        choice.type = type;
+        return sts_run_reward_pick(run, db, settings, index, &choice);
+    }
+
+    /* By choice: the cards chosen, then random others that can leave (not the card coming in, and not a
+     * copy already chosen). */
+    if (chosen_count < 0 || chosen_count > offer->copies)
+        return STS_RUN_BAD_CHOICE;
+    for (wau = 0; wau < run->deck.count; wau++)
+        if (run->deck.ids[wau] != offer->id)
+            candidates[candidate_count++] = wau;
+    for (wau = 0; wau < chosen_count; wau++) {
+        for (j = 0; j < candidate_count; j++)
+            if (run->deck.ids[candidates[j]] == chosen_ids[wau])
+                break;
+        if (j == candidate_count)
+            return STS_RUN_BAD_CHOICE;
+        remove_ids[wau] = chosen_ids[wau];
+        candidates[j] = candidates[--candidate_count];
+    }
+    for (wau = chosen_count; wau < offer->copies; wau++) {
+        if (candidate_count == 0)
+            return STS_RUN_BAD_CHOICE;
+        j = (int)sts_rng_below(&run->rng, (uint32_t)candidate_count);
+        remove_ids[wau] = run->deck.ids[candidates[j]];
+        candidates[j] = candidates[--candidate_count];
+    }
+    choice.remove_ids = remove_ids;
+    choice.remove_count = offer->copies;
+    return sts_run_reward_pick(run, db, settings, index, &choice);
+}
+
 /* ---------- save format ---------- */
 
 static const char *phase_name(sts_run_phase phase)

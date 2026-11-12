@@ -147,6 +147,14 @@ typedef struct {
 sts_run_status sts_run_reward_pick(sts_run *run, const sts_card_db *db, const sts_settings *settings,
                                    int index, const sts_replace_choice *choice);
 
+/* The time limit ran out: takes offer `index`, or one at random for -1, and chooses what is left of
+ * the reward at random from the run's random state (so a restart cannot change it). For REPLACE by
+ * choice, the cards already chosen (chosen_ids, at most the offer's copies) leave, with random others
+ * to make up the number; by type, `type` leaves, or a random type that can for -1. Otherwise as
+ * sts_run_reward_pick. */
+sts_run_status sts_run_reward_time_out(sts_run *run, const sts_card_db *db, const sts_settings *settings,
+                                       int index, const uint16_t *chosen_ids, int chosen_count, int type);
+
 /* ---------- save format ---------- */
 
 /* Big enough for the largest deck, all offers, the rules and a full history. */

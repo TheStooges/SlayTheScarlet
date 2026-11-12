@@ -73,7 +73,10 @@ look through. Deck 1 goes back to your own deck. The score can still be viewed f
 character screen, until you start the character's run over.
 
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
-new ones. There is no time limit for now.
+new ones. A time limit can be set (Settings, Rewards; off by default): when it runs out, any
+choices you made are kept and the rest are made at random, so your opponent never waits long. The
+deck screen after a reward then moves on by itself after 15 seconds. The time spent is saved, so
+closing the game does not give you more.
 
 If the connection drops during an offer, the game goes back to the title, and the offer stays on screen.
 The game's network menu appears once you have taken it.

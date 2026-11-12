@@ -18,6 +18,11 @@
 /* A set seed: up to this many letters, digits, '-' and '_', and a NUL. */
 #define STS_SEED_SIZE 25
 
+/* The reward's time limit, in seconds: the longest, the default, and its step on the settings screen. */
+#define STS_TIME_LIMIT_MAX 90
+#define STS_TIME_LIMIT_DEFAULT 0   /* no limit, for now */
+#define STS_TIME_LIMIT_STEP 15
+
 /* The longest match limit. A run's history keeps more (STS_RUN_HISTORY_MAX), so a finished run
  * always has every match. */
 #define STS_MATCH_LIMIT_MAX 20
@@ -64,6 +69,9 @@ typedef struct {
     sts_offer_settings reward;
     sts_who_picks who_picks;
     int random_chance;   /* out of 100, for STS_WHO_RANDOM */
+    /* Seconds to take a reward, 0 for no limit. When it runs out, what is left to choose is chosen at
+     * random, so an opponent never waits long. */
+    int time_limit;
     sts_offer_pick offer_pick;
     sts_pick_visibility pick_visibility;
     sts_opponent_deck opponent_deck;
@@ -126,7 +134,8 @@ typedef enum {
     STS_PROBLEM_REWARD_COPY_LIMIT,
     STS_PROBLEM_REWARD_SIZE,        /* add or remove with a fixed deck size */
     STS_PROBLEM_RANDOM_CHANCE,      /* random_chance above 100 */
-    STS_PROBLEM_MATCH_LIMIT         /* matches above STS_MATCH_LIMIT_MAX */
+    STS_PROBLEM_MATCH_LIMIT,        /* matches above STS_MATCH_LIMIT_MAX */
+    STS_PROBLEM_TIME_LIMIT          /* time_limit above STS_TIME_LIMIT_MAX */
 } sts_settings_problem;
 
 typedef struct {

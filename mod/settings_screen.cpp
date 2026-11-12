@@ -142,6 +142,9 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "choose", tr("Player chooses a card: pick one of the cards offered."));
         add_value_help(row, "random", tr("Random: one of the cards offered is picked for you."));
         add_help_line(row, tr("With \"What leaves the deck\" on Random too, the swap happens by itself."));
+        row = add_row("reward", "time_limit", tr("Time limit"),
+                      tr("Seconds to take an offer. When it runs out, what is left is chosen at random."));
+        add_value_help(row, "0", tr("No limit: take as long as you like."));
         row = add_row("reward", "replacement", tr("What leaves the deck"), NULL);
         add_value_help(row, "choose", tr("Player chooses cards: pick exactly which cards leave."));
         add_value_help(row, "by_type", tr("Player chooses a type: random cards of the chosen type leave."));
@@ -220,6 +223,8 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
         words = tr("Player chooses a card");
     else if (strcmp(row->key, "matches") == 0 && strcmp(raw, "0") == 0)
         words = tr("Endless");
+    else if (strcmp(row->key, "time_limit") == 0 && strcmp(raw, "0") == 0)
+        words = tr("No limit");
     else if (strcmp(row->key, "seed") == 0)
         words = raw[0] ? raw : tr("Off");
     else

@@ -13,6 +13,9 @@ What changed in each release of Slay the Scarlet. Releases are on the
   the ones it took out in red, and can open that deck to look through. Deck 1
   goes back to the player's own deck. A finished run's score can still be viewed from the character
   screen.
+- A time limit on rewards (Settings, Rewards; `[reward] time_limit`, up to 90 seconds, off by
+  default). When it runs out, choices already made are kept and the rest are made at random, and the
+  deck screen after a reward moves on by itself after 15 seconds.
 - A set seed for events (Settings, Runs, typed with the keyboard, or `[run] seed`; off by default,
   and capitals count). Everyone on the same
   character gets the same draft, and starting over gives the same draft back. The score screen shows
