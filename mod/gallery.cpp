@@ -60,7 +60,7 @@ static void play_card_under_cursor(int delay)
 {
     const sts_card *card = card_under_cursor();
 
-    if (card && gallery_card_shown(g_cursor))
+    if (card && gallery_card_shown(g_cursor) && g_settings.card_sounds)
         card_sounds_start(g_gallery_kind == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_gallery_character,
                           card->id, card->type, delay, 1);
     else

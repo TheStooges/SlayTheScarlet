@@ -567,6 +567,16 @@ en=%s: cards leave at random
 ja=%s: 抜けるカードをランダムに選んでいます
 en=Off: a pick made at random is shown straight away.
 ja=オフ: ランダムな選択はすぐに表示されます。
+en=Card sounds
+ja=カードの効果音
+en=On: the card under the cursor plays its sounds, on the offers and in the gallery.
+ja=オン: カーソルのカードが、報酬とギャラリーで効果音を鳴らします。
+en=Off: cards make no sounds.
+ja=オフ: カードの効果音を鳴らしません。
+en=Sounds
+ja=サウンド
+en=The sounds cards make on the mod's screens.
+ja=Modの画面でカードが鳴らす効果音。
 
 # The gallery: every card, playing its sounds
 en=Gallery

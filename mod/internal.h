@@ -112,7 +112,7 @@ typedef struct {
 } settings_row;
 #define MAX_SETTINGS_ROWS 48
 /* The settings are split into menus, listed in this order and followed by Save changes. */
-enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_COUNT };
+enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_SOUND, SETTINGS_MENU_COUNT };
 #define SETTINGS_LIST_Y 56
 #define SETTINGS_ROW_H 19
 #define SETTINGS_VISIBLE_ROWS 14
@@ -144,7 +144,8 @@ void card_sounds_start(int owner, uint16_t id, int type, int delay, int outcomes
 /* The wait before a card's sounds, on every screen that plays them: 74 frames, about 1.23 seconds. */
 #define CARD_SOUNDS_SETTLE_FRAMES 74
 /* Once a frame: on the draft and reward screens, plays the offer under the cursor once it has rested
- * there (first outcome only), and stops it on leaving them. No other run screen plays sounds. */
+ * there (first outcome only), and stops it on leaving them, unless card sounds are off in the
+ * settings (which silence the gallery too). No other run screen plays sounds. */
 void card_sounds_follow_offers(void);
 /* One of the game's shared sounds (data/se/NNN.wav), at once, loaded as the card sounds are. */
 void play_common_sound(int number);

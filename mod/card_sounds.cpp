@@ -175,7 +175,8 @@ static int g_offer_state = -1, g_offer_cursor = -1, g_offer_id = -1, g_offer_rou
 
 void card_sounds_follow_offers(void)
 {
-    int on_offers = (g_state == ST_DRAFT || g_state == ST_REWARD) && g_cursor >= 0 && g_cursor < g_run.offer_count;
+    int on_offers = g_settings.card_sounds && (g_state == ST_DRAFT || g_state == ST_REWARD) && g_cursor >= 0
+        && g_cursor < g_run.offer_count;
     /* A new set of offers (the next pick, or the next reward) counts as a change even on the same card. */
     int round = g_run.picks_done * 1000 + g_run.history_count;
 

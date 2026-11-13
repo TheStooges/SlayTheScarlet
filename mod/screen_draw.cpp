@@ -1270,8 +1270,8 @@ static void rebuild_gallery_cards(void)
     } else if (g_cursor < g_gallery_count) {
         add_card_details(character, g_gallery_cards[g_cursor].id, DECK_Y + rows * DECK_PITCH_Y + 8);
     }
-    /* A face-down card has nothing to play. */
-    if (g_cursor < g_gallery_count && !gallery_card_shown(g_cursor))
+    /* Nothing to play again on a face-down card, or with card sounds off. */
+    if ((g_cursor < g_gallery_count && !gallery_card_shown(g_cursor)) || !g_settings.card_sounds)
         sprintf(line, tr("Arrows: inspect   %s: back"), BUTTON_B);
     else
         sprintf(line, tr("Arrows: inspect   %s: play again   %s: back"), BUTTON_A, BUTTON_B);

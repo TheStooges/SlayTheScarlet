@@ -825,6 +825,26 @@ static void test_settings_roulette(void)
     CHECK(sts_settings_set_rule(&settings, "reward.roulette=true") == STS_SETTINGS_UNKNOWN_KEY);
 }
 
+/* Card sounds are only for show too: on by default, and neither in the fingerprint nor in a run's rules. */
+static void test_settings_card_sounds(void)
+{
+    sts_settings settings, before;
+    char text[64];
+    int line = 0, wau;
+
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(settings.card_sounds == 1);
+    CHECK(parse_ini("[sound]\ncard_sounds=false\n", &settings, &line) == STS_SETTINGS_OK && settings.card_sounds == 0);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before) && !sts_settings_equal(&settings, &before));
+    for (wau = 0; wau < sts_settings_rule_count(); wau++) {
+        CHECK_EACH(sts_settings_rule_text(&settings, wau, text, sizeof text));
+        CHECK_EACH(strncmp(text, "sound.card_sounds=", 18) != 0);
+    }
+    CHECK_EACH_DONE();
+    CHECK(sts_settings_set_rule(&settings, "sound.card_sounds=true") == STS_SETTINGS_UNKNOWN_KEY);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -844,4 +864,5 @@ void test_settings(void)
     test_settings_seed();
     test_settings_time_limit();
     test_settings_roulette();
+    test_settings_card_sounds();
 }

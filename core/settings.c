@@ -167,6 +167,7 @@ void sts_settings_defaults(sts_settings *settings)
     settings->allow_rule_changes = 0;
     settings->draft_show_deck = 1;
     settings->reward_roulette = 1;
+    settings->card_sounds = 1;
     default_starter(settings);
 }
 
@@ -336,6 +337,12 @@ static int find_setting(sts_settings *settings, const char *section, const char 
         set_ref(ref, KIND_BOOL, &settings->starter_enabled, g_bool, 0, 0);
         return 1;
     }
+    if (strcmp(section, "sound") == 0) {
+        if (strcmp(key, "card_sounds") != 0)
+            return 0;
+        set_ref(ref, KIND_BOOL, &settings->card_sounds, g_bool, 0, 0);
+        return 1;
+    }
     if (strcmp(section, "run") == 0) {
         if (strcmp(key, "allow_rule_changes") == 0)
             set_ref(ref, KIND_BOOL, &settings->allow_rule_changes, g_bool, 0, 0);
@@ -482,7 +489,7 @@ static int known_section(const char *name)
 {
     return strcmp(name, "deck") == 0 || strcmp(name, "draft") == 0 || strcmp(name, "reward") == 0
         || strcmp(name, "netplay") == 0 || strcmp(name, "items") == 0 || strcmp(name, "starter") == 0
-        || strcmp(name, "run") == 0;
+        || strcmp(name, "run") == 0 || strcmp(name, "sound") == 0;
 }
 
 static char *trim(char *text)
@@ -869,11 +876,12 @@ static const setting_key g_keys[] = {
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
     {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"},
+    {"sound", "card_sounds"},
 };
 #define KEY_COUNT ((int)(sizeof g_keys / sizeof g_keys[0]))
 #define KEY_NAME_SIZE 24
 
-static const char *const g_sections[] = {"deck", "draft", "starter", "reward", "netplay", "items", "run"};
+static const char *const g_sections[] = {"deck", "draft", "starter", "reward", "netplay", "items", "run", "sound"};
 #define SECTION_COUNT ((int)(sizeof g_sections / sizeof g_sections[0]))
 
 /* The index-th setting: its section, and its key copied into key. */
@@ -998,6 +1006,7 @@ static int is_rule_key(int index)
 {
     return !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
         && !(strcmp(g_keys[index].section, "reward") == 0 && strcmp(g_keys[index].key, "roulette") == 0)
+        && !(strcmp(g_keys[index].section, "sound") == 0 && strcmp(g_keys[index].key, "card_sounds") == 0)
         && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "allow_rule_changes") == 0);
 }
 

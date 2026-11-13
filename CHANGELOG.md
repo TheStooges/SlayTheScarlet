@@ -14,7 +14,9 @@ What changed in each release of Slay the Scarlet. Releases are on the
   421, 22) and spell cards by cost. The card under the cursor plays the sounds it makes in a match,
   taken from the game's own sound files; the confirm button plays them again.
 - **Card sounds on offers.** On the draft and the reward screen, the card under the cursor plays its
-  sounds once the cursor has rested on it for a moment.
+  sounds once the cursor has rested on it for a moment. "Card sounds" in a new Settings menu, Sounds
+  (or `[sound] card_sounds`), turns them off there and in the gallery; it is not a rule, so runs carry
+  on when it changes.
 
 ## 0.4 - 2026-11-13
 

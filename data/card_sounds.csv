@@ -11,26 +11,26 @@
 #   common/54 is the card-use sound of skills and system cards, and common/23 the spell card
 #   declaration: the defaults for a card with no row.
 system,0,common/55@11
-system,1,common/54@0 common/56@20
-system,2,common/54@0 common/73@59
-system,3,common/54@0
+system,1,common/56@20
+system,2,common/73@59
+system,3,common/31@0
 system,4,common/54@0
 system,5,common/54@0
 system,6,common/54@0
 system,7,common/54@0
 system,8,common/35@0 common/72@6
-system,9,common/54@0 common/36@20 common/56@20 common/36@54
+system,9,common/36@20 common/56@20 common/36@54
 system,10,common/54@0
-system,11,common/54@0 common/58@26
+system,11,common/58@26
 system,12,common/54@0
 system,13,common/35@0
-system,14,common/54@0 common/53@12
-system,15,common/54@0 common/56@20
+system,14,common/53@12
+system,15,common/56@20
 system,16,common/54@0
 system,17,common/54@0
 system,18,common/54@0
 system,19,common/54@0
-system,20,common/54@0 common/70@84 common/71@128
+system,20,common/70@84 common/71@128
 Reimu,100,reimu/4@19 reimu/26@53
 Reimu,101,reimu/21@24 reimu/5@39
 Reimu,102,reimu/6@13 reimu/6@27

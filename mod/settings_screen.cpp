@@ -92,6 +92,7 @@ const char *settings_menu_name(int menu)
     case SETTINGS_MENU_DRAFT:  return tr("Draft");
     case SETTINGS_MENU_REWARD: return tr("Rewards");
     case SETTINGS_MENU_RUN:    return tr("Runs");
+    case SETTINGS_MENU_SOUND:  return tr("Sounds");
     }
     return tr("Save changes");
 }
@@ -102,6 +103,7 @@ const char *settings_menu_help(int menu)
     case SETTINGS_MENU_DRAFT:  return tr("Building a run's deck, one card per pick until it is full: the starting deck, and what each pick offers.");
     case SETTINGS_MENU_REWARD: return tr("The card offer after each match, and what it changes in the deck.");
     case SETTINGS_MENU_RUN:    return tr("How long a run lasts, and what happens to it when the rules change.");
+    case SETTINGS_MENU_SOUND:  return tr("The sounds cards make on the mod's screens.");
     }
     return tr("Writes the changes from every menu to settings.ini.");
 }
@@ -166,6 +168,12 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"), NULL);
         add_value_help(row, "true", tr("On: a run made under other rules carries on if its deck is legal under them."));
         add_value_help(row, "false", tr("Off: a run made under other rules can only start over."));
+        break;
+    case SETTINGS_MENU_SOUND:
+        row = add_row("sound", "card_sounds", tr("Card sounds"), NULL);
+        add_value_help(row, "true", tr("On: the card under the cursor plays its sounds, on the offers and in the gallery."));
+        add_value_help(row, "false", tr("Off: cards make no sounds."));
+        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
         break;
     }
     return g_build_count;

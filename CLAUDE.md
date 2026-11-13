@@ -597,7 +597,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    the community, in code. Not chosen: per-player choice between starters (one option would
    dominate), and all default skills (uneven for Patchouli, and fixes the whole skill set).
    A deck that starts small and grows over matches still needs the deck size patch.
-8. (in progress) Card sounds on the offer screens (rewards, and the draft for consistency). Done so
+8. (done, for v0.5) Card sounds on the offer screens (rewards, and the draft for consistency). Done so
    far: `data/card_sounds.csv` has a row for every card (collected with a sound probe and
    a script, since moved out of the repo to the gitignored `reference/sound_probe/`, with a note on
    putting the probe back in the build),
@@ -610,14 +610,14 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    (`data/infoEffect/cardFaceDown`) and silent. Unlock the gallery (a row under the kinds, pressed twice) shows every card from then on (`gallery_unlocked` in `state.txt`); the row then reads Gallery unlocked, greyed out, or All cards obtained once every card is found in runs. The found counts stay true. A card's first sound plays when the cursor has rested for 74 frames, wherever it falls in the move.
    The draft and reward screens play the offer under the cursor the same way, first outcome only
    (`card_sounds_follow_offers`, once a frame from `screen_update`); no other run screen plays sounds.
-   Still to do: a setting to turn them off. Shared
+   `[sound] card_sounds` (Settings, Sounds, a menu of its own; on by default, not a rule, like the roulette) turns the sounds off, on the offers and in the gallery. Shared
    sounds named so far: 001 light hit, 006 cut, 007 heavy hit, 008 slash, 020 block, 022 wall or ground
    bounce, 023 spell card declared (the default for spells), 026 spirit crystal landing (never a
-   card's), 027 light swing, 029 swing, 036 card generated, 053 weather activated, 054 card used (the
+   card's), 027 light swing, 029 swing, 031 dash, 036 card generated, 053 weather activated, 054 card used (the
    default for skills and system cards), 039/040/041/061 menu. Move 690 declares a skill card without
    doing the skill (the card used while holding a direction), playing only 054; a skill card used
-   without a direction does the skill itself. By decision, skill rows leave out 054 when the skill has
-   other sounds, and spell rows leave out 023 unless asked for. A card whose sounds vary (Reisen's
+   without a direction does the skill itself. By decision, skill and system card rows leave out 054 when the
+   card has other sounds, and spell rows leave out 023 unless asked for. A card whose sounds vary (Reisen's
    Elixir explodes on every fourth use; Sanae's Omikuji Bomb has four fortunes) lists each outcome in
    full, separated by `>`. The gallery plays them in turn, one more each time the card plays, and names
    it; the offer screens will play only the first. By decision, outcomes are never random.
