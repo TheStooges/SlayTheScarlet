@@ -3,40 +3,45 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
-## 0.4 - unreleased
+## 0.4 - 2026-11-13
+
+### New
+
+- **Match limit and score screen.** A run can last a set number of matches, up to 20 (Settings, Runs;
+  `[run] matches`, endless by default). The last match gives no offer, as its card would never be
+  played: the run ends, Deck 1 goes back to your own deck, and a score screen shows your wins and
+  losses, the rounds, and each match with the card it brought in. Choosing a match shows the deck as
+  it was after it, with the cards that came in outlined in green and the ones they replaced in red.
+  The score stays viewable from the character screen until you start that character over.
+- **Set seed, for events.** A word typed in Settings, Runs (or `[run] seed`), off by default.
+  Everyone on the same character gets the same draft and rewards for the same choices, and starting
+  over gives the same draft back. Capitals count. The score screen shows the seed, the rules
+  fingerprint, and how many times that character's run was started over under those rules.
+- **Time limit on offers.** Up to 90 seconds (Settings, Rewards; `[reward] time_limit`), off by
+  default. When it runs out, any choices already made are kept and the rest are made at random, and
+  the deck screen afterwards moves on by itself after 15 seconds. The time spent is saved, so closing
+  the game does not reset it.
+- **Random picks are shown.** A card picked for you (with "What comes into the deck" on Random, or a
+  time-out) is shown by the cursor running through the offers and slowing down onto it, and cards that
+  leave at random by the cursor running over your deck and marking them. Each takes about 3 seconds.
+  The confirm button skips it, and "Show random picks" in Settings, Rewards turns it off.
+- **Go back to a run's rules.** When the rules have changed since a run was made, the rules screen can
+  put that run's rules back in `settings.ini`. It first shows a table of each setting that would
+  change, and names any other runs that would then show Rules changed.
 
 ### Changed
 
-- A match limit (Settings, Runs; `[run] matches`, off by default). The last match gives no offer: the
-  run ends and shows its score, with wins and losses, rounds, and each match with what its offer
-  changed. Choosing a match shows the deck after it, with the cards it brought in outlined in green and
-  the ones it took out in red, and can open that deck to look through. Deck 1
-  goes back to the player's own deck. A finished run's score can still be viewed from the character
-  screen.
-- A time limit on rewards (Settings, Rewards; `[reward] time_limit`, up to 90 seconds, off by
-  default). When it runs out, choices already made are kept and the rest are made at random, and the
-  deck screen after a reward moves on by itself after 15 seconds.
-- A card picked at random (with "What comes into the deck" on Random, or when the time limit runs
-  out before an offer is chosen) is shown by the cursor running through the offers and slowing down
-  onto it. Cards that leave the deck at random are shown the same way, over the deck. Each takes
-  about 3 seconds; the confirm button skips it, and "Show random picks" in Settings, Rewards turns it
-  off.
-- A set seed for events (Settings, Runs, typed with the keyboard, or `[run] seed`; off by default,
-  and capitals count). Everyone on the same
-  character gets the same draft, and starting over gives the same draft back. The score screen shows
-  the seed, the rules fingerprint, and how many times the character's run was started over.
-- `runs/active.txt` is replaced by `runs/state.txt`, which also counts runs started over. An
-  existing `active.txt` is moved into it.
-- When the rules have changed since a run was made, it can go back to its own rules: the rules
-  screen offers to put them back in `settings.ini`, first listing each setting that would change
-  and any other runs that would then show Rules changed. Runs from before this release did not save their rules, so they cannot.
-- The reward screen says which match of the limit it is ("Match 2 of 5").
-- The card table and the Japanese translation are now built into `SlayTheScarlet.dll`, so the zip
-  holds only the DLL, `settings.ini`, and the documents. When updating, `cards.csv` and the `lang`
-  folder from an older release can be deleted; the mod no longer reads them.
-- Runs now remember each match (won or lost, the rounds, the opponent, and what the reward changed)
-  and the rules they were made under, for features coming in this release. Runs from older releases
-  still load. Once saved by this release, a run cannot be loaded by an older one.
+- The reward screen says which match it is, and with a match limit, of how many ("Match 2 of 5").
+- The card table and the Japanese translation are built into `SlayTheScarlet.dll`, so the zip holds
+  only the DLL, `settings.ini`, and the documents.
+- `runs/active.txt` is replaced by `runs/state.txt`, which also keeps the count of runs started over.
+
+### Upgrading
+
+- Delete the old `SlayTheScarlet` folder and unzip the new one in its place, then copy back your
+  `runs` folder and `settings.ini` if you want to keep them. `cards.csv` and the `lang` folder are no
+  longer needed. An `active.txt` is moved into `state.txt` the first time the game starts.
+- Runs from earlier releases carry on, but did not save their rules, so they cannot go back to them.
 
 ## 0.3.2 - 2026-11-11
 
