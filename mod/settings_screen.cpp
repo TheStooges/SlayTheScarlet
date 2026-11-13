@@ -142,6 +142,10 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "choose", tr("Player chooses a card: pick one of the cards offered."));
         add_value_help(row, "random", tr("Random: one of the cards offered is picked for you."));
         add_help_line(row, tr("With \"What leaves the deck\" on Random too, the swap happens by itself."));
+        row = add_row("reward", "replacement", tr("What leaves the deck"), NULL);
+        add_value_help(row, "choose", tr("Player chooses cards: pick exactly which cards leave."));
+        add_value_help(row, "by_type", tr("Player chooses a type: random cards of the chosen type leave."));
+        add_value_help(row, "random", tr("Random: the cards that leave are chosen at random."));
         row = add_row("reward", "time_limit", tr("Time limit"),
                       tr("Seconds to take an offer. When it runs out, what is left is chosen at random."));
         add_value_help(row, "0", tr("No limit: take as long as you like."));
@@ -149,10 +153,6 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "true", tr("On: a pick made at random runs through the offers, or the deck, before it lands."));
         add_value_help(row, "false", tr("Off: a pick made at random is shown straight away."));
         add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
-        row = add_row("reward", "replacement", tr("What leaves the deck"), NULL);
-        add_value_help(row, "choose", tr("Player chooses cards: pick exactly which cards leave."));
-        add_value_help(row, "by_type", tr("Player chooses a type: random cards of the chosen type leave."));
-        add_value_help(row, "random", tr("Random: the cards that leave are chosen at random."));
         add_offer_rows("reward", tr("Each offer gives a random number of copies in this range."));
         break;
     case SETTINGS_MENU_RUN:

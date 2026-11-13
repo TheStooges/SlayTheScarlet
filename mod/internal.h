@@ -15,6 +15,7 @@ extern "C" {
 #include "pool.h"
 #include "run.h"
 #include "settings.h"
+#include "sounds.h"
 #include "state.h"
 #include "util.h"
 }
@@ -32,10 +33,14 @@ using SokuLib::DrawUtils::Sprite;
 #define SCREEN_H 480
 #define COLS 5
 #define ROWS 4
-/* The character menu's last entry, after the characters: the settings screen. */
+/* The character menu's last row, after the characters: the settings screen on the left and the
+ * gallery on the right. */
 #define CHOOSE_SETTINGS STS_NUM_CHARACTERS
 #define CHOOSE_SETTINGS_X 24
 #define CHOOSE_SETTINGS_Y 356
+#define CHOOSE_GALLERY (STS_NUM_CHARACTERS + 1)
+#define CHOOSE_GALLERY_X (24 + (COLS - 1) * 120)
+#define CHOOSE_GALLERY_Y CHOOSE_SETTINGS_Y
 /* How many cards the draft and reward screens fit side by side. */
 #define OFFERS_ON_SCREEN 3
 #define COLOR_WHITE  0xFFFFFFFFu
@@ -61,7 +66,10 @@ typedef enum {
     ST_RULES_RESTORE,   /* going back to the run's own rules: what settings.ini would change */
     ST_SETTINGS,        /* settings.ini as a list to change */
     ST_SETTINGS_CONFIRM,/* saving would change the rules of saved runs: save anyway? */
-    ST_SCORE            /* a finished run: its results and each match */
+    ST_SCORE,           /* a finished run: its results and each match */
+    ST_GALLERY_KINDS,      /* the gallery: system, skill, or spell cards */
+    ST_GALLERY_CHARACTERS, /* the gallery: whose skill or spell cards */
+    ST_GALLERY_CARDS       /* the gallery: the cards, with their sounds */
 } screen_state;
 typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
 
@@ -126,6 +134,42 @@ const char *embedded_data(const char *name, size_t *length);
 void count_results(const sts_run *run, int *won, int *lost, int *rounds_won, int *rounds_lost);
 void describe_match(const sts_run *run, int index, char *result, size_t result_size, char *change, size_t change_size);
 
+/* card_sounds.cpp: a card's sounds in a match, played on the mod's screens. Owner is
+ * STS_SOUND_SYSTEM for a system card. card_sounds_start begins after delay frames, so moving quickly
+ * over cards plays nothing, and the card's first sound plays then, wherever it falls in the move; card_sounds_tick, once a frame, plays what is due. A card with no row
+ * plays its type's card-use sound, and a card whose sounds vary plays its outcomes in turn. That
+ * suits the gallery, where a card is played over and over; the offer screens should play only the
+ * first. card_sounds_release frees the files loaded. */
+void card_sounds_start(int owner, uint16_t id, int type, int delay, int outcomes_in_turn);
+/* The wait before a card's sounds, on every screen that plays them: 74 frames, about 1.23 seconds. */
+#define CARD_SOUNDS_SETTLE_FRAMES 74
+/* Once a frame: on the draft and reward screens, plays the offer under the cursor once it has rested
+ * there (first outcome only), and stops it on leaving them. No other run screen plays sounds. */
+void card_sounds_follow_offers(void);
+/* One of the game's shared sounds (data/se/NNN.wav), at once, loaded as the card sounds are. */
+void play_common_sound(int number);
+void card_sounds_stop(void);
+void card_sounds_tick(void);
+void card_sounds_release(void);
+
+/* gallery.cpp: every card, by type and then by character, each playing its sounds. Only cards found in
+ * a run are shown; the others are face down and silent. */
+void open_gallery(void);
+void on_gallery_event(screen_event event);
+int gallery_card_shown(int index);   /* of g_gallery_cards: found, or the gallery is unlocked */
+extern int g_gallery_unlock_armed;  /* Unlock the gallery was chosen once, and waits for a second press */
+int gallery_all_found(void);       /* every card in the game has been offered in a run */
+int gallery_unlock_offered(void);  /* Unlock the gallery can still be chosen */
+/* The character whose cards are shown, or -1 for the system cards. */
+extern int g_gallery_character;
+extern int g_gallery_kind;   /* an sts_card_type */
+extern sts_card g_gallery_cards[STS_POOL_MAX_CARDS];
+extern int g_gallery_count;
+extern int g_gallery_art_dirty;
+/* The kinds of card listed first, in this order, then Unlock the gallery until it is used. */
+#define GALLERY_KINDS 3
+#define GALLERY_UNLOCK_ROW GALLERY_KINDS
+
 /* run_data.cpp */
 void run_path(char *out, size_t size, int character);
 int run_file_exists(int character);
@@ -155,6 +199,20 @@ int write_active_deck(char *why, size_t why_size);
 const char *blocking_mod(void);
 void remember_real_deck(void);
 void save_active_file(void);
+/* Cards that have been offered in a run (at the draft or after a match, taken or not), or were in a
+ * starting deck, kept in
+ * state.txt, for the gallery. note_found_offers records a run's offers (each save does);
+ * note_found_from_saves goes through every saved run's offers, so runs made before cards were
+ * recorded count too. card_found takes -1 as the character for a system card. */
+void note_found_offers(const sts_run *run);
+/* A starting deck, when a run begins: its cards are never offered, so they are recorded this way. */
+void note_found_deck(int character, const sts_deck *deck);
+void note_found_from_saves(void);
+int card_found(int character, uint16_t id);
+/* Unlock the gallery shows every card in it, found or not, from then on; the counts of cards found
+ * stay as they are. */
+int gallery_unlocked(void);
+void unlock_gallery(void);
 /* How many runs of this character were started over under these rules, and counting one more. */
 int restart_count(int character, uint32_t rules_hash);
 void count_restart(int character, uint32_t rules_hash);
@@ -186,6 +244,8 @@ void go_to_chooser_at(int cursor);
 /* True on the first frame a button is held, then again every few frames while it stays held, as
  * menus move while a direction is held. held counts frames, negative for left and up. */
 int repeats_while_held(int held);
+/* Moves g_cursor through a grid of count cards, DECK_COLS wide, as on the deck screen. */
+void move_card_grid(screen_event event, int count);
 /* Seconds left to take the reward on screen, or -1 if there is no limit or no reward. */
 int reward_seconds_left(void);
 /* Seconds before the deck screen after a reward moves on by itself, or -1. */

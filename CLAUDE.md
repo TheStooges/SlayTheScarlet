@@ -107,7 +107,8 @@ recorded here, and online logging now lives in `mod/netlog.cpp`.
 (PCG32), `offer` (offer generator, applying a taken offer), `settings` (`.ini` parsing, validation,
 compatible-mode override, fingerprint), `run` (draft and reward state machine, save format), `state` (runs/state.txt: run in use,
 restart counts), `lang`
-(translation files, checking each keeps its English line's %d/%s blanks), `util`.
+(translation files, checking each keeps its English line's %d/%s blanks), `sounds` (the card sound
+table, `data/card_sounds.csv`), `util`.
 `data/settings.ini` documents every setting and states the defaults.
 
 Language: the game's text is Japanese unless `th123e` replaced its data, so `mod/text.cpp` checks
@@ -596,7 +597,32 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    the community, in code. Not chosen: per-player choice between starters (one option would
    dominate), and all default skills (uneven for Patchouli, and fixes the whole skill set).
    A deck that starts small and grows over matches still needs the deck size patch.
-8. Card sounds on the offer screens (rewards, and the draft for consistency): highlighting an offer
+8. (in progress) Card sounds on the offer screens (rewards, and the draft for consistency). Done so
+   far: `data/card_sounds.csv` has a row for every card (collected with a sound probe and
+   a script, since moved out of the repo to the gitignored `reference/sound_probe/`, with a note on
+   putting the probe back in the build),
+   built into the DLL, and `mod/card_sounds.cpp` plays a row through the game's sound manager
+   (0x89F9F8). The gallery (bottom right of the F7 menu, `mod/gallery.cpp`) lists every card and plays
+   its row, for fine-tuning the table by ear. It shows only cards found in a run: every card offered
+   in a run (draft or reward, taken or not, and the offers a random pick was made from) or in a starting
+   deck (recorded when the run starts, and for saved runs from the deck the draft left), recorded in `runs/state.txt` (`found` lines, after everything older builds read)
+   on each save and, when the gallery opens, from the offers in every saved run. The rest are face down
+   (`data/infoEffect/cardFaceDown`) and silent. Unlock the gallery (a row under the kinds, pressed twice) shows every card from then on (`gallery_unlocked` in `state.txt`); the row then reads Gallery unlocked, greyed out, or All cards obtained once every card is found in runs. The found counts stay true. A card's first sound plays when the cursor has rested for 74 frames, wherever it falls in the move.
+   The draft and reward screens play the offer under the cursor the same way, first outcome only
+   (`card_sounds_follow_offers`, once a frame from `screen_update`); no other run screen plays sounds.
+   Still to do: a setting to turn them off. Shared
+   sounds named so far: 001 light hit, 006 cut, 007 heavy hit, 008 slash, 020 block, 022 wall or ground
+   bounce, 023 spell card declared (the default for spells), 026 spirit crystal landing (never a
+   card's), 027 light swing, 029 swing, 036 card generated, 053 weather activated, 054 card used (the
+   default for skills and system cards), 039/040/041/061 menu. Move 690 declares a skill card without
+   doing the skill (the card used while holding a direction), playing only 054; a skill card used
+   without a direction does the skill itself. By decision, skill rows leave out 054 when the skill has
+   other sounds, and spell rows leave out 023 unless asked for. A card whose sounds vary (Reisen's
+   Elixir explodes on every fourth use; Sanae's Omikuji Bomb has four fortunes) lists each outcome in
+   full, separated by `>`. The gallery plays them in turn, one more each time the card plays, and names
+   it; the offer screens will play only the first. By decision, outcomes are never random.
+   The script leaves such rows alone unless given `--replace`.
+   Original plan: highlighting an offer
    plays the sound that card makes in a match, e.g. the sound of the spell itself. Feasible in part:
    SokuLib exposes the game's sound load/play functions (`ADDR_LOAD_SOUND` 0x401AF0, `ADDR_PLAY_SOUND`
    0x401D50) and each character's sound table in a match (`CharacterManager.soundTable`, `playSE`).

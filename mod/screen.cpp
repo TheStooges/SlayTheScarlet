@@ -696,28 +696,49 @@ static void preview_selected_swap(void)
     g_changes_added_count = 1;
 }
 
-/* Moves through the card grid shared by the deck and removal screens. Left and right wrap around
- * within a row, as on the character menu; a shorter last row wraps at its own end. */
-static void move_grid_cursor(screen_event event)
+/* Left and right wrap around within a row, as on the character menu; a shorter last row wraps at
+ * its own end. Up and down keep the column, wrapping between the top and bottom rows, and land on
+ * the last card of a shorter last row when the column is past its end. The column is remembered
+ * through that row, as the character menu does, so going down and back up returns to the same card. */
+static int g_grid_column = 0;
+static int g_grid_last_cursor = -1, g_grid_last_count = -1;   /* where the cursor was left */
+
+void move_card_grid(screen_event event, int count)
 {
-    int count = g_run.deck.count < MAX_DECK_ART ? g_run.deck.count : MAX_DECK_ART;
-    int row_start, row_length, column;
+    int rows, row, row_start, row_length, column;
 
     if (count <= 0)
         return;
-    row_start = g_cursor - g_cursor % DECK_COLS;
+    rows = (count + DECK_COLS - 1) / DECK_COLS;
+    row = g_cursor / DECK_COLS;
+    row_start = row * DECK_COLS;
     row_length = count - row_start < DECK_COLS ? count - row_start : DECK_COLS;
     column = g_cursor - row_start;
-    if (event == EV_RIGHT)
+    /* Anything else that moved the cursor (a new screen, a new deck) sets the column afresh. */
+    if (g_cursor != g_grid_last_cursor || count != g_grid_last_count)
+        g_grid_column = column;
+    if (event == EV_RIGHT) {
         g_cursor = row_start + (column + 1) % row_length;
-    else if (event == EV_LEFT)
+        g_grid_column = g_cursor - row_start;
+    } else if (event == EV_LEFT) {
         g_cursor = row_start + (column + row_length - 1) % row_length;
-    else if (event == EV_DOWN)
-        g_cursor = (g_cursor + DECK_COLS) % count;
-    else
-        g_cursor = (g_cursor + count - DECK_COLS % count) % count;
+        g_grid_column = g_cursor - row_start;
+    } else {
+        row = (row + (event == EV_DOWN ? 1 : rows - 1)) % rows;
+        g_cursor = row * DECK_COLS + g_grid_column;
+        if (g_cursor >= count)
+            g_cursor = count - 1;
+    }
+    g_grid_last_cursor = g_cursor;
+    g_grid_last_count = count;
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
     g_dirty = 1;
+}
+
+/* The card grid shared by the deck and removal screens. */
+static void move_grid_cursor(screen_event event)
+{
+    move_card_grid(event, g_run.deck.count < MAX_DECK_ART ? g_run.deck.count : MAX_DECK_ART);
 }
 
 static void next_available_type(int direction)
@@ -761,6 +782,8 @@ static void start_new_run(int character)
     }
     count_discarded_run(character);
     g_run = fresh;
+    /* The starting deck's cards are found for the gallery, as they are never offered. */
+    note_found_deck(character, &g_run.deck);
     g_run.restarts = restart_count(character, g_run.settings_hash);
     /* That character's old run deck is finished with. */
     if (g_active && g_active_character == character)
@@ -938,19 +961,29 @@ static void toggle_from_chooser(int character)
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
 }
 
-/* The column the cursor had in the character grid, for coming back up from Settings. */
+/* The column the cursor had in the character grid, for coming back up from the last row. */
 static int g_choose_column = 0;
 
-/* Up and down go through the character rows and the Settings entry below them, wrapping round. */
+static int on_last_choose_row(void)
+{
+    return g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY;
+}
+
+/* Up and down go through the character rows and the row below them, wrapping round. That row has
+ * Settings under the first column and the gallery under the last: the one nearer the column is
+ * chosen, Settings from the middle one. */
 static void move_choose_vertically(int direction)
 {
-    int rows = STS_NUM_CHARACTERS / COLS + 1;   /* the last row is Settings */
-    int row = g_cursor == CHOOSE_SETTINGS ? rows - 1 : g_cursor / COLS;
+    int rows = STS_NUM_CHARACTERS / COLS + 1;
+    int row = on_last_choose_row() ? rows - 1 : g_cursor / COLS;
 
-    if (g_cursor != CHOOSE_SETTINGS)
+    if (!on_last_choose_row())
         g_choose_column = g_cursor % COLS;
     row = (row + direction + rows) % rows;
-    g_cursor = row == rows - 1 ? CHOOSE_SETTINGS : row * COLS + g_choose_column;
+    if (row < rows - 1)
+        g_cursor = row * COLS + g_choose_column;
+    else
+        g_cursor = g_choose_column > COLS / 2 ? CHOOSE_GALLERY : CHOOSE_SETTINGS;
 }
 
 /* Deletes a character's run from the character menu. Opening the character afterwards starts a new
@@ -979,9 +1012,18 @@ static void delete_run(int character)
 
 static void on_choose_event(screen_event event)
 {
-    /* Settings is one entry on its own row: only up, down, open and close do anything there. */
-    if (g_cursor == CHOOSE_SETTINGS && (event == EV_LEFT || event == EV_RIGHT || event == EV_ALT || event == EV_TOGGLE))
+    /* The last row has Settings and the gallery: left and right go between them, and the buttons
+     * for runs do nothing there. Going back up then lands on the column above the entry. */
+    if (on_last_choose_row() && (event == EV_ALT || event == EV_TOGGLE))
         return;
+    if (on_last_choose_row() && (event == EV_LEFT || event == EV_RIGHT)) {
+        g_cursor = g_cursor == CHOOSE_SETTINGS ? CHOOSE_GALLERY : CHOOSE_SETTINGS;
+        g_choose_column = g_cursor == CHOOSE_SETTINGS ? 0 : COLS - 1;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_error[0] = 0;
+        g_dirty = 1;
+        return;
+    }
     switch (event) {
     /* Left and right wrap around within a row, as up and down do within a column. */
     case EV_LEFT:  g_cursor = g_cursor - g_cursor % COLS + (g_cursor % COLS + COLS - 1) % COLS; break;
@@ -991,6 +1033,10 @@ static void on_choose_event(screen_event event)
     case EV_CONFIRM:
         if (g_cursor == CHOOSE_SETTINGS) {
             open_settings();
+            return;
+        }
+        if (g_cursor == CHOOSE_GALLERY) {
+            open_gallery();
             return;
         }
         if (g_data_ok && !blocking_mod()) {
@@ -1534,6 +1580,11 @@ static void handle_event(screen_event event)
     case ST_SETTINGS:       on_settings_event(event); break;
     case ST_SETTINGS_CONFIRM: on_settings_confirm_event(event); break;
     case ST_SCORE:          on_score_event(event); break;
+    case ST_GALLERY_KINDS:
+    case ST_GALLERY_CHARACTERS:
+    case ST_GALLERY_CARDS:
+        on_gallery_event(event);
+        break;
     case ST_CLOSED:         break;
     }
 }
@@ -1564,9 +1615,33 @@ int repeats_while_held(int held)
     return held == 1 || (held >= 30 && held % 6 == 0);
 }
 
+/* Esc goes back as the cancel button does, on the frame it goes down and only while the game's
+ * window has focus. It is followed even while the seed's text box has it, so the press that closes
+ * the box does not also leave the screen. */
+static int g_escape_was_down = 0;
+
+static int escape_pressed(void)
+{
+    DWORD process = 0;
+    int down;
+
+    GetWindowThreadProcessId(GetForegroundWindow(), &process);
+    down = process == GetCurrentProcessId() && (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+    if (down && !g_escape_was_down) {
+        g_escape_was_down = 1;
+        return 1;
+    }
+    g_escape_was_down = down;
+    return 0;
+}
+
 void screen_update(const SokuLib::KeyInput &input)
 {
+    int escape;
+
     tick_timers();
+    card_sounds_tick();
+    escape = escape_pressed();
     if (seed_entry_open()) {
         seed_entry_update();
         return;
@@ -1581,10 +1656,11 @@ void screen_update(const SokuLib::KeyInput &input)
         handle_event(EV_DOWN);
     if (input.a == 1)
         handle_event(EV_CONFIRM);
-    else if (input.b == 1)
+    else if (input.b == 1 || escape)
         handle_event(EV_CANCEL);
     else if (input.c == 1)
         handle_event(EV_ALT);
     else if (input.d == 1)
         handle_event(EV_TOGGLE);
+    card_sounds_follow_offers();
 }

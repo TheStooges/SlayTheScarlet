@@ -3,16 +3,18 @@ add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/SokuLib ${CMAKE_BINARY_DIR}/SokuLib)
 
-# cards.csv and the translations are built into the DLL as resources.
+# cards.csv, the translations, and the card sounds are built into the DLL as resources.
 set(STS_DATA_DIR ${CMAKE_SOURCE_DIR}/data)
 configure_file(embedded.rc.in ${CMAKE_CURRENT_BINARY_DIR}/embedded.rc @ONLY)
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/embedded.rc PROPERTIES
-  OBJECT_DEPENDS "${STS_DATA_DIR}/cards.csv;${STS_DATA_DIR}/lang/ja.txt")
+  OBJECT_DEPENDS "${STS_DATA_DIR}/cards.csv;${STS_DATA_DIR}/lang/ja.txt;${STS_DATA_DIR}/card_sounds.csv")
 
 add_library(SlayTheScarlet MODULE
   ${CMAKE_CURRENT_BINARY_DIR}/embedded.rc
   main.cpp
+  card_sounds.cpp
   card_text.cpp
+  gallery.cpp
   embedded.cpp
   history.cpp
   log.cpp

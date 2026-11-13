@@ -303,7 +303,8 @@ static void add_reward_notice(const char *text, int last_y, unsigned color)
     add_wrapped(text, g_font_small, 20, last_y - (lines - 1) * 17, 600, 17, HELP_COLUMNS, at_spaces, lines, color);
 }
 
-static int load_card_sprite(Sprite *sprite, uint16_t id, int pos_x, int pos_y, unsigned scale)
+/* A card's image. The character is whose card it is: the same ID is a different card for each. */
+static int load_card_sprite(Sprite *sprite, int character, uint16_t id, int pos_x, int pos_y, unsigned scale)
 {
     char path[128];
     SokuLib::Vector2u size;
@@ -311,7 +312,7 @@ static int load_card_sprite(Sprite *sprite, uint16_t id, int pos_x, int pos_y, u
     if (id < 100)
         sprintf(path, "data/card/common/card%03u.bmp", (unsigned)id);
     else
-        sprintf(path, "data/card/%.64s/card%03u.bmp", SokuLib::getCharName((unsigned)g_run.character), (unsigned)id);
+        sprintf(path, "data/card/%.64s/card%03u.bmp", SokuLib::getCharName((unsigned)character), (unsigned)id);
     if (!sprite->texture.loadFromGame(path))
         return 0;
     size = sprite->texture.getSize();
@@ -326,7 +327,7 @@ static int load_card_sprite(Sprite *sprite, uint16_t id, int pos_x, int pos_y, u
 
 static void load_art(int index, uint16_t id, int pos_x, int pos_y)
 {
-    g_has_art[index] = load_card_sprite(&g_art[index], id, pos_x, pos_y, 2);
+    g_has_art[index] = load_card_sprite(&g_art[index], g_run.character, id, pos_x, pos_y, 2);
 }
 
 /* Reading card files takes a moment, so the deck images load once per deck rather than
@@ -337,13 +338,13 @@ static void load_deck_art(void)
 
     for (wau = 0; wau < MAX_DECK_ART; wau++)
         g_has_deck_art[wau] = wau < g_run.deck.count
-            && load_card_sprite(&g_deck_art[wau], g_run.deck.ids[wau],
+            && load_card_sprite(&g_deck_art[wau], g_run.character, g_run.deck.ids[wau],
                                 DECK_X + (wau % DECK_COLS) * DECK_PITCH_X, DECK_Y + (wau / DECK_COLS) * DECK_PITCH_Y, 1);
     g_deck_art_dirty = 0;
 }
 
 /* The card's type line. Skills also show their input and button, as the game's deck screen does. */
-static void add_card_kind(const sts_card *card, int pos_x, int pos_y, int width)
+static void add_card_kind(const sts_card *card, int character, int pos_x, int pos_y, int width)
 {
     char text[48], skill[STS_SKILL_LABEL_SIZE];
 
@@ -355,7 +356,7 @@ static void add_card_kind(const sts_card *card, int pos_x, int pos_y, int width)
         sprintf(text, "Spell, Cost %d", card->cost_or_slot);
         break;
     case STS_CARD_SKILL:
-        if (sts_skill_label(&g_db, g_run.character, card->id, skill)) {
+        if (sts_skill_label(&g_db, character, card->id, skill)) {
             int start = pos_x, before = g_label_count, number_w = 0, slot = card->cost_or_slot;
 
             /* "Skill, a" and "214" are separate so the arrows can centre over the digits. */
@@ -413,6 +414,7 @@ static void rebuild_choose(void)
         add_label(line, g_font_small, 20, 410, 600, 20, COLOR_RED);
     }
     add_label(tr("Settings"), g_font_big, CHOOSE_SETTINGS_X + 6, CHOOSE_SETTINGS_Y + 4, 200, 26, COLOR_WHITE);
+    add_label(tr("Gallery"), g_font_big, CHOOSE_GALLERY_X + 6, CHOOSE_GALLERY_Y + 4, 110, 26, COLOR_WHITE);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         int pos_x = 24 + (character % COLS) * 120;
         int pos_y = 80 + (character / COLS) * 70;
@@ -458,7 +460,7 @@ static void rebuild_choose(void)
     }
     if (g_alt_armed)
         sprintf(line, tr("Press %s again to delete this character's run."), BUTTON_C);
-    else if (g_cursor == CHOOSE_SETTINGS || !run_file_exists(g_cursor))
+    else if (g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY || !run_file_exists(g_cursor))
         sprintf(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
     else
         sprintf(line, tr("%s: open   %s: close   %s twice: delete run"), BUTTON_A, BUTTON_B, BUTTON_C);
@@ -541,7 +543,7 @@ static void rebuild_draft(void)
         add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3,
                     COLOR_WHITE);
         if (card)
-            add_card_kind(card, pos_x + 8, OFFER_Y + 202, OFFER_W - 16);
+            add_card_kind(card, g_run.character, pos_x + 8, OFFER_Y + 202, OFFER_W - 16);
         if (offer->copies > 1) {
             sprintf(line, "x%d", offer->copies);
             add_label(line, g_font_big, pos_x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
@@ -564,11 +566,11 @@ static void rebuild_draft(void)
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
-/* Name, type and description of one card, starting at y. */
-static void add_card_details(uint16_t id, int pos_y)
+/* Name, type and description of one of the character's cards, starting at y. */
+static void add_card_details(int character, uint16_t id, int pos_y)
 {
     const card_text *entry = find_text(id);
-    const sts_card *card = sts_card_db_find(&g_db, g_run.character, id);
+    const sts_card *card = sts_card_db_find(&g_db, character, id);
 
     /* A skill's arrows sit above its type line, so they need room under the name. Every type gets
      * that room, so the type line and description sit at the same height for any card. Six rows of
@@ -577,7 +579,7 @@ static void add_card_details(uint16_t id, int pos_y)
 
     add_label(entry ? entry->name : "?", g_font_big, 24, pos_y, 592, 28, COLOR_WHITE);
     if (card)
-        add_card_kind(card, 24, kind_y, 592);
+        add_card_kind(card, character, 24, kind_y, 592);
     if (entry)
         add_wrapped(entry->desc, g_font_small, 24, kind_y + 20, 592, 17, description_row_bytes(), 0, 6,
                     COLOR_WHITE);
@@ -631,7 +633,7 @@ static void rebuild_reward_remove(void)
         add_label(tr("Choose what leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
         add_label(tr("Confirm?"), g_font_big, 455, 432, 175, 30, COLOR_GOLD);
         if (g_cursor < g_run.deck.count)
-            add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+            add_card_details(g_run.character, g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
         add_change_list(DECK_Y + 2 * DECK_PITCH_Y + 8, tr("Removing"), tr("Adding"));
         sprintf(line, tr("%s: confirm   %s: change the last pick"), BUTTON_A, BUTTON_B);
         add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
@@ -639,7 +641,7 @@ static void rebuild_reward_remove(void)
     }
     add_label(tr("Choose what leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
-        add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+        add_card_details(g_run.character, g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
     if (g_cursor < g_run.deck.count && g_run.deck.ids[g_cursor] == offer->id) {
         add_reward_notice(tr("This is the card you are taking, so it cannot leave."), REWARD_NOTICE_Y, COLOR_RED);
     } else {
@@ -760,7 +762,7 @@ static void rebuild_sweep(void)
     sprintf(line, tr("%s: cards leave at random"), character_label(g_run.character));
     add_label(line, g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_cursor < g_run.deck.count)
-        add_card_details(g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
+        add_card_details(g_run.character, g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
     if (g_changes_added_count > 0) {
         sprintf(line, tr("Replacing with %dx %.90s."), g_changes_added[0].copies, entry ? entry->name : "?");
         add_reward_notice(line, REWARD_NOTICE_Y, COLOR_GOLD);
@@ -828,7 +830,7 @@ static void rebuild_deck(void)
         rows = 2;
     pos_y = DECK_Y + rows * DECK_PITCH_Y + 8;
     if (g_cursor < g_run.deck.count)
-        add_card_details(g_run.deck.ids[g_cursor], pos_y);
+        add_card_details(g_run.character, g_run.deck.ids[g_cursor], pos_y);
     add_change_list(pos_y, tr("Removed"), tr("Added"));
     if (g_run.phase == STS_PHASE_FINISHED) {
         add_label(tr("This run is over, so its deck is no longer used."), g_font_small, 20, 396, 600, 20, COLOR_GREY);
@@ -1017,6 +1019,178 @@ static void rebuild_settings(void)
     add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
 }
 
+/* The gallery's card images, loaded once for each list of cards. A card not found in a run yet shows
+ * the game's face-down card, at the size of the others. */
+#define CARD_FACE_DOWN_PATH "data/infoEffect/cardFaceDown.bmp"
+static Sprite g_gallery_art[STS_POOL_MAX_CARDS];
+static int g_has_gallery_art[STS_POOL_MAX_CARDS];
+
+static void load_gallery_art(void)
+{
+    int character = g_gallery_character < 0 ? 0 : g_gallery_character, wau;
+    SokuLib::Vector2u card_size = {0, 0};
+
+    for (wau = 0; wau < STS_POOL_MAX_CARDS; wau++) {
+        g_has_gallery_art[wau] = 0;
+        if (wau >= g_gallery_count)
+            continue;
+        if (gallery_card_shown(wau)) {
+            g_has_gallery_art[wau] = load_card_sprite(&g_gallery_art[wau], character, g_gallery_cards[wau].id, 0, 0, 1);
+            if (g_has_gallery_art[wau] && card_size.x == 0)
+                card_size = g_gallery_art[wau].getSize();
+        } else if (g_gallery_art[wau].texture.loadFromGame(CARD_FACE_DOWN_PATH)) {
+            SokuLib::Vector2u size = g_gallery_art[wau].texture.getSize();
+
+            g_gallery_art[wau].setSize(size);
+            g_gallery_art[wau].rect.left = 0;
+            g_gallery_art[wau].rect.top = 0;
+            g_gallery_art[wau].rect.width = (int)size.x;
+            g_gallery_art[wau].rect.height = (int)size.y;
+            g_has_gallery_art[wau] = 1;
+        } else {
+            slog("could not load %s", CARD_FACE_DOWN_PATH);
+        }
+    }
+    /* Face-down cards take the size of the cards beside them, or a card image's usual size. */
+    if (card_size.x == 0) {
+        Sprite probe;
+
+        if (load_card_sprite(&probe, character, g_gallery_count > 0 ? g_gallery_cards[0].id : 0, 0, 0, 1))
+            card_size = probe.getSize();
+    }
+    for (wau = 0; wau < g_gallery_count && card_size.x > 0; wau++)
+        if (g_has_gallery_art[wau] && !gallery_card_shown(wau))
+            g_gallery_art[wau].setSize(card_size);
+    g_gallery_art_dirty = 0;
+}
+
+/* How many cards of a kind a character has found, or the system cards for -1. */
+static int found_of_kind(int character, int kind)
+{
+    const sts_card_list *list = character < 0 ? &g_db.system : &g_db.characters[character];
+    int count = 0, wau;
+
+    for (wau = 0; wau < list->count; wau++)
+        count += list->cards[wau].type == kind && card_found(character, list->cards[wau].id);
+    return count;
+}
+
+static const char *gallery_kind_name(int kind)
+{
+    switch (kind) {
+    case STS_CARD_SYSTEM: return tr("System cards");
+    case STS_CARD_SKILL:  return tr("Skill cards");
+    default:              return tr("Spell cards");
+    }
+}
+
+/* How many cards of a kind a character has, or the system cards for -1. */
+static int count_of_kind(int character, int kind)
+{
+    const sts_card_list *list = character < 0 ? &g_db.system : &g_db.characters[character];
+    int count = 0, wau;
+
+    for (wau = 0; wau < list->count; wau++)
+        count += list->cards[wau].type == kind;
+    return count;
+}
+
+/* The rows of the gallery's first screen. Unlock the gallery sits apart from the kinds of card. */
+#define GALLERY_KIND_Y(index) (70 + (index) * 44 + ((index) == GALLERY_UNLOCK_ROW ? 16 : 0))
+
+
+static void rebuild_gallery_kinds(void)
+{
+    char line[128];
+    int kind, character;
+
+    add_label(tr("Slay the Scarlet: gallery"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    for (kind = 0; kind < GALLERY_KINDS; kind++) {
+        int count = kind == STS_CARD_SYSTEM ? count_of_kind(-1, kind) : 0;
+        int found = kind == STS_CARD_SYSTEM ? found_of_kind(-1, kind) : 0;
+
+        for (character = 0; kind != STS_CARD_SYSTEM && character < STS_NUM_CHARACTERS; character++) {
+            count += count_of_kind(character, kind);
+            found += found_of_kind(character, kind);
+        }
+        add_label(gallery_kind_name(kind), g_font_big, 56, GALLERY_KIND_Y(kind), 400, 28, COLOR_WHITE);
+        sprintf(line, tr("%d of %d found"), found, count);
+        add_label(line, g_font_small, 470, GALLERY_KIND_Y(kind) + 6, 140, 20, COLOR_GREY);
+    }
+    /* Once every card shows, the row says why, greyed out: found in runs, or unlocked. */
+    if (gallery_all_found()) {
+        add_label(tr("All cards obtained. Thank you for playing!"), g_font_big, 56, GALLERY_KIND_Y(GALLERY_UNLOCK_ROW),
+                  560, 28, COLOR_GREY);
+    } else if (gallery_unlocked()) {
+        add_label(tr("Gallery unlocked"), g_font_big, 56, GALLERY_KIND_Y(GALLERY_UNLOCK_ROW), 560, 28, COLOR_GREY);
+    } else {
+        add_label(tr("Unlock the gallery"), g_font_big, 56, GALLERY_KIND_Y(GALLERY_UNLOCK_ROW), 400, 28, COLOR_WHITE);
+        if (g_cursor == GALLERY_UNLOCK_ROW && g_gallery_unlock_armed) {
+            sprintf(line, tr("Press %s again to show every card. This cannot be undone."), BUTTON_A);
+            add_label(line, g_font_small, 20, 396, 600, 20, COLOR_RED);
+        } else if (g_cursor == GALLERY_UNLOCK_ROW) {
+            add_label(tr("Shows every card, as if each had been found in a run."), g_font_small, 20, 396, 600, 20,
+                      COLOR_GREY);
+        }
+    }
+    sprintf(line, tr("Up/Down: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
+static void rebuild_gallery_characters(void)
+{
+    char line[128];
+    int character;
+
+    add_label(g_gallery_kind == STS_CARD_SKILL ? tr("Gallery: skill cards") : tr("Gallery: spell cards"),
+              g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        int pos_x = 24 + (character % COLS) * 120;
+        int pos_y = 80 + (character / COLS) * 70;
+
+        add_label(character_label(character), g_font_big, pos_x + 6, pos_y + 6, 110, 26, COLOR_WHITE);
+        sprintf(line, tr("%d of %d found"), found_of_kind(character, g_gallery_kind),
+                count_of_kind(character, g_gallery_kind));
+        add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, COLOR_GREY);
+    }
+    sprintf(line, tr("Arrows: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
+/* The card under the cursor, as on the deck screen. */
+static void rebuild_gallery_cards(void)
+{
+    char line[192];
+    int character = g_gallery_character < 0 ? 0 : g_gallery_character;
+    int rows = (g_gallery_count + DECK_COLS - 1) / DECK_COLS;
+
+    if (g_gallery_art_dirty)
+        load_gallery_art();
+    if (g_gallery_kind == STS_CARD_SYSTEM)
+        sprintf(line, "%s", tr("System cards"));
+    else
+        sprintf(line, g_gallery_kind == STS_CARD_SKILL ? tr("%s: skill cards") : tr("%s: spell cards"),
+                character_label(g_gallery_character));
+    add_label(line, g_font_big, 20, 16, 500, 30, COLOR_WHITE);
+    sprintf(line, tr("%d of %d found"), found_of_kind(g_gallery_character, g_gallery_kind), g_gallery_count);
+    add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
+
+    if (rows > 2)
+        rows = 2;
+    if (g_cursor < g_gallery_count && !gallery_card_shown(g_cursor)) {
+        add_label(tr("Not found yet: this card shows once it has been offered in a run, or starts a run's deck."), g_font_small, 24,
+                  DECK_Y + rows * DECK_PITCH_Y + 8, 592, 20, COLOR_GREY);
+    } else if (g_cursor < g_gallery_count) {
+        add_card_details(character, g_gallery_cards[g_cursor].id, DECK_Y + rows * DECK_PITCH_Y + 8);
+    }
+    /* A face-down card has nothing to play. */
+    if (g_cursor < g_gallery_count && !gallery_card_shown(g_cursor))
+        sprintf(line, tr("Arrows: inspect   %s: back"), BUTTON_B);
+    else
+        sprintf(line, tr("Arrows: inspect   %s: play again   %s: back"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
 static void rebuild(void)
 {
     int wau;
@@ -1048,6 +1222,9 @@ static void rebuild(void)
     case ST_SETTINGS_CONFIRM:
         rebuild_settings();
         break;
+    case ST_GALLERY_KINDS:      rebuild_gallery_kinds(); break;
+    case ST_GALLERY_CHARACTERS: rebuild_gallery_characters(); break;
+    case ST_GALLERY_CARDS:      rebuild_gallery_cards(); break;
     case ST_CLOSED:        break;
     }
     /* The clocks, under the match number or the card count. */
@@ -1120,15 +1297,20 @@ static void draw_background(int opaque)
     }
     g_background.draw();
 
-    /* The character menu and the settings are not about one character, so they have no portrait. */
-    if (g_state != ST_CHOOSE && g_state != ST_SETTINGS && g_state != ST_SETTINGS_CONFIRM) {
-        if (g_portrait_character != g_run.character) {
+    /* The character menu and the settings are not about one character, so they have no portrait,
+     * and nor does most of the gallery: only a character's own cards. */
+    if (g_state != ST_CHOOSE && g_state != ST_SETTINGS && g_state != ST_SETTINGS_CONFIRM
+        && g_state != ST_GALLERY_KINDS && g_state != ST_GALLERY_CHARACTERS
+        && (g_state != ST_GALLERY_CARDS || g_gallery_character >= 0)) {
+        int character = g_state == ST_GALLERY_CARDS ? g_gallery_character : g_run.character;
+
+        if (g_portrait_character != character) {
             char path[96];
 
-            sprintf(path, "data/stand/%.64s.bmp", SokuLib::getCharName((unsigned)g_run.character));
+            sprintf(path, "data/stand/%.64s.bmp", SokuLib::getCharName((unsigned)character));
             g_has_portrait = load_full_screen(&g_portrait, path);
             g_portrait.tint = PORTRAIT_TINT;
-            g_portrait_character = g_run.character;
+            g_portrait_character = character;
         }
         if (g_has_portrait)
             g_portrait.draw();
@@ -1145,12 +1327,12 @@ static void draw_background(int opaque)
 
 /* A box around a card in the deck grid, with an even margin around the card that can be seen. The
  * image must be at its full size. */
-static void draw_card_box(int index, int pos_x, int pos_y, unsigned fill, unsigned border)
+static void draw_box_around(Sprite *sprite, int has_art, int pos_x, int pos_y, unsigned fill, unsigned border)
 {
     int width = DECK_PITCH_X - 8 - 2 * CARD_BOX_MARGIN, height = DECK_PITCH_Y - 8 - 2 * CARD_BOX_MARGIN;
 
-    if (g_has_deck_art[index]) {
-        SokuLib::Vector2u size = g_deck_art[index].getSize();
+    if (has_art) {
+        SokuLib::Vector2u size = sprite->getSize();
 
         pos_x += CARD_ART_EDGE_LEFT;
         width = (int)size.x - CARD_ART_EDGE_LEFT - CARD_ART_EDGE_RIGHT;
@@ -1158,6 +1340,31 @@ static void draw_card_box(int index, int pos_x, int pos_y, unsigned fill, unsign
     }
     draw_box(pos_x - CARD_BOX_MARGIN, pos_y - CARD_BOX_MARGIN, width + 2 * CARD_BOX_MARGIN,
              height + 2 * CARD_BOX_MARGIN, fill, border);
+}
+
+static void draw_card_box(int index, int pos_x, int pos_y, unsigned fill, unsigned border)
+{
+    draw_box_around(&g_deck_art[index], g_has_deck_art[index], pos_x, pos_y, fill, border);
+}
+
+/* The gallery's cards, two rows at a time as on the deck screen, scrolling with the cursor. */
+static void draw_gallery_cards(void)
+{
+    int top = g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
+    int wau;
+
+    for (wau = top * DECK_COLS; wau < g_gallery_count && wau < (top + 2) * DECK_COLS; wau++) {
+        int pos_x = DECK_X + (wau % DECK_COLS) * DECK_PITCH_X;
+        int pos_y = DECK_Y + (wau / DECK_COLS - top) * DECK_PITCH_Y;
+
+        if (wau == g_cursor)
+            draw_box_around(&g_gallery_art[wau], g_has_gallery_art[wau], pos_x, pos_y, 0x60FFE080u, 0xFFFFE080u);
+        if (g_has_gallery_art[wau]) {
+            g_gallery_art[wau].tint = COLOR_WHITE;
+            g_gallery_art[wau].setPosition({pos_x, pos_y});
+            g_gallery_art[wau].draw();
+        }
+    }
 }
 
 static void draw_draft_deck(void)
@@ -1205,7 +1412,7 @@ static Sprite *score_art(uint16_t id)
     if (g_score_art_count == SCORE_ART_MAX)
         return NULL;
     g_score_art_id[g_score_art_count] = id;
-    g_score_art_loaded[g_score_art_count] = load_card_sprite(&g_score_art[g_score_art_count], id, 0, 0, 1);
+    g_score_art_loaded[g_score_art_count] = load_card_sprite(&g_score_art[g_score_art_count], g_run.character, id, 0, 0, 1);
     g_score_art_count++;
     return g_score_art_loaded[g_score_art_count - 1] ? &g_score_art[g_score_art_count - 1] : NULL;
 }
@@ -1274,7 +1481,13 @@ void screen_render(int opaque)
     draw_background(opaque);
     if (g_state == ST_CHOOSE && g_cursor == CHOOSE_SETTINGS) {
         draw_box(CHOOSE_SETTINGS_X, CHOOSE_SETTINGS_Y, 116, 32, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_CHOOSE) {
+    } else if (g_state == ST_CHOOSE && g_cursor == CHOOSE_GALLERY) {
+        draw_box(CHOOSE_GALLERY_X, CHOOSE_GALLERY_Y, 116, 32, 0x60FFE080u, 0xFFFFE080u);
+    } else if (g_state == ST_GALLERY_KINDS) {
+        draw_box(44, GALLERY_KIND_Y(g_cursor) - 6, 552, 38, 0x60FFE080u, 0xFFFFE080u);
+    } else if (g_state == ST_GALLERY_CARDS) {
+        draw_gallery_cards();
+    } else if (g_state == ST_CHOOSE || g_state == ST_GALLERY_CHARACTERS) {
         int pos_x = 24 + (g_cursor % COLS) * 120;
         int pos_y = 80 + (g_cursor / COLS) * 70;
         draw_box(pos_x, pos_y, 116, 60, 0x60FFE080u, 0xFFFFE080u);

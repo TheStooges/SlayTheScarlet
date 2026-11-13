@@ -2,3 +2,4 @@
  * the paths (configure_file), and embedded.cpp reads them back by name. */
 CARDS_CSV RCDATA "@STS_DATA_DIR@/cards.csv"
 LANG_JA RCDATA "@STS_DATA_DIR@/lang/ja.txt"
+CARD_SOUNDS RCDATA "@STS_DATA_DIR@/card_sounds.csv"

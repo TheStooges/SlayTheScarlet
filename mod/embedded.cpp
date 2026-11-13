@@ -1,5 +1,5 @@
 /* Data files built into the DLL as resources (see embedded.rc.in): the card table and the
- * translations. Files of the same name beside the DLL are ignored, because an install updated
+ * translations, and the card sounds. Files of the same name beside the DLL are ignored, because an install updated
  * over an older release may still have them, out of date. */
 #include "internal.h"
 

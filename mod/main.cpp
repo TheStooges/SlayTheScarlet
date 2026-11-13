@@ -169,7 +169,8 @@ static int __fastcall on_select_process(SokuLib::Select *This)
         return g_select_stay;
     }
     if (g_wait_for_release) {
-        if (SokuLib::inputMgrs.input.a || SokuLib::inputMgrs.input.b)
+        /* Esc too, which closes the screen and on character select would also leave it. */
+        if (SokuLib::inputMgrs.input.a || SokuLib::inputMgrs.input.b || (GetAsyncKeyState(VK_ESCAPE) & 0x8000))
             return g_select_stay;
         g_wait_for_release = 0;
     }

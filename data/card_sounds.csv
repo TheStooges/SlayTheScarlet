@@ -1,0 +1,494 @@
+# Which sounds each card makes in a match, for the offer screens and the gallery. Collected by
+# playing each card in the game with a sound probe, then tuned by ear (the probe and its script are
+# kept out of the repo, in the gitignored reference/sound_probe/).
+# Only numbers are kept: the mod loads the sounds themselves from the game.
+# owner,id,sounds
+#   sounds: each play, in order, as folder/number@frame. The folder is the character's
+#   (data/se/<folder>/NNN.wav) or common (data/se/NNN.wav); the frame is how far after the card's
+#   move started it plays. A sound played several times is listed each time. A card whose sounds
+#   vary lists each outcome in full, separated by >: the gallery plays each in turn, and the offer
+#   screens play the first.
+#   common/54 is the card-use sound of skills and system cards, and common/23 the spell card
+#   declaration: the defaults for a card with no row.
+system,0,common/55@11
+system,1,common/54@0 common/56@20
+system,2,common/54@0 common/73@59
+system,3,common/54@0
+system,4,common/54@0
+system,5,common/54@0
+system,6,common/54@0
+system,7,common/54@0
+system,8,common/35@0 common/72@6
+system,9,common/54@0 common/36@20 common/56@20 common/36@54
+system,10,common/54@0
+system,11,common/54@0 common/58@26
+system,12,common/54@0
+system,13,common/35@0
+system,14,common/54@0 common/53@12
+system,15,common/54@0 common/56@20
+system,16,common/54@0
+system,17,common/54@0
+system,18,common/54@0
+system,19,common/54@0
+system,20,common/54@0 common/70@84 common/71@128
+Reimu,100,reimu/4@19 reimu/26@53
+Reimu,101,reimu/21@24 reimu/5@39
+Reimu,102,reimu/6@13 reimu/6@27
+Reimu,103,reimu/7@9
+Reimu,104,reimu/2@16
+Reimu,105,reimu/5@22
+Reimu,106,reimu/6@13 reimu/6@27 reimu/14@39
+Reimu,107,reimu/7@11 reimu/7@33 reimu/10@47
+Reimu,108,reimu/4@19 reimu/20@42
+Reimu,109,reimu/15@18
+Reimu,110,reimu/18@18 reimu/19@49 reimu/19@50 reimu/19@51 reimu/19@52 reimu/19@53
+Reimu,111,reimu/27@24
+Reimu,200,reimu/8@53 reimu/8@58 reimu/8@63 reimu/8@68 reimu/8@73
+Reimu,201,reimu/8@59 reimu/8@64 reimu/8@69 reimu/8@74 reimu/8@79 reimu/8@84 reimu/8@89 reimu/8@94 reimu/8@99 reimu/8@104
+Reimu,204,reimu/22@49
+Reimu,206,reimu/9@54
+Reimu,207,reimu/23@66 reimu/23@71 reimu/23@76 reimu/23@81 reimu/23@86 reimu/23@91 reimu/23@96 reimu/23@101 reimu/23@106 reimu/23@111 reimu/23@116 reimu/23@121 reimu/23@126 reimu/23@131 reimu/23@136
+Reimu,208,reimu/11@66 reimu/11@72 reimu/11@78
+Reimu,209,reimu/12@40
+Reimu,210,reimu/13@44
+Reimu,214,reimu/7@46 reimu/7@67 reimu/7@89 reimu/7@115 reimu/10@127
+Reimu,219,reimu/22@51 reimu/23@150 reimu/23@166 reimu/23@184 reimu/23@243 reimu/23@259 reimu/23@277 reimu/23@362 reimu/24@470
+Marisa,100,marisa/6@17
+Marisa,101,marisa/5@12
+Marisa,102,marisa/7@17 marisa/8@47
+Marisa,103,marisa/9@18 marisa/9@22 marisa/9@26 marisa/9@30 marisa/9@34
+Marisa,104,marisa/26@20
+Marisa,105,marisa/28@12
+Marisa,106,marisa/7@15 marisa/27@35 marisa/27@41 marisa/27@47
+Marisa,107,marisa/29@24 marisa/4@24
+Marisa,108,marisa/6@12
+Marisa,109,marisa/30@11 marisa/31@26
+Marisa,110,marisa/36@24 marisa/37@74 marisa/37@128 marisa/37@172 marisa/8@204
+Marisa,111,marisa/34@19 marisa/35@36
+Marisa,200,marisa/10@67
+Marisa,202,marisa/11@75
+Marisa,203,marisa/11@72
+Marisa,204,marisa/39@63
+Marisa,205,marisa/13@54 marisa/14@99
+Marisa,206,marisa/15@52
+Marisa,207,marisa/16@66
+Marisa,208,marisa/19@66 marisa/19@70 marisa/19@74 marisa/19@78 marisa/19@82 marisa/19@86 marisa/19@90 marisa/19@94 marisa/19@98 marisa/19@102 marisa/19@106 marisa/19@110 marisa/19@114
+Marisa,209,marisa/20@52 marisa/40@88
+Marisa,211,marisa/20@57 marisa/21@101
+Marisa,212,marisa/36@52 marisa/38@74 marisa/38@76 marisa/38@79 marisa/38@82 marisa/38@85
+Marisa,214,marisa/36@62 marisa/37@114 marisa/37@172 marisa/37@218 marisa/37@255 marisa/40@255
+Marisa,215,marisa/24@61
+Marisa,219,marisa/10@68 marisa/11@164
+Sakuya,100,sakuya/10@7
+Sakuya,101,sakuya/11@15 sakuya/3@41 sakuya/3@44 sakuya/3@46 sakuya/3@47 sakuya/3@49 sakuya/3@50 sakuya/3@52 sakuya/3@54 sakuya/3@55 sakuya/3@58 sakuya/3@61 sakuya/3@62 sakuya/3@66 sakuya/3@69
+Sakuya,102,sakuya/12@24
+Sakuya,103,sakuya/13@23
+Sakuya,104,sakuya/14@17
+Sakuya,105,sakuya/11@15 sakuya/3@52 sakuya/3@87
+Sakuya,106,sakuya/15@17
+Sakuya,107,sakuya/16@16 sakuya/2@45
+Sakuya,108,sakuya/14@18
+Sakuya,109,sakuya/11@15 sakuya/17@75 sakuya/3@89 sakuya/3@90 sakuya/3@92 sakuya/3@95 sakuya/3@97
+Sakuya,110,sakuya/12@14
+Sakuya,111,sakuya/18@10 sakuya/55@35
+Sakuya,200,sakuya/50@58
+Sakuya,201,sakuya/52@77
+Sakuya,202,sakuya/54@54 sakuya/54@58 sakuya/54@62 sakuya/54@66 sakuya/54@70 sakuya/54@74 sakuya/54@78 sakuya/54@82 sakuya/54@86 sakuya/54@90 sakuya/54@94 sakuya/54@98 sakuya/54@102 sakuya/54@106 sakuya/54@110 sakuya/54@114 sakuya/54@118 sakuya/54@122 sakuya/54@126 sakuya/54@130 sakuya/54@134 sakuya/54@138 sakuya/54@142
+Sakuya,203,sakuya/51@58 sakuya/13@89 sakuya/13@92 sakuya/13@95 sakuya/13@98 sakuya/57@100 sakuya/13@101 sakuya/57@103 sakuya/13@104 sakuya/57@106 sakuya/13@107 sakuya/57@109 sakuya/13@110 sakuya/57@112 sakuya/13@113 sakuya/57@115 sakuya/13@116 sakuya/57@118 sakuya/13@119 sakuya/57@121 sakuya/13@122 sakuya/57@124 sakuya/13@125 sakuya/57@127 sakuya/13@128 sakuya/57@130 sakuya/13@131 sakuya/57@133 sakuya/13@134 sakuya/57@136 sakuya/13@137 sakuya/57@139 sakuya/13@140 sakuya/57@142 sakuya/13@143 sakuya/57@145 sakuya/13@146 sakuya/57@148 sakuya/13@149 sakuya/57@151 sakuya/57@154 sakuya/57@157 sakuya/57@160
+Sakuya,204,sakuya/53@129
+Sakuya,205,sakuya/54@54 sakuya/54@58 sakuya/54@62 sakuya/54@66 sakuya/54@70 sakuya/54@74 sakuya/54@78 sakuya/54@82 sakuya/54@86 sakuya/54@90 sakuya/54@94 sakuya/54@98 sakuya/54@102 sakuya/54@106 sakuya/54@110 sakuya/54@114 sakuya/54@118 sakuya/54@122 sakuya/54@126 sakuya/54@130 sakuya/54@134 sakuya/54@138 sakuya/54@142
+Sakuya,206,sakuya/15@74 sakuya/3@74 sakuya/3@75 sakuya/3@76 sakuya/3@78 sakuya/3@80 sakuya/3@82 sakuya/3@84 sakuya/3@88 sakuya/3@91 sakuya/3@96 sakuya/3@111 sakuya/3@113 sakuya/3@130 sakuya/3@133 sakuya/3@140 sakuya/3@154 sakuya/3@159 sakuya/3@179
+Sakuya,207,sakuya/2@54 sakuya/2@64 sakuya/2@74 sakuya/2@84 sakuya/2@94 sakuya/2@104 sakuya/2@114 sakuya/2@124 sakuya/2@134 sakuya/2@144
+Sakuya,208,sakuya/15@55 sakuya/56@57 sakuya/56@65 sakuya/56@73 sakuya/56@81 sakuya/56@89 sakuya/56@97 sakuya/56@105 sakuya/56@113 sakuya/56@121 sakuya/56@129 sakuya/56@137 sakuya/56@145 sakuya/56@153 sakuya/56@161 sakuya/56@169 sakuya/56@177
+Sakuya,209,sakuya/53@77
+Sakuya,210,sakuya/15@53 sakuya/56@56 sakuya/56@61 sakuya/56@66 sakuya/56@69 sakuya/56@73 sakuya/56@74 sakuya/56@79 sakuya/56@80 sakuya/56@86 sakuya/56@87 sakuya/56@88 sakuya/56@92 sakuya/56@95 sakuya/56@98 sakuya/56@101 sakuya/56@103 sakuya/56@108 sakuya/56@113 sakuya/56@118 sakuya/56@123 sakuya/56@125 sakuya/56@127 sakuya/56@132 sakuya/56@136 sakuya/56@140 sakuya/56@144 sakuya/56@145 sakuya/56@149 sakuya/56@153 sakuya/56@159 sakuya/56@160 sakuya/56@162 sakuya/56@166 sakuya/56@170 sakuya/56@171 sakuya/56@175 sakuya/56@179 sakuya/56@183 sakuya/56@186 sakuya/56@189 sakuya/56@194 sakuya/56@198 sakuya/56@200 sakuya/56@205 sakuya/56@206 sakuya/56@212 sakuya/56@217 sakuya/56@220 sakuya/56@222 sakuya/56@227 sakuya/56@231 sakuya/56@235 sakuya/56@237 sakuya/56@242 sakuya/56@246 sakuya/56@250 sakuya/56@251 sakuya/56@255 sakuya/56@258 sakuya/56@263 sakuya/56@266 sakuya/56@270 sakuya/56@276 sakuya/56@277 sakuya/56@278 sakuya/56@283 sakuya/56@286 sakuya/56@287 sakuya/56@289 sakuya/56@292 sakuya/57@296
+Sakuya,211,sakuya/53@58
+Sakuya,212,sakuya/15@60 sakuya/53@93
+Alice,100,alice/3@10 alice/4@41 alice/4@56 alice/4@71 alice/4@86 alice/4@101 alice/4@116 alice/4@131 alice/4@146 alice/4@161
+Alice,101,alice/5@18 alice/6@28 alice/6@29 alice/6@31 alice/6@33
+Alice,102,alice/3@9 alice/7@39 alice/7@44 alice/7@49 alice/7@54
+Alice,103,alice/3@16 alice/4@17 alice/4@32 alice/4@47 alice/4@62 alice/4@77 alice/4@92 alice/4@107
+Alice,104,alice/10@15
+Alice,105,alice/3@20 alice/6@67 alice/6@68 alice/6@75 alice/6@78
+Alice,106,alice/12@12 alice/12@19 alice/12@24 alice/12@31 alice/12@38
+Alice,107,alice/3@23 alice/3@83 alice/9@85
+Alice,108,alice/3@19 alice/5@102
+Alice,109,alice/40@10 alice/6@131
+Alice,110,alice/3@9 alice/14@26 alice/14@30 alice/14@31
+Alice,111,alice/13@14 alice/13@40 alice/13@55
+Alice,200,alice/20@50 alice/21@94
+Alice,201,alice/22@59 alice/39@78
+Alice,202,alice/23@67
+Alice,203,alice/24@54 alice/25@78
+Alice,204,alice/26@63
+Alice,205,alice/27@67
+Alice,206,alice/28@57 alice/28@58 alice/28@60 alice/28@62 alice/28@64 alice/28@66 alice/28@68 alice/28@70 alice/28@72 alice/29@91 alice/29@96 alice/29@101 alice/29@106 alice/29@111 alice/29@116 alice/29@121 alice/29@126
+Alice,207,alice/5@58 alice/30@84 alice/30@94 alice/30@104 alice/30@114
+Alice,208,alice/7@68 alice/7@177 alice/7@229 alice/4@278 alice/4@293 alice/4@308 alice/4@323 alice/0@371 alice/0@373 alice/0@375 alice/0@377 alice/0@379 alice/0@381 alice/0@383 alice/0@385 alice/0@387 alice/0@389 alice/9@434 alice/23@434 alice/6@539
+Alice,209,alice/35@62
+Alice,210,alice/12@54 alice/12@59 alice/12@64 alice/12@69 alice/12@74 alice/12@79 alice/12@84 alice/12@89 alice/12@94 alice/12@99 alice/12@104 alice/12@109 alice/12@114 alice/12@119 alice/12@124 alice/12@129 alice/12@134 alice/12@139 alice/12@144 alice/12@149 alice/12@154 alice/12@159 alice/12@164 alice/12@169 alice/12@174 common/29@183
+Alice,211,alice/40@57 alice/40@58 alice/40@59 alice/40@60 alice/40@62 alice/40@63 alice/40@64 alice/40@65 alice/40@67 alice/40@68 alice/40@69 alice/40@70 alice/40@72 alice/40@73 alice/40@74 alice/40@75 alice/40@77 alice/40@78 alice/40@79 alice/40@80 alice/40@82 alice/6@82 alice/40@83 alice/40@84 alice/40@85 alice/40@87 alice/6@87 alice/40@88 alice/40@89 alice/40@90 alice/6@90 alice/6@91 alice/40@92 alice/40@93 alice/40@94 alice/6@94 alice/40@95 alice/40@97 alice/40@98 alice/40@99 alice/40@100 alice/6@101 alice/40@102 alice/40@103 alice/6@103 alice/40@104 alice/40@105 alice/6@106 alice/40@107 alice/40@108 alice/40@109 alice/6@109 alice/40@110 alice/6@111 alice/40@112 alice/40@113 alice/40@114 alice/6@114 alice/40@115 alice/40@117 alice/40@118 alice/40@119 alice/40@120 alice/6@120 alice/40@122 alice/40@123 alice/6@123 alice/40@124 alice/40@125 alice/6@126 alice/40@127 alice/40@128 alice/6@128 alice/40@129 alice/40@130 alice/40@132 alice/40@133 alice/40@134 alice/6@134 alice/40@135 alice/6@135 alice/40@137 alice/40@138 alice/6@138 alice/40@139 alice/6@139 alice/40@140 alice/40@142 alice/40@143 alice/40@144 alice/6@144 alice/40@145 alice/3@146 alice/40@147 alice/40@148 alice/40@149 alice/40@150 alice/40@152 alice/6@152 alice/40@153 alice/40@154 alice/6@154 alice/40@155 alice/6@155 alice/40@157 alice/40@158 alice/40@159 alice/40@160 alice/40@162 alice/6@162 alice/40@163 alice/40@164 alice/40@165 alice/40@167 alice/6@167 alice/40@168 alice/40@169 alice/40@170 alice/40@172 alice/6@172 alice/40@173 alice/40@174 alice/6@174 alice/40@175 alice/40@177 alice/40@178 alice/40@179 alice/40@180 alice/40@182 alice/40@183 alice/40@184 alice/40@185 alice/40@187 alice/40@188 alice/40@189 alice/40@190 alice/40@192 alice/40@193 alice/40@194 alice/40@195 alice/40@197 alice/40@198 alice/40@199 alice/40@200 alice/40@202 alice/40@203 alice/40@204 alice/40@205 alice/6@240
+Patchouli,100,patchouli/3@19 patchouli/4@57
+Patchouli,101,patchouli/5@46
+Patchouli,102,patchouli/6@12
+Patchouli,103,patchouli/0@15 patchouli/0@22 patchouli/8@25
+Patchouli,104,patchouli/9@10 patchouli/10@70 patchouli/10@75 patchouli/10@80 patchouli/10@86 patchouli/10@90 patchouli/10@95
+Patchouli,105,patchouli/11@18
+Patchouli,106,patchouli/12@19 patchouli/13@208
+Patchouli,107,patchouli/14@12 patchouli/15@26
+Patchouli,108,patchouli/16@18
+Patchouli,109,patchouli/17@12
+Patchouli,110,patchouli/11@13 patchouli/11@33 patchouli/11@66
+Patchouli,111,patchouli/2@19 patchouli/2@24 patchouli/2@29 patchouli/2@34 patchouli/2@39 patchouli/2@44 patchouli/2@49
+Patchouli,112,patchouli/21@14 patchouli/22@40
+Patchouli,113,patchouli/23@14 patchouli/20@39 patchouli/20@41 patchouli/20@44 patchouli/20@47 patchouli/20@50 patchouli/20@53
+Patchouli,114,patchouli/19@29
+Patchouli,200,patchouli/50@16 patchouli/3@57 patchouli/51@72
+Patchouli,201,patchouli/2@51 patchouli/2@53 patchouli/2@55 patchouli/2@57 patchouli/2@59 patchouli/2@61 patchouli/2@63 patchouli/2@65 patchouli/2@67 patchouli/2@69 patchouli/2@71 patchouli/2@73 patchouli/2@75 patchouli/2@77 patchouli/2@79 patchouli/2@81 patchouli/2@83 patchouli/2@85 patchouli/2@87 patchouli/2@89
+Patchouli,202,patchouli/52@48 patchouli/52@56 patchouli/52@64 patchouli/52@72 patchouli/52@80 patchouli/52@88 patchouli/52@96 patchouli/52@104 patchouli/52@112 patchouli/52@120 patchouli/52@128 patchouli/52@136 patchouli/52@144 patchouli/52@152 patchouli/52@160 patchouli/52@168 patchouli/52@176
+Patchouli,203,patchouli/53@33 patchouli/54@81
+Patchouli,204,patchouli/55@54 patchouli/56@54 patchouli/56@64 patchouli/56@74 patchouli/56@84 patchouli/56@94 patchouli/56@104 patchouli/56@114 patchouli/56@124 patchouli/56@134 patchouli/56@144 patchouli/56@154 patchouli/56@164 patchouli/56@174
+Patchouli,205,patchouli/59@55 patchouli/59@65 patchouli/59@75 patchouli/59@85 patchouli/59@95 patchouli/60@105
+Patchouli,206,patchouli/12@64
+Patchouli,207,patchouli/57@70 patchouli/0@100 patchouli/0@103 patchouli/0@106 patchouli/0@109 patchouli/0@112 patchouli/0@115 patchouli/0@160 patchouli/0@163 patchouli/0@166 patchouli/0@169 patchouli/0@172 patchouli/0@175 patchouli/0@220 patchouli/0@223 patchouli/0@226 patchouli/0@229 patchouli/0@232 patchouli/0@235 patchouli/0@280 patchouli/0@283 patchouli/0@286 patchouli/0@289 patchouli/0@292 patchouli/0@295 patchouli/0@340 patchouli/0@343 patchouli/0@346 patchouli/0@349 patchouli/0@352 patchouli/0@355 patchouli/0@400 patchouli/0@403 patchouli/0@406 patchouli/0@409 patchouli/0@412 patchouli/0@415
+Patchouli,210,patchouli/58@48
+Patchouli,211,patchouli/64@57 patchouli/63@62 patchouli/64@65 patchouli/63@70 patchouli/64@73 patchouli/63@78 patchouli/64@81 patchouli/63@86 patchouli/63@88 patchouli/64@89 patchouli/63@94 patchouli/63@96 patchouli/64@97 patchouli/63@102 patchouli/63@104 patchouli/63@112 patchouli/63@120 patchouli/63@128
+Patchouli,212,patchouli/17@60 patchouli/17@85 patchouli/17@110 patchouli/17@135
+Patchouli,213,patchouli/53@41 patchouli/65@82 patchouli/65@86 patchouli/65@90 patchouli/65@94 patchouli/65@98 patchouli/65@102 patchouli/65@106 patchouli/65@110 patchouli/65@114 patchouli/65@118 patchouli/65@122 patchouli/65@126 patchouli/65@130 patchouli/65@134 patchouli/65@138 patchouli/65@142 patchouli/65@146 patchouli/65@150 patchouli/65@154 patchouli/65@158 patchouli/65@162 patchouli/65@166 patchouli/65@170 patchouli/65@174 patchouli/65@178 patchouli/65@182 patchouli/65@186 patchouli/65@190 patchouli/65@194 patchouli/65@198 patchouli/65@202 patchouli/65@206 patchouli/65@210 patchouli/65@214 patchouli/65@218 patchouli/65@222 patchouli/65@226 patchouli/65@230 patchouli/65@234 patchouli/65@238 patchouli/65@242 patchouli/65@246 patchouli/65@250 patchouli/65@254 patchouli/65@258 patchouli/65@262 patchouli/65@266 patchouli/65@270 patchouli/65@274 patchouli/65@278 patchouli/65@282 patchouli/65@286 patchouli/65@290 patchouli/65@294 patchouli/65@298 patchouli/65@302 patchouli/65@306 patchouli/65@310 patchouli/65@314 patchouli/65@318 patchouli/65@322 patchouli/65@326 patchouli/65@330 patchouli/65@334 patchouli/65@338 patchouli/65@342 patchouli/65@346 patchouli/65@350 patchouli/65@354 patchouli/65@358 patchouli/65@362 patchouli/65@366 patchouli/65@370 patchouli/65@374 patchouli/65@378
+Youmu,100,youmu/3@9
+Youmu,101,youmu/4@10
+Youmu,102,youmu/5@12 youmu/5@43 youmu/6@79
+Youmu,103,youmu/2@15
+Youmu,104,youmu/7@18
+Youmu,105,common/1@12 common/29@54 common/3@59
+Youmu,106,youmu/9@21
+Youmu,107,youmu/1@16
+Youmu,108,youmu/8@19
+Youmu,109,youmu/10@3 youmu/11@13 youmu/12@42
+Youmu,110,youmu/5@12 youmu/9@29
+Youmu,111,youmu/1@19 youmu/0@27 youmu/0@34 youmu/0@41
+Youmu,200,youmu/50@45 youmu/51@51
+Youmu,201,youmu/52@54
+Youmu,202,youmu/54@10
+Youmu,203,common/7@51 common/6@132 common/6@137 common/6@142 common/6@147 common/6@152 common/6@157 common/6@162 common/6@167 common/6@172 common/6@177 common/6@182 common/6@187 common/6@192 common/6@197 common/6@202 common/6@207 common/7@239 common/22@378
+Youmu,204,youmu/53@64
+Youmu,205,youmu/54@10
+Youmu,206,youmu/9@44
+Youmu,207,youmu/55@55
+Youmu,208,youmu/10@3 youmu/11@56 youmu/56@100 youmu/57@198 youmu/58@233
+Youmu,212,youmu/4@56 youmu/4@75 youmu/4@94 youmu/4@113 youmu/4@132 youmu/50@150
+Remilia,100,remilia/10@17
+Remilia,101,remilia/11@23 remilia/1@83 remilia/1@88 remilia/1@93
+Remilia,102,remilia/12@11
+Remilia,103,remilia/13@5 remilia/14@34
+Remilia,104,remilia/21@14
+Remilia,105,remilia/16@20 remilia/17@43 remilia/17@44 remilia/17@45 remilia/17@46 remilia/17@47 remilia/17@48 remilia/17@49 remilia/17@50 remilia/17@51 remilia/17@52 remilia/17@53 remilia/17@54 remilia/17@55 remilia/17@56 remilia/17@57 remilia/17@58 remilia/17@59 remilia/17@60 remilia/17@61 remilia/17@62
+Remilia,106,remilia/23@12
+Remilia,107,remilia/13@5 remilia/18@44
+Remilia,108,remilia/10@7 remilia/24@27
+Remilia,109,remilia/20@24
+Remilia,110,remilia/26@32 common/1@50 common/6@76 remilia/25@79
+Remilia,111,remilia/13@5
+Remilia,200,remilia/50@45
+Remilia,201,remilia/52@1 remilia/53@60
+Remilia,202,remilia/54@54
+Remilia,203,remilia/51@52
+Remilia,204,remilia/52@1 remilia/53@60
+Remilia,205,remilia/55@49
+Remilia,206,remilia/13@5 remilia/56@74
+Remilia,207,remilia/16@69 remilia/16@84 remilia/16@99 remilia/17@99 remilia/17@100 remilia/17@101 remilia/17@102 remilia/17@103 remilia/17@104 remilia/17@105 remilia/17@106 remilia/17@107 remilia/17@108 remilia/17@109 remilia/17@110 remilia/17@111 remilia/17@112 remilia/17@113 remilia/16@114 remilia/17@114 remilia/17@115 remilia/17@116 remilia/17@117 remilia/17@118 remilia/17@119 remilia/17@120 remilia/17@121 remilia/17@122 remilia/17@123 remilia/17@124 remilia/17@125 remilia/17@126 remilia/17@127 remilia/17@128 remilia/17@129 remilia/17@130 remilia/17@131 remilia/17@132 remilia/17@133 remilia/17@134 remilia/17@135 remilia/17@136 remilia/17@137 remilia/17@138 remilia/17@139 remilia/17@140 remilia/17@141 remilia/17@142 remilia/17@143 remilia/17@144 remilia/17@145 remilia/17@146 remilia/17@147 remilia/17@148 remilia/17@149 remilia/17@150 remilia/17@151 remilia/17@152 remilia/17@153 remilia/17@154 remilia/17@155 remilia/17@156 remilia/17@157 remilia/17@158 remilia/17@159 remilia/17@160 remilia/17@161 remilia/17@162 remilia/17@163 remilia/17@164 remilia/17@165 remilia/17@166 remilia/17@167 remilia/17@168 remilia/17@169 remilia/17@170 remilia/17@171 remilia/17@172 remilia/17@173 remilia/17@174 remilia/17@175 remilia/17@176 remilia/17@177 remilia/17@178 remilia/17@179
+Remilia,208,remilia/63@17
+Remilia,209,remilia/64@56 remilia/65@120
+Yuyuko,100,yuyuko/10@16 yuyuko/11@69 yuyuko/11@80 yuyuko/11@96 yuyuko/11@97
+Yuyuko,101,yuyuko/12@20
+Yuyuko,102,yuyuko/13@18
+Yuyuko,103,yuyuko/14@3 yuyuko/11@36
+Yuyuko,104,yuyuko/15@27
+Yuyuko,105,yuyuko/16@18
+Yuyuko,106,yuyuko/18@22
+Yuyuko,107,yuyuko/17@7
+Yuyuko,108,yuyuko/10@12
+Yuyuko,109,yuyuko/19@22
+Yuyuko,110,yuyuko/20@9 common/1@23 yuyuko/21@24 yuyuko/11@93
+Yuyuko,111,yuyuko/22@19
+Yuyuko,200,yuyuko/50@50
+Yuyuko,201,yuyuko/51@54
+Yuyuko,202,yuyuko/52@50 yuyuko/53@68
+Yuyuko,203,yuyuko/50@47 yuyuko/50@77
+Yuyuko,204,yuyuko/54@42
+Yuyuko,205,yuyuko/52@50 yuyuko/53@67 yuyuko/54@428
+Yuyuko,206,yuyuko/10@45
+Yuyuko,207,yuyuko/16@62 yuyuko/16@77 yuyuko/16@92 yuyuko/16@107
+Yuyuko,208,yuyuko/13@55
+Yuyuko,209,yuyuko/22@107
+Yuyuko,219,yuyuko/21@48 yuyuko/11@115 yuyuko/11@145 yuyuko/11@175 yuyuko/11@205
+Yukari,100,yukari/10@9 yukari/11@50
+Yukari,101,yukari/12@14 common/29@15 common/29@27 common/29@39
+Yukari,102,yukari/13@15
+Yukari,103,yukari/15@6 yukari/16@47
+Yukari,104,yukari/17@12
+Yukari,105,yukari/12@14 yukari/18@35
+Yukari,106,yukari/19@15
+Yukari,107,yukari/1@3 yukari/5@15 yukari/1@45 common/29@70 common/29@82 common/29@94
+Yukari,108,yukari/21@17 yukari/22@57 yukari/22@62 yukari/22@67
+Yukari,109,yukari/24@35
+Yukari,110,yukari/13@18
+Yukari,111,yukari/13@18
+Yukari,200,yukari/50@44
+Yukari,201,yukari/51@30 yukari/52@87
+Yukari,202,yukari/56@62
+Yukari,203,yukari/50@47
+Yukari,204,yukari/51@30 yukari/57@113 yukari/57@177
+Yukari,205,yukari/56@72
+Yukari,206,yukari/21@14 yukari/21@16 yukari/21@18 yukari/21@20 yukari/21@22 yukari/21@24 yukari/21@26 yukari/21@28 yukari/21@30 yukari/21@32 yukari/21@34 yukari/21@36 yukari/21@38 yukari/21@40 yukari/21@42 yukari/21@44 yukari/21@46 yukari/21@48 yukari/21@50 yukari/21@52 yukari/21@54 yukari/21@56 yukari/21@58 yukari/21@60 yukari/21@62 yukari/21@64 yukari/21@66 yukari/2@67 yukari/2@68 yukari/21@69 yukari/2@70 yukari/21@71 yukari/2@72 yukari/21@73 yukari/2@74 yukari/2@76 yukari/2@78 yukari/2@80 yukari/2@82 yukari/2@84 yukari/2@86 yukari/2@88 yukari/2@90 yukari/2@92 yukari/2@94 yukari/2@96 yukari/2@98 yukari/2@100 yukari/2@102 yukari/2@104 yukari/2@106 yukari/2@108 yukari/2@110 yukari/2@112 yukari/2@114 yukari/2@116 yukari/2@118 yukari/2@122 yukari/2@126 yukari/2@130
+Yukari,207,yukari/21@53 yukari/21@58 yukari/21@63 yukari/21@68 yukari/22@93 yukari/22@98 yukari/22@103 yukari/22@108 yukari/22@113 yukari/22@118 yukari/23@133 yukari/23@138 yukari/23@143 yukari/23@148
+Yukari,208,yukari/21@17 yukari/21@22 yukari/21@27 yukari/21@32 yukari/21@37 yukari/21@42 yukari/21@47 yukari/21@52 yukari/21@57 yukari/21@62 yukari/21@68 yukari/21@73
+Yukari,215,yukari/53@149 yukari/54@153 yukari/55@153
+Suika,100,suika/10@22
+Suika,101,suika/11@30 suika/12@40
+Suika,102,suika/13@23
+Suika,103,suika/14@13 suika/15@53
+Suika,104,suika/17@16 suika/12@42
+Suika,105,suika/18@19
+Suika,106,suika/19@12 suika/20@46
+Suika,107,suika/14@13 suika/25@53
+Suika,108,suika/12@30
+Suika,109,suika/23@20 suika/24@80
+Suika,110,suika/26@22 suika/26@27
+Suika,111,suika/15@33 suika/51@141 suika/12@141
+Suika,200,suika/50@12 suika/51@80 suika/52@95
+Suika,201,suika/55@65
+Suika,202,suika/53@59 suika/54@117
+Suika,203,common/1@68 suika/50@112 suika/51@235 suika/52@262
+Suika,204,suika/55@65
+Suika,205,suika/53@59 suika/56@142 suika/57@190 suika/58@254 suika/57@334 suika/58@431 suika/54@477
+Suika,206,suika/19@57
+Suika,207,suika/59@54 suika/24@127
+Suika,208,common/1@51 suika/5@110 suika/5@180 suika/12@284 suika/51@284
+Suika,212,suika/10@48 suika/53@73 suika/10@89 suika/53@114 suika/20@130 common/4@132 suika/54@189
+Reisen,100,udonge/5@18 udonge/6@65
+Reisen,101,udonge/7@27
+Reisen,102,udonge/8@16
+Reisen,103,udonge/9@10 udonge/2@43 udonge/2@50 udonge/2@57 udonge/2@64
+Reisen,104,udonge/15@18 udonge/16@62
+Reisen,105,udonge/13@28 udonge/14@41
+Reisen,106,udonge/17@16
+Reisen,107,udonge/19@19
+Reisen,108,udonge/5@13 udonge/2@58 udonge/2@78 udonge/2@81 udonge/2@89 udonge/2@90 udonge/2@94
+Reisen,109,udonge/12@21
+Reisen,110,udonge/18@13
+Reisen,111,udonge/19@14
+Reisen,200,udonge/12@55
+Reisen,202,udonge/2@97 udonge/2@112 udonge/2@127
+Reisen,203,udonge/12@58 udonge/12@68 udonge/12@78 udonge/12@88 udonge/12@98 udonge/12@108 udonge/12@118 udonge/12@128 udonge/12@138 udonge/12@148
+Reisen,204,udonge/57@51
+Reisen,205,udonge/50@65 udonge/51@140
+Reisen,206,udonge/55@52
+Reisen,207,udonge/5@50 udonge/55@56 common/58@59
+Reisen,208,udonge/52@58 udonge/53@58 udonge/53@88 udonge/53@118 udonge/53@148 udonge/53@178 udonge/53@208 udonge/53@238 udonge/53@268 udonge/53@298 udonge/53@328 udonge/53@358 udonge/53@388 udonge/53@418 udonge/53@448 udonge/53@478 udonge/53@508 udonge/53@538 udonge/53@568 udonge/53@598 udonge/53@628 udonge/53@658
+Reisen,209,udonge/54@86 > udonge/54@86 > udonge/54@86 > udonge/54@86 udonge/56@132
+Reisen,210,udonge/18@54
+Reisen,211,udonge/8@54
+Aya,100,aya/4@14
+Aya,101,aya/5@19
+Aya,102,aya/6@13
+Aya,103,aya/17@3
+Aya,104,aya/14@14
+Aya,105,aya/5@25
+Aya,106,aya/15@14 aya/23@42
+Aya,107,aya/13@20
+Aya,108,aya/16@18
+Aya,109,aya/19@33
+Aya,110,aya/15@5
+Aya,111,aya/7@25 aya/25@85
+Aya,200,aya/9@55
+Aya,201,aya/10@55
+Aya,202,aya/11@62
+Aya,203,aya/6@10 aya/24@64
+Aya,205,aya/12@53
+Aya,206,aya/22@6 aya/21@73 aya/22@137 aya/22@178 aya/22@215 aya/22@248 aya/22@277 aya/22@302 aya/22@323 aya/22@340 aya/22@353 aya/22@362 aya/22@371 aya/22@380 aya/22@389 aya/22@398 aya/22@407 aya/22@416 aya/22@425 aya/22@434
+Aya,207,aya/13@56
+Aya,208,aya/17@13 aya/17@53 aya/17@93 aya/17@133 aya/17@173
+Aya,211,aya/13@56
+Aya,212,aya/5@60
+Komachi,100,komachi/10@22
+Komachi,101,komachi/12@23
+Komachi,102,komachi/13@30
+Komachi,103,komachi/14@23 komachi/14@29 komachi/14@35
+Komachi,104,komachi/16@12
+Komachi,105,komachi/18@9
+Komachi,106,komachi/19@24
+Komachi,107,komachi/14@17
+Komachi,108,komachi/10@22
+Komachi,109,komachi/50@4
+Komachi,110,komachi/20@15 komachi/16@66
+Komachi,111,komachi/21@20
+Komachi,200,komachi/50@54
+Komachi,201,common/8@72 komachi/51@124 komachi/52@192
+Komachi,202,komachi/14@53 komachi/14@58 komachi/14@63 komachi/14@68 komachi/14@73 komachi/14@78 komachi/14@83 komachi/14@88 komachi/14@93
+Komachi,203,komachi/50@54
+Komachi,204,common/8@92 komachi/51@124 komachi/55@156 komachi/56@252
+Komachi,205,komachi/14@53 komachi/14@58 komachi/14@63 komachi/14@68 komachi/14@73 komachi/14@78 komachi/14@83 komachi/14@88 common/55@165
+Komachi,206,komachi/53@69 komachi/54@82
+Komachi,207,komachi/20@61 common/8@62 komachi/22@64 komachi/20@72 common/8@77 komachi/20@83 common/8@92 komachi/20@94 common/8@104 komachi/20@105 komachi/20@116 common/8@126 komachi/20@127 komachi/20@138 komachi/20@149 komachi/20@160 komachi/22@164 komachi/22@195 komachi/22@199 komachi/22@207 komachi/22@212 komachi/22@213 komachi/22@219 komachi/22@225 komachi/22@228 komachi/22@230 komachi/22@231 komachi/22@233 komachi/22@237 komachi/22@239 komachi/22@244 komachi/22@250 komachi/22@258
+Komachi,211,komachi/10@61
+Iku,100,iku/10@15
+Iku,101,iku/11@43
+Iku,102,iku/13@24
+Iku,103,iku/14@19
+Iku,104,iku/19@17
+Iku,105,iku/16@12
+Iku,106,iku/17@26 iku/13@160
+Iku,107,iku/18@20
+Iku,108,iku/24@6 iku/17@16
+Iku,109,iku/16@14 common/3@16 common/3@55 common/3@60 common/3@65 common/3@70 common/3@75 common/3@80 common/3@85 common/3@90 common/3@95 common/3@100 common/3@105 common/29@129 common/22@135
+Iku,110,iku/14@26
+Iku,111,iku/22@22
+Iku,200,iku/50@57 iku/2@81 iku/51@81
+Iku,201,iku/10@48
+Iku,202,iku/12@57
+Iku,203,iku/23@46
+Iku,206,iku/13@59 iku/13@105 iku/13@136 iku/13@167
+Iku,207,iku/16@47
+Iku,208,iku/16@49 common/35@109 common/29@134
+Iku,209,iku/13@55
+Iku,210,iku/14@57 iku/14@67 iku/14@77 iku/14@87 iku/14@97 iku/14@107 iku/14@117 iku/14@127 iku/14@137 iku/14@147 iku/14@157 iku/14@167 iku/14@177
+Iku,211,iku/51@57
+Tenshi,100,tenshi/10@15 tenshi/10@20 tenshi/10@25 tenshi/10@30 tenshi/11@35 tenshi/10@145 tenshi/10@150 tenshi/10@155 tenshi/10@160 tenshi/11@175
+Tenshi,101,tenshi/11@18 tenshi/12@46
+Tenshi,102,tenshi/13@26 tenshi/13@28 tenshi/13@30 tenshi/13@32 tenshi/13@34 tenshi/13@36 tenshi/13@38 tenshi/13@40 tenshi/13@42 tenshi/13@44 tenshi/13@46 tenshi/13@48 tenshi/13@50 tenshi/13@52 tenshi/13@54
+Tenshi,103,tenshi/19@4 tenshi/14@15
+Tenshi,104,tenshi/18@29
+Tenshi,105,tenshi/16@26
+Tenshi,106,tenshi/15@33
+Tenshi,107,common/29@12 common/29@23 tenshi/17@25 common/29@33 common/29@44 tenshi/17@46 tenshi/17@56
+Tenshi,108,tenshi/21@21 common/1@135
+Tenshi,109,tenshi/0@29 tenshi/11@36
+Tenshi,110,tenshi/17@8 tenshi/17@35
+Tenshi,111,tenshi/20@16
+Tenshi,200,tenshi/10@58 tenshi/10@78 tenshi/10@98 tenshi/10@118
+Tenshi,201,tenshi/51@53 tenshi/52@119
+Tenshi,202,tenshi/50@49
+Tenshi,203,tenshi/10@59 tenshi/18@299 tenshi/54@479 tenshi/18@479 tenshi/18@499 tenshi/18@519 tenshi/18@539 tenshi/18@559 tenshi/54@579
+Tenshi,204,tenshi/55@52
+Tenshi,205,tenshi/50@49 tenshi/53@107 tenshi/54@122
+Tenshi,206,tenshi/57@78
+Tenshi,207,tenshi/56@76
+Tenshi,208,tenshi/14@53 tenshi/14@59 tenshi/14@65 tenshi/14@71 tenshi/14@77 tenshi/14@83 tenshi/14@89 tenshi/14@95 tenshi/17@110
+Tenshi,209,tenshi/56@64
+Sanae,100,sanae/20@15
+Sanae,101,sanae/30@12 sanae/31@90 > sanae/30@12 sanae/32@90 > sanae/30@12 sanae/33@90 > sanae/30@12 sanae/34@90
+Sanae,102,sanae/40@6 sanae/41@14
+Sanae,103,sanae/50@14 sanae/51@33
+Sanae,104,sanae/21@15
+Sanae,105,sanae/35@12
+Sanae,106,sanae/40@14 sanae/42@36
+Sanae,107,sanae/50@12 sanae/53@27 sanae/53@35 sanae/53@43 sanae/53@51 sanae/53@59 sanae/53@67
+Sanae,108,sanae/22@6 sanae/22@10 sanae/22@14 sanae/23@16
+Sanae,109,sanae/36@12 sanae/37@44
+Sanae,110,sanae/40@3 sanae/43@20 sanae/44@35
+Sanae,111,sanae/50@12 sanae/54@41 sanae/55@94
+Sanae,200,sanae/100@54 sanae/100@59 sanae/100@64 sanae/100@69 sanae/100@74 sanae/100@79 sanae/100@84 sanae/100@89 sanae/100@94 sanae/100@99 sanae/100@104 sanae/100@109 sanae/100@114
+Sanae,201,sanae/101@56 sanae/101@65 sanae/101@74 sanae/102@77 sanae/101@83 sanae/102@86 sanae/101@92 sanae/102@95 sanae/102@104 sanae/102@113
+Sanae,202,sanae/103@12 sanae/103@18 sanae/103@25 sanae/103@32 sanae/103@39 sanae/104@56
+Sanae,203,sanae/30@49 sanae/30@57 sanae/30@65 sanae/30@73 sanae/31@128 sanae/32@136 sanae/33@144 sanae/34@152
+Sanae,204,sanae/105@50 sanae/105@71 sanae/105@92 sanae/105@113 sanae/105@134 sanae/105@155 sanae/105@176
+Sanae,205,sanae/106@49 sanae/107@79 sanae/108@94
+Sanae,206,sanae/109@46 sanae/110@79 sanae/110@82 sanae/110@85 sanae/110@88 sanae/110@91 sanae/110@94 sanae/110@97 sanae/110@100 sanae/110@103 sanae/110@106 sanae/110@109 sanae/110@112 sanae/110@115 sanae/110@118 sanae/110@121 sanae/110@124 sanae/110@127 sanae/110@130 sanae/110@133 sanae/110@136 sanae/110@139 sanae/110@142 sanae/110@145 sanae/110@148 sanae/110@151 sanae/110@154 sanae/110@157 sanae/110@160 sanae/110@163 sanae/110@166 sanae/110@169 sanae/110@172 sanae/110@175 sanae/110@178
+Sanae,207,sanae/111@60 sanae/112@74
+Sanae,210,sanae/114@54 sanae/114@75 sanae/114@94 sanae/114@115 sanae/114@134 sanae/114@155 sanae/114@174 sanae/114@195 sanae/114@214 sanae/115@249
+Cirno,100,chirno/5@23 chirno/5@28 chirno/5@33 chirno/1@52 chirno/1@57 chirno/1@62
+Cirno,101,chirno/9@16 chirno/10@135
+Cirno,102,chirno/18@8 chirno/13@20 chirno/10@73
+Cirno,103,chirno/17@13
+Cirno,104,chirno/6@28
+Cirno,105,chirno/11@15
+Cirno,106,chirno/14@14
+Cirno,107,chirno/0@9 chirno/0@15 chirno/0@21 chirno/6@28
+Cirno,108,chirno/8@22
+Cirno,109,chirno/20@5 chirno/12@31
+Cirno,110,chirno/16@31 chirno/19@33 chirno/10@104
+Cirno,111,chirno/105@14 chirno/105@24 chirno/105@34 chirno/106@44
+Cirno,200,chirno/5@61 chirno/5@64 chirno/5@67 chirno/5@70 chirno/5@73 chirno/5@76 chirno/5@79 chirno/5@82 chirno/5@85 chirno/5@88 chirno/5@91 chirno/5@94 chirno/5@97 chirno/5@100 chirno/5@103 chirno/5@106 chirno/5@109 chirno/5@112 chirno/5@115 chirno/5@118
+Cirno,201,chirno/100@58
+Cirno,202,chirno/101@60
+Cirno,203,chirno/12@71
+Cirno,204,chirno/102@56 chirno/102@62 chirno/102@68 chirno/102@74 chirno/102@80 chirno/102@86 chirno/102@92 chirno/102@98 chirno/102@104 chirno/102@110 chirno/102@116 chirno/102@122 chirno/102@128 chirno/102@134 chirno/102@140 chirno/102@146 chirno/102@152 chirno/102@158 chirno/102@164 chirno/102@170 chirno/100@174
+Cirno,205,chirno/103@55 chirno/103@72 chirno/103@89
+Cirno,206,chirno/104@61
+Cirno,207,chirno/105@49 chirno/105@59 chirno/105@69 chirno/105@79 chirno/105@89 chirno/106@101
+Cirno,208,chirno/107@68
+Cirno,210,chirno/108@55
+Cirno,213,chirno/109@57
+Meiling,100,meirin/6@24
+Meiling,101,meirin/11@10
+Meiling,102,meirin/15@15
+Meiling,103,meirin/17@24 meirin/17@31 meirin/17@38
+Meiling,104,meirin/7@9 meirin/7@13 meirin/7@17 meirin/7@21 meirin/7@25 meirin/7@29 meirin/8@37
+Meiling,105,meirin/12@4 meirin/13@29
+Meiling,106,meirin/16@15
+Meiling,107,meirin/18@5 meirin/19@33
+Meiling,108,meirin/9@12 meirin/10@20
+Meiling,109,meirin/14@6
+Meiling,110,meirin/20@9
+Meiling,111,meirin/2@19
+Meiling,200,meirin/100@58
+Meiling,201,meirin/101@58
+Meiling,202,meirin/102@4 meirin/103@60
+Meiling,203,meirin/104@4 meirin/105@112
+Meiling,204,meirin/106@50
+Meiling,205,meirin/106@67 meirin/106@112 meirin/107@185
+Meiling,206,meirin/108@53 meirin/108@56 meirin/108@59 meirin/108@62 meirin/108@65 meirin/108@68 meirin/108@71 meirin/108@74 meirin/108@77 meirin/108@80 meirin/108@83 meirin/108@86 meirin/108@89 meirin/108@92 meirin/108@95 meirin/108@98 meirin/108@101 meirin/108@104 meirin/108@107 meirin/108@110 meirin/108@113 meirin/108@116 meirin/108@119 meirin/108@122 meirin/108@125 meirin/108@128 meirin/108@131 meirin/108@134 meirin/108@137 meirin/108@140 meirin/108@143
+Meiling,207,meirin/111@55 meirin/112@77
+Meiling,208,meirin/102@18 meirin/109@66
+Meiling,209,meirin/113@57 meirin/114@87 meirin/115@237
+Meiling,211,meirin/110@48
+Utsuho,100,utsuho/20@11
+Utsuho,101,utsuho/40@21
+Utsuho,102,utsuho/50@8 utsuho/51@55 utsuho/62@55
+Utsuho,103,utsuho/60@4 utsuho/61@11 utsuho/61@18 utsuho/61@25 utsuho/61@32 utsuho/61@39 utsuho/67@41 utsuho/61@46 utsuho/67@48 utsuho/67@55 utsuho/67@62 utsuho/67@69 utsuho/67@76
+Utsuho,104,utsuho/25@0 utsuho/26@22
+Utsuho,105,utsuho/41@12
+Utsuho,106,utsuho/50@8 utsuho/52@61 utsuho/53@70
+Utsuho,107,utsuho/62@31
+Utsuho,108,utsuho/30@8 common/2@20 common/4@51 common/3@90 common/3@95 utsuho/31@95 common/3@100 common/3@105 utsuho/31@105 common/3@110 common/3@115 utsuho/31@115 common/3@120 common/3@125 utsuho/31@125 common/3@130 common/3@135 utsuho/31@135 common/3@140 common/3@145 utsuho/31@145 common/4@183
+Utsuho,109,utsuho/42@4
+Utsuho,110,utsuho/63@6 utsuho/64@50
+Utsuho,111,utsuho/65@14 utsuho/66@100 utsuho/66@107 utsuho/66@114 utsuho/66@121 utsuho/66@128 utsuho/66@135 utsuho/66@142 utsuho/66@149 utsuho/66@156
+Utsuho,200,utsuho/13@20 utsuho/13@80 utsuho/100@84 utsuho/13@140
+Utsuho,201,utsuho/101@39 utsuho/13@39 utsuho/102@99 utsuho/13@99 utsuho/13@159
+Utsuho,203,utsuho/117@8 utsuho/103@60
+Utsuho,204,utsuho/104@67
+Utsuho,205,utsuho/105@8 utsuho/106@177
+Utsuho,206,utsuho/107@61 utsuho/108@120 utsuho/108@180 utsuho/108@240 utsuho/108@300
+Utsuho,207,utsuho/109@56 utsuho/109@66 utsuho/109@76 utsuho/109@86 utsuho/109@96 utsuho/109@106 utsuho/109@116 utsuho/109@126
+Utsuho,208,utsuho/42@60 utsuho/110@77
+Utsuho,209,utsuho/111@95
+Utsuho,210,utsuho/112@55 utsuho/112@107 utsuho/112@169 utsuho/112@231
+Utsuho,211,utsuho/113@66
+Utsuho,212,utsuho/114@28
+Utsuho,213,utsuho/115@50 utsuho/115@59 utsuho/115@119 utsuho/115@179 utsuho/115@239
+Utsuho,214,utsuho/116@79
+Suwako,100,suwako/20@22
+Suwako,101,suwako/30@15
+Suwako,102,suwako/40@7 suwako/41@28
+Suwako,103,suwako/50@16
+Suwako,104,suwako/21@22 suwako/21@117 suwako/22@203
+Suwako,105,suwako/31@13 suwako/31@21 suwako/31@29 suwako/31@37
+Suwako,106,suwako/40@10
+Suwako,107,suwako/50@16
+Suwako,108,suwako/23@21 suwako/23@24 suwako/23@27 suwako/23@30 suwako/23@33 suwako/9@62 suwako/9@69 suwako/9@71 suwako/9@75 suwako/9@78
+Suwako,109,suwako/32@22 suwako/33@42
+Suwako,110,suwako/43@20
+Suwako,111,common/54@0
+Suwako,200,suwako/100@52
+Suwako,201,suwako/101@61
+Suwako,202,suwako/105@48 suwako/106@75 suwako/107@87
+Suwako,203,suwako/23@65 suwako/23@69 suwako/23@73 suwako/23@77 suwako/23@81 suwako/23@85 suwako/23@89 suwako/23@93 suwako/23@97 suwako/23@101 suwako/23@105 suwako/23@109 suwako/23@113 suwako/23@117 suwako/23@121 suwako/23@125 suwako/23@129 suwako/23@133 suwako/23@137
+Suwako,204,suwako/102@83 suwako/2@111 suwako/2@118 suwako/2@135 suwako/2@148 suwako/2@154 suwako/2@155 suwako/2@180 suwako/2@197 suwako/2@207 suwako/2@234 suwako/2@236 suwako/2@239
+Suwako,205,suwako/18@0 suwako/111@62
+Suwako,206,suwako/110@69
+Suwako,207,suwako/103@62 suwako/103@68 suwako/103@74 suwako/103@80 suwako/103@86 suwako/103@92 suwako/103@98 suwako/103@104 suwako/103@110 suwako/103@116 suwako/103@122 suwako/103@128 suwako/103@134 suwako/103@140 suwako/103@146 suwako/103@152 suwako/103@158 suwako/103@164 suwako/103@170 suwako/103@176
+Suwako,208,suwako/112@57 common/12@72 suwako/113@134 common/3@246 common/3@250 common/3@254 common/3@258 common/3@262 common/3@266 common/3@270 common/3@274 common/3@278 common/3@282 common/3@286 common/3@290 common/3@294 common/3@298 common/3@302 common/3@306 common/3@310 common/3@314 common/3@318 common/3@322 common/3@326 common/3@330 common/3@334 common/3@338 common/3@342 common/3@346 common/3@350 common/3@354 common/3@358 suwako/114@374
+Suwako,209,suwako/108@54 suwako/109@105 suwako/109@135 suwako/109@166 suwako/109@196 suwako/109@227
+Suwako,212,suwako/104@85 suwako/104@205

@@ -94,4 +94,7 @@ void save_run(void)
     status = sts_run_save(path, &g_run);
     if (status != STS_RUN_OK)
         set_error(tr("Could not save the run"), sts_run_status_str(status));
+    /* The offers on screen have been found, for the gallery. Every new set of offers is saved before it
+     * shows, so none is missed. */
+    note_found_offers(&g_run);
 }

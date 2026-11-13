@@ -66,5 +66,7 @@ void test_run_endurance(void);
 void test_run_adopt_rules(void);
 void test_real_profile_cards(void);
 void test_state(void);
+void test_sounds_parse(void);
+void test_sounds_file(void);
 
 #endif

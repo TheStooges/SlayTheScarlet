@@ -3,6 +3,19 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## Unreleased
+
+### New
+
+- **Gallery.** A new entry at the bottom right of the main menu (F7) shows every card in the
+  game, by type and then by character, laid out like the deck screen. A card shows once it has been
+  offered to you in a run, at the draft or after a match, whether you took it or not, or was in a
+  starting deck, and stays face down until then (Unlock the gallery shows them all). Skill cards are in input order (236, 623, 214,
+  421, 22) and spell cards by cost. The card under the cursor plays the sounds it makes in a match,
+  taken from the game's own sound files; the confirm button plays them again.
+- **Card sounds on offers.** On the draft and the reward screen, the card under the cursor plays its
+  sounds once the cursor has rested on it for a moment.
+
 ## 0.4 - 2026-11-13
 
 ### New

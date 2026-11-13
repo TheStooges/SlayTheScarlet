@@ -198,6 +198,110 @@ static void load_state_file(void)
     }
 }
 
+/* The set a card counts in: its character's, or the system cards'. */
+static int found_set(int character, uint16_t id)
+{
+    const sts_card *card = sts_card_db_find(&g_db, character, id);
+
+    return card && card->type == STS_CARD_SYSTEM ? STS_STATE_FOUND_SYSTEM : character;
+}
+
+static int add_offers_found(int character, const sts_offer *offers, int count)
+{
+    int changed = 0, wau;
+
+    for (wau = 0; wau < count; wau++)
+        changed |= sts_state_add_found(&g_saved_state, found_set(character, offers[wau].id), offers[wau].id);
+    return changed;
+}
+
+/* The offers on screen, and with offer_pick random the ones the pick was made from, which the roulette
+ * runs through. */
+static int add_run_offers_found(const sts_run *run)
+{
+    if (run->character < 0 || run->character >= STS_NUM_CHARACTERS)
+        return 0;
+    return add_offers_found(run->character, run->offers, run->offer_count)
+        | add_offers_found(run->character, run->rolled, run->rolled_count);
+}
+
+/* A starting deck's cards count as found too, as they are never offered. */
+static int add_deck_found(int character, const sts_deck *deck)
+{
+    int changed = 0, wau;
+
+    if (character < 0 || character >= STS_NUM_CHARACTERS)
+        return 0;
+    for (wau = 0; wau < deck->count; wau++)
+        changed |= sts_state_add_found(&g_saved_state, found_set(character, deck->ids[wau]), deck->ids[wau]);
+    return changed;
+}
+
+void note_found_deck(int character, const sts_deck *deck)
+{
+    load_state_file();
+    if (add_deck_found(character, deck))
+        write_state_file();
+}
+
+void note_found_offers(const sts_run *run)
+{
+    load_state_file();
+    if (add_run_offers_found(run))
+        write_state_file();
+}
+
+void note_found_from_saves(void)
+{
+    static sts_run run;
+    char path[MAX_PATH + 32];
+    int character, changed = 0;
+
+    load_state_file();
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        if (!run_file_exists(character))
+            continue;
+        run_path(path, sizeof path, character);
+        if (sts_run_load(path, &run) != STS_RUN_OK)
+            continue;
+        changed |= add_run_offers_found(&run);
+        /* The starting deck: during the draft it is in the deck, and afterwards it is in the deck the
+         * draft left (with the picks, which were offered anyway). */
+        if (run.phase == STS_PHASE_DRAFT) {
+            changed |= add_deck_found(character, &run.deck);
+        } else {
+            sts_deck deck;
+
+            if (sts_run_deck_after(&run, -1, &deck))
+                changed |= add_deck_found(character, &deck);
+        }
+    }
+    if (changed)
+        write_state_file();
+}
+
+int gallery_unlocked(void)
+{
+    load_state_file();
+    return g_saved_state.gallery_unlocked;
+}
+
+void unlock_gallery(void)
+{
+    load_state_file();
+    g_saved_state.gallery_unlocked = 1;
+    write_state_file();
+    slog("the gallery was unlocked");
+}
+
+int card_found(int character, uint16_t id)
+{
+    load_state_file();
+    if (character < 0)
+        return sts_state_found(&g_saved_state, STS_STATE_FOUND_SYSTEM, id);
+    return sts_state_found(&g_saved_state, found_set(character, id), id);
+}
+
 void save_active_file(void)
 {
     load_state_file();

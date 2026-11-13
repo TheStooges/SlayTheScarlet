@@ -33,6 +33,8 @@ int main(void)
     test_run_adopt_rules();
     test_real_profile_cards();
     test_state();
+    test_sounds_parse();
+    test_sounds_file();
     printf("%d checks, %d failed\n", g_run, g_fail);
     return g_fail ? 1 : 0;
 }
