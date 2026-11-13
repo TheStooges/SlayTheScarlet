@@ -463,9 +463,9 @@ static void describe_problem(sts_settings_problem problem, const sts_settings_pr
 
 /* After new rules: the run in use stops if they changed its rules, as it does at start-up, and
  * a run stopped that way comes back if they match its rules again. */
-static void apply_rules_to_active_run(void)
+static void apply_rules_to_player_run(void)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     static sts_run run;
     sts_run_status status;
     int character = g_active ? g_active_character : g_rules_changed_character;
@@ -487,26 +487,56 @@ static void apply_rules_to_active_run(void)
     }
 }
 
-/* The characters whose saved runs follow the current rules but would not follow the new ones. */
+/* New rules reach the run each player has in use: it stops if it no longer follows them, and a run
+ * stopped for its rules comes back if they are changed back. */
+static void apply_rules_to_active_run(void)
+{
+    int selected = g_player, player;
+
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        if (!player_available(player))
+            continue;
+        select_player(player);
+        apply_rules_to_player_run();
+    }
+    select_player(selected);
+}
+
+/* The characters whose saved runs follow the current rules but would not follow the new ones, for both
+ * players: player 2's are named as theirs. */
 static int list_affected_runs(uint32_t new_hash)
 {
     uint32_t old_hash = sts_settings_hash(&g_settings);
-    int character, count = 0;
+    int character, count = 0, selected = g_player, player;
     size_t used = 0;
 
     g_settings_affected[0] = 0;
     if (new_hash == old_hash)
         return 0;
-    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
-        const char *name = character_label(character);
-
-        /* A finished run is not played any more, so its rules do not matter. */
-        if (!g_has_save[character] || g_saved_hash[character] != old_hash || g_saved_phase[character] == STS_PHASE_FINISHED)
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        if (!player_available(player))
             continue;
-        if (used + strlen(name) + 3 < sizeof g_settings_affected)
-            used += (size_t)sprintf(g_settings_affected + used, "%s%s", count ? ", " : "", name);
-        count++;
+        select_player(player);
+        scan_saves();
+        for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+            char name[96];
+
+            /* A finished run is not played any more, so its rules do not matter. */
+            if (!g_has_save[character] || g_saved_hash[character] != old_hash
+                || g_saved_phase[character] == STS_PHASE_FINISHED)
+                continue;
+            if (player == 1)
+                _snprintf(name, sizeof name - 1, tr("%s (player 2)"), character_label(character));
+            else
+                _snprintf(name, sizeof name - 1, "%s", character_label(character));
+            name[sizeof name - 1] = 0;
+            if (used + strlen(name) + 3 < sizeof g_settings_affected)
+                used += (size_t)sprintf(g_settings_affected + used, "%s%s", count ? ", " : "", name);
+            count++;
+        }
     }
+    select_player(selected);
+    scan_saves();
     return count;
 }
 

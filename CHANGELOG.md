@@ -13,6 +13,11 @@ What changed in each release of Slay the Scarlet. Releases are on the
   starting deck, and stays face down until then (Unlock the gallery shows them all). Skill cards are in input order (236, 623, 214,
   421, 22) and spell cards by cost. The card under the cursor plays the sounds it makes in a match,
   taken from the game's own sound files; the confirm button plays them again.
+- **Player 2.** In VS Player, player 2 can play a run too, with a run in use of their own: each profile
+  now keeps its own runs. After a match, each side that played its run deck gets its own reward,
+  player 1's first. On the F7 menu, a Player 1 / Player 2 switch above the characters chooses whose
+  runs it shows, and the main menu's hint shows player 2's run in use. Runs from before this release
+  are not carried over.
 - **Card sounds on offers.** On the draft and the reward screen, the card under the cursor plays its
   sounds once the cursor has rested on it for a moment. "Card sounds" in a new Settings menu, Sounds
   (or `[sound] card_sounds`), turns them off there and in the gallery; it is not a rule, so runs carry

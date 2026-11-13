@@ -313,7 +313,7 @@ Netplay is a primary requirement. Each machine simulates both players from share
   match, including `cardById` and the in-match `original` deck. Verified with Reimu as P1 in two
   matches, including a write between matches. The written deck stayed in memory across
   match -> select and title -> select, and no `.pf` file changed on disk after closing the game.
-  Not yet tested: netplay and the `GAME_MATCH` packet, changing profile, P2, and writes that change
+  Not yet tested: netplay and the `GAME_MATCH` packet, changing profile, and writes that change
   the deck size (these must allocate through the game's allocator).
 - **The profile menu replaces a written deck:** with no scene change, the slot went back to the
   profile's own deck on each visit (the log first sees it on the title scene, with no menu open).
@@ -359,6 +359,28 @@ Netplay is a primary requirement. Each machine simulates both players from share
   characters) in the Japanese game, matching its deck editor. `createFromText` does not wrap, so
   `mod/` draws each row separately at the width for the game's language.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
+
+### Player 2, in local VS (built for v0.5, not yet played in game)
+
+By decision, each profile keeps its own runs, so two players on one PC each have a run in use: player 1
+on the left with `profile1`, player 2 on the right with `profile2`, in VS Player only (by decision,
+player 2 never plays online). Runs live in `runs/<profile>/` (`run_XX.sav` and a `state.txt` with the
+run in use and the restart counts), the folder named after the profile's file without `.pf`, with
+anything but letters, digits, spaces and `- _ ( ) .` replaced and a hash added if anything was. The
+gallery's cards found and its unlock stay in `runs/state.txt`, shared. Runs from before (in `runs/`
+itself) are not picked up, by the rule on old saves. Player 2 on the same profile as player 1 has no
+runs of their own. In `mod/run_deck.cpp`, `select_player` swaps the run-in-use values, so the rest of
+the mod handles one player at a time; character select keeps both decks in place, the battle frame
+works out each side's result, and `maybe_start_reward` gives player 1's reward and then player 2's,
+straight after on the same post-match screen. The F7 menu has a Player 1 / Player 2 switch above the
+characters; the screens, and the button names in their hints, follow the selected player.
+
+Found with a probe (v0.5): each profile's own input (`profile1.manager.input`, `profile2.manager.input`)
+does not update on the title screen, at character select or after a match, so a screen cannot read
+player 2's controls alone. The shared `inputMgrs.input` updates everywhere and carries both players'
+buttons (player 2's work the game's menus), so the mod's screens follow it: either player's buttons
+work them. A profile's file and name (`profile.file`, `profile.name`) are set from the first title
+frame, and player 2's is the one last used.
 
 ### Findings from netplay (loopback, modded against an install without the mod, Giuroll on both)
 

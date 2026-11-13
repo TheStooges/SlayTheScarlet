@@ -75,33 +75,66 @@ static void make_hint_line(Sprite *sprite, const char *text, int pos_y, unsigned
     sprite->tint = color;
 }
 
+/* What the selected player's run is doing, for the main menu's hint: a number that changes when the
+ * text must, and the colour to show it in. */
+static int hint_state(unsigned *color)
+{
+    if (!g_active && g_rules_changed_character >= 0) {
+        *color = COLOR_RED;
+        return 100 + g_rules_changed_character;
+    }
+    *color = g_active ? COLOR_GREEN : COLOR_GREY;
+    return g_active ? g_active_character : -1;
+}
+
 void screen_render_title_hint(void)
 {
-    static Sprite lines[2];
-    static int shown_for = -2;
+    static Sprite lines[3];
+    static int shown_for = -2, line_count = 2;
     const char *mod_in_the_way = blocking_mod();
-    int blocked = mod_in_the_way || (!g_active && g_rules_changed_character >= 0);
-    int now = mod_in_the_way ? 200 : blocked ? 100 + g_rules_changed_character : g_active ? g_active_character : -1;
-    int wau;
+    int selected = g_player, first, second = -1, now, wau;
+    unsigned first_color, second_color = COLOR_GREY;
 
-    /* The text only needs making again when the run in use changes. */
+    select_player(0);
+    first = hint_state(&first_color);
+    /* Player 2's run, only when they have one in use or stopped for its rules. */
+    if (player_available(1)) {
+        select_player(1);
+        second = hint_state(&second_color);
+    }
+    select_player(0);
+    now = mod_in_the_way ? 200 * 1000 : first * 1000 + second;
+
+    /* The text only needs making again when a run in use changes. With player 2's line, the lines start
+     * one higher, so the last still ends above the game's copyright notice. */
     if (now != shown_for) {
         char text[64];
+        int top = !mod_in_the_way && second >= 0 ? 406 : 422;
 
         ensure_fonts();
-        make_hint_line(&lines[0], "F7: Slay the Scarlet", 422, COLOR_WHITE);
+        make_hint_line(&lines[0], "F7: Slay the Scarlet", top, COLOR_WHITE);
         if (mod_in_the_way)
             sprintf(text, tr("Disable %s to play runs"), mod_in_the_way);
-        else if (blocked)
-            sprintf(text, tr("%s: rules changed"), character_label(g_rules_changed_character));
-        else if (g_active)
-            sprintf(text, tr("In use: %s"), character_label(g_active_character));
+        else if (first >= 100)
+            sprintf(text, tr("%s: rules changed"), character_label(first - 100));
+        else if (first >= 0)
+            sprintf(text, tr("In use: %s"), character_label(first));
         else
             sprintf(text, tr("No run in use"));
-        make_hint_line(&lines[1], text, 438, blocked ? COLOR_RED : g_active ? COLOR_GREEN : COLOR_GREY);
+        make_hint_line(&lines[1], text, top + 16, mod_in_the_way ? COLOR_RED : first_color);
+        line_count = 2;
+        if (!mod_in_the_way && second >= 0) {
+            if (second >= 100)
+                sprintf(text, tr("Player 2, %s: rules changed"), character_label(second - 100));
+            else
+                sprintf(text, tr("Player 2 in use: %s"), character_label(second));
+            make_hint_line(&lines[2], text, top + 32, second_color);
+            line_count = 3;
+        }
         shown_for = now;
     }
-    for (wau = 0; wau < 2; wau++)
+    select_player(selected);
+    for (wau = 0; wau < line_count; wau++)
         lines[wau].draw();
 }
 
@@ -135,8 +168,9 @@ static const char *button_name(int SokuLib::KeyBindings::*field)
     static int next = 0;
     char *out = buffers[next];
     char key[32] = "";
-    int dik = SokuLib::profile1.keyboardBindings.*field;
-    int pad = SokuLib::profile1.controllerBindings.*field;
+    /* The selected player's buttons: player 2 works their own screens. */
+    int dik = player_profile(g_player).keyboardBindings.*field;
+    int pad = player_profile(g_player).controllerBindings.*field;
     /* The scan code goes in bits 16-23, with bit 24 marking DirectInput's extended keys. */
     LONG param = (LONG)((dik & 0x7F) << 16) | ((dik & 0x80) ? (1L << 24) : 0);
 
@@ -457,6 +491,12 @@ static void rebuild_choose(void)
         sprintf(line, tr("Disable it in SWRSToys.ini and restart the game to play runs."));
         add_label(line, g_font_small, 20, 410, 600, 20, COLOR_RED);
     }
+    /* Whose runs these are: the selected player in gold, and their profile. */
+    add_label(tr("Player 1"), g_font_big, CELL_X(0) + 6, CHOOSE_PLAYER_Y, 110, 26, g_player == 0 ? COLOR_GOLD : COLOR_GREY);
+    add_label(tr("Player 2"), g_font_big, CELL_X(1) + 6, CHOOSE_PLAYER_Y, 110, 26, g_player == 1 ? COLOR_GOLD : COLOR_GREY);
+    _snprintf(line, sizeof line - 1, tr("Profile: %s"), player_profile_name(g_player));
+    line[sizeof line - 1] = 0;
+    add_label(line, g_font_small, CELL_X(2) + 6, CHOOSE_PLAYER_Y + 6, 350, 20, COLOR_GREY);
     add_label(tr("Settings"), g_font_big, CHOOSE_SETTINGS_X + 6, CHOOSE_SETTINGS_Y + 4, 200, 26, COLOR_WHITE);
     add_label(tr("Gallery"), g_font_big, CHOOSE_GALLERY_X + 6, CHOOSE_GALLERY_Y + 4, 110, 26, COLOR_WHITE);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
@@ -482,6 +522,8 @@ static void rebuild_choose(void)
     }
     if (g_alt_armed)
         sprintf(line, tr("Press %s again to delete this character's run."), BUTTON_C);
+    else if (g_cursor == CHOOSE_PLAYER)
+        sprintf(line, tr("Left/Right: switch player   %s: close"), BUTTON_B);
     else if (g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY || !run_file_exists(g_cursor))
         sprintf(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
     else
@@ -1654,7 +1696,9 @@ static void draw_screen_parts(void)
 {
     switch (g_state) {
     case ST_CHOOSE:
-        if (g_cursor == CHOOSE_SETTINGS)
+        if (g_cursor == CHOOSE_PLAYER)
+            draw_cursor_box(CELL_X(0), CHOOSE_PLAYER_Y - 4, CELL_W * 2 + 4, 30);
+        else if (g_cursor == CHOOSE_SETTINGS)
             draw_cursor_box(CHOOSE_SETTINGS_X, CHOOSE_SETTINGS_Y, 116, 32);
         else if (g_cursor == CHOOSE_GALLERY)
             draw_cursor_box(CHOOSE_GALLERY_X, CHOOSE_GALLERY_Y, 116, 32);

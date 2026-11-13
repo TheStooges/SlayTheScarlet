@@ -26,8 +26,12 @@ using SokuLib::DrawUtils::Sprite;
 /* Run decks replace this deck slot, in memory only. A local choice, not a game rule. */
 #define RUN_DECK_SLOT 0
 
-/* Saves and state.txt live here, inside the DLL's folder. */
+/* Saves and state.txt live here, inside the DLL's folder: each profile's in a folder of its own, and
+ * the gallery's state.txt at the top. */
 #define RUNS_FOLDER "runs\\"
+
+/* Player 1 (the left side, profile1) and player 2 (the right side, profile2, in local VS only). */
+#define RUN_PLAYERS 2
 
 #define SCREEN_W 640
 #define SCREEN_H 480
@@ -41,6 +45,11 @@ using SokuLib::DrawUtils::Sprite;
 #define CHOOSE_GALLERY (STS_NUM_CHARACTERS + 1)
 #define CHOOSE_GALLERY_X (24 + (COLS - 1) * 120)
 #define CHOOSE_GALLERY_Y CHOOSE_SETTINGS_Y
+/* The row above the characters: whose runs the menu shows, player 1's or player 2's. */
+#define CHOOSE_PLAYER (STS_NUM_CHARACTERS + 2)
+#define CHOOSE_PLAYER_Y 48
+/* Rows of the character menu: the player switch, the characters, and Settings and the gallery. */
+#define CHOOSE_ROWS (STS_NUM_CHARACTERS / COLS + 2)
 /* How many cards the draft and reward screens fit side by side. */
 #define OFFERS_ON_SCREEN 3
 #define COLOR_WHITE  0xFFFFFFFFu
@@ -220,7 +229,17 @@ void count_restart(int character, uint32_t rules_hash);
 void deactivate_run_deck(void);
 int activate_run_deck(void);
 int run_deck_in_use(void);
-void resume_active_run(void);
+/* The players (run_deck.cpp). The run in use and its state belong to the selected player, g_player;
+ * select_player swaps them in. Player 2 is not available on the same profile as player 1. */
+extern int g_player;
+void select_player(int player);
+int player_available(int player);
+SokuLib::Profile &player_profile(int player);
+const char *player_profile_name(int player);
+/* The selected player's runs folder, ending in a backslash. */
+void player_runs_folder(char *out, size_t size);
+/* Each title frame: notices a profile changed at the profile menu, and resumes each player's run. */
+void players_on_title_frame(void);
 void note_slot_change(const char *where);
 void suspend_run_deck_for_rules(void);
 extern int g_rules_changed_character;
@@ -229,11 +248,11 @@ extern int g_active_character;
 extern sts_deck g_active_deck;
 extern int g_slot_differs;
 
-/* match.cpp. g_match_reward_due asks for the reward screen: after a new match (g_match_new), or
+/* match.cpp, for each player. g_match_reward_due asks for the reward screen: after a new match (g_match_new), or
  * to show an offer that was already waiting when the game started. */
-extern int g_match_reward_due;
-extern int g_match_new;
-extern sts_match_result g_match_result;   /* the last finished match, from the run deck's side */
+extern int g_match_reward_due[RUN_PLAYERS];
+extern int g_match_new[RUN_PLAYERS];
+extern sts_match_result g_match_result[RUN_PLAYERS];   /* the last finished match, from each run deck's side */
 extern int g_match_no_offer;
 
 /* screen.cpp */
@@ -241,6 +260,8 @@ typedef enum { TOGGLE_NONE, TOGGLE_USE, TOGGLE_STOP } choose_toggle;
 choose_toggle choose_toggle_for(int character);
 void set_error(const char *what, const char *detail);
 void maybe_start_reward(void);
+/* Reads what each of the selected player's saved runs is doing, for the character menu. */
+void scan_saves(void);
 void go_to_chooser_at(int cursor);
 /* True on the first frame a button is held, then again every few frames while it stays held, as
  * menus move while a direction is held. held counts frames, negative for left and up. */

@@ -1,5 +1,10 @@
 /* The run deck in the game: writing it into the deck slot, remembering which run is in
- * use, putting the player's real deck back, and refusing to run alongside deck editing mods. */
+ * use, putting the player's real deck back, and refusing to run alongside deck editing mods.
+ *
+ * There are two players: player 1 on the left with profile1, and player 2 on the right with
+ * profile2, in local VS only (player 2 never plays online). Each profile keeps its own runs, in
+ * runs\<profile>\. The values below about the run in use belong to the selected player, g_player;
+ * select_player (at the end) swaps them, so the rest of the mod handles one player at a time. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,9 +35,14 @@ int g_slot_differs = 0;
 static sts_deck g_real_deck;
 static int g_have_real_deck = 0;
 
+SokuLib::Profile &player_profile(int player)
+{
+    return player == 1 ? SokuLib::profile2 : SokuLib::profile1;
+}
+
 static SokuLib::Dequeue<unsigned short> &active_slot(void)
 {
-    return SokuLib::profile1.cards[g_active_character][RUN_DECK_SLOT];
+    return player_profile(g_player).cards[g_active_character][RUN_DECK_SLOT];
 }
 
 int deck_is_active(const unsigned short *ids, int count)
@@ -129,26 +139,30 @@ static void restore_real_deck(void)
     g_have_real_deck = 0;
 }
 
-/* state.txt remembers which run is in use across restarts, and how many runs were started over. */
+/* The selected player's profile remembers the run it has in use across restarts, and how many runs
+ * were started over, in runs\<profile>\state.txt. */
 static sts_state g_saved_state;
 static int g_saved_state_loaded = 0;
 
-static void state_file_path(char *out)
-{
-    sprintf(out, "%s" RUNS_FOLDER "state.txt", g_dir);
-}
+/* The gallery's cards found, and whether it was unlocked, belong to no one profile: they are in
+ * runs\state.txt, in the same format (its run in use and restart counts are not used). */
+static sts_state g_gallery_state;
+static int g_gallery_state_loaded = 0;
 
-/* A new file replaces the old one in one step, so a failed write cannot leave half a file. */
-static void write_state_file(void)
+/* Writes a state into folder\state.txt, making the folders first. A new file replaces the old one in
+ * one step, so a failed write cannot leave half a file. */
+static void write_state_into(const sts_state *state, const char *folder)
 {
-    char path[MAX_PATH + 32], temporary[MAX_PATH + 40], text[STS_STATE_TEXT_MAX];
-    size_t length = sts_state_serialize(&g_saved_state, text, sizeof text);
+    char path[MAX_PATH + 96], temporary[MAX_PATH + 104];
+    static char text[STS_STATE_TEXT_MAX];
+    size_t length = sts_state_serialize(state, text, sizeof text);
     FILE *file;
     int ok;
 
     sprintf(path, "%s" RUNS_FOLDER, g_dir);
     CreateDirectoryA(path, NULL);
-    state_file_path(path);
+    CreateDirectoryA(folder, NULL);
+    sprintf(path, "%sstate.txt", folder);
     sprintf(temporary, "%s.new", path);
     file = length ? fopen(temporary, "wb") : NULL;
     ok = file && fwrite(text, 1, length, file) == length;
@@ -158,44 +172,67 @@ static void write_state_file(void)
         ok = MoveFileExA(temporary, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
     if (!ok) {
         remove(temporary);
-        slog("could not write state.txt");
+        slog("could not write %s", path);
     }
 }
 
-/* Before v0.4 the run in use was the only thing kept, in active.txt. It moves into state.txt once. */
-static void load_state_file(void)
+static void read_state_from(sts_state *state, const char *folder)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     size_t length = 0;
     char *text;
+
+    sts_state_init(state);
+    sprintf(path, "%sstate.txt", folder);
+    text = sts_read_file(path, &length);
+    if (!text)
+        return;
+    if (!sts_state_parse(text, length, state))
+        slog("%s could not be read, so it is taken as empty", path);
+    free(text);
+}
+
+static void write_state_file(void)
+{
+    char folder[MAX_PATH + 80];
+
+    player_runs_folder(folder, sizeof folder);
+    write_state_into(&g_saved_state, folder);
+}
+
+static void load_state_file(void)
+{
+    char folder[MAX_PATH + 80];
 
     if (g_saved_state_loaded)
         return;
     g_saved_state_loaded = 1;
-    sts_state_init(&g_saved_state);
-    state_file_path(path);
-    text = sts_read_file(path, &length);
-    if (text) {
-        if (!sts_state_parse(text, length, &g_saved_state))
-            slog("state.txt could not be read, so no run is in use and no runs were started over");
-        free(text);
-        return;
-    }
-    sprintf(path, "%s" RUNS_FOLDER "active.txt", g_dir);
-    {
-        FILE *file = fopen(path, "r");
-        int character = -1;
+    player_runs_folder(folder, sizeof folder);
+    read_state_from(&g_saved_state, folder);
+}
 
-        if (!file)
-            return;
-        if (fscanf(file, "%d", &character) != 1 || character < 0 || character >= STS_NUM_CHARACTERS)
-            character = -1;
-        fclose(file);
-        g_saved_state.active = character;
-        write_state_file();
-        remove(path);
-        slog("moved active.txt into state.txt");
-    }
+static void gallery_folder(char *out)
+{
+    sprintf(out, "%s" RUNS_FOLDER, g_dir);
+}
+
+static void write_gallery_state(void)
+{
+    char folder[MAX_PATH + 16];
+
+    gallery_folder(folder);
+    write_state_into(&g_gallery_state, folder);
+}
+
+static void load_gallery_state(void)
+{
+    char folder[MAX_PATH + 16];
+
+    if (g_gallery_state_loaded)
+        return;
+    g_gallery_state_loaded = 1;
+    gallery_folder(folder);
+    read_state_from(&g_gallery_state, folder);
 }
 
 /* The set a card counts in: its character's, or the system cards'. */
@@ -211,7 +248,7 @@ static int add_offers_found(int character, const sts_offer *offers, int count)
     int changed = 0, wau;
 
     for (wau = 0; wau < count; wau++)
-        changed |= sts_state_add_found(&g_saved_state, found_set(character, offers[wau].id), offers[wau].id);
+        changed |= sts_state_add_found(&g_gallery_state, found_set(character, offers[wau].id), offers[wau].id);
     return changed;
 }
 
@@ -233,31 +270,36 @@ static int add_deck_found(int character, const sts_deck *deck)
     if (character < 0 || character >= STS_NUM_CHARACTERS)
         return 0;
     for (wau = 0; wau < deck->count; wau++)
-        changed |= sts_state_add_found(&g_saved_state, found_set(character, deck->ids[wau]), deck->ids[wau]);
+        changed |= sts_state_add_found(&g_gallery_state, found_set(character, deck->ids[wau]), deck->ids[wau]);
     return changed;
 }
 
 void note_found_deck(int character, const sts_deck *deck)
 {
-    load_state_file();
+    load_gallery_state();
     if (add_deck_found(character, deck))
-        write_state_file();
+        write_gallery_state();
 }
 
 void note_found_offers(const sts_run *run)
 {
-    load_state_file();
+    load_gallery_state();
     if (add_run_offers_found(run))
-        write_state_file();
+        write_gallery_state();
 }
 
 void note_found_from_saves(void)
 {
     static sts_run run;
-    char path[MAX_PATH + 32];
-    int character, changed = 0;
+    char path[MAX_PATH + 96];
+    int character, changed = 0, player, selected = g_player;
 
-    load_state_file();
+    load_gallery_state();
+    /* Both players' runs: whichever profile they are on. */
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        if (!player_available(player))
+            continue;
+        select_player(player);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         if (!run_file_exists(character))
             continue;
@@ -276,30 +318,32 @@ void note_found_from_saves(void)
                 changed |= add_deck_found(character, &deck);
         }
     }
+    }
+    select_player(selected);
     if (changed)
-        write_state_file();
+        write_gallery_state();
 }
 
 int gallery_unlocked(void)
 {
-    load_state_file();
-    return g_saved_state.gallery_unlocked;
+    load_gallery_state();
+    return g_gallery_state.gallery_unlocked;
 }
 
 void unlock_gallery(void)
 {
-    load_state_file();
-    g_saved_state.gallery_unlocked = 1;
-    write_state_file();
+    load_gallery_state();
+    g_gallery_state.gallery_unlocked = 1;
+    write_gallery_state();
     slog("the gallery was unlocked");
 }
 
 int card_found(int character, uint16_t id)
 {
-    load_state_file();
+    load_gallery_state();
     if (character < 0)
-        return sts_state_found(&g_saved_state, STS_STATE_FOUND_SYSTEM, id);
-    return sts_state_found(&g_saved_state, found_set(character, id), id);
+        return sts_state_found(&g_gallery_state, STS_STATE_FOUND_SYSTEM, id);
+    return sts_state_found(&g_gallery_state, found_set(character, id), id);
 }
 
 void save_active_file(void)
@@ -378,16 +422,12 @@ int run_deck_in_use(void)
     return g_active && g_active_character == g_run.character;
 }
 
-/* Goes back to the run that was in use last time the game was open. */
-void resume_active_run(void)
+/* Goes back to the run the selected player's profile had in use last time the game was open. */
+static void resume_active_run(void)
 {
-    static int done = 0;
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     int character = -1;
 
-    if (done)
-        return;
-    done = 1;
     /* state.txt keeps naming it, so the run comes back once the other mod is disabled. */
     if (blocking_mod()) {
         slog("%s is loaded, so no run deck will be used", blocking_mod());
@@ -422,7 +462,7 @@ void resume_active_run(void)
             activate_run_deck();
             /* An offer left on screen when the game closed comes straight back. */
             if (g_active && g_run.phase == STS_PHASE_REWARD)
-                g_match_reward_due = 1;
+                g_match_reward_due[g_player] = 1;
             return;
         }
         slog("could not resume the run for character %d: %s", character, sts_run_status_str(status));
@@ -458,4 +498,188 @@ void note_slot_change(const char *where)
         slog("slot no longer holds the run deck, noticed at %s, menus open %d. Now: %s",
              where, (int)SokuLib::menuManager.size(), text);
     }
+}
+
+/* ---------- the two players ---------- */
+
+int g_player = 0;
+
+/* Each profile's runs folder: the profile's file name without .pf, with anything but letters, digits,
+ * spaces and - _ ( ) . replaced, and then a hash of the whole name so two names cannot meet. */
+#define PROFILE_KEY_SIZE 64
+static char g_profile_keys[RUN_PLAYERS][PROFILE_KEY_SIZE];
+static int g_resumed[RUN_PLAYERS];
+
+static void profile_key(int player, char *out)
+{
+    const char *file = "", *name, *character;
+    size_t length, used = 0;
+    int replaced = 0;
+
+    __try {
+        file = (const char *)player_profile(player).file;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        file = "";
+    }
+    if (!file)
+        file = "";
+    name = file;
+    for (character = file; *character; character++)
+        if (*character == '/' || *character == '\\')
+            name = character + 1;
+    length = strlen(name);
+    if (length > 3 && _stricmp(name + length - 3, ".pf") == 0)
+        length -= 3;
+    for (; length > 0 && used < PROFILE_KEY_SIZE - 12; name++, length--) {
+        char letter = *name;
+        int allowed = (letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')
+            || letter == ' ' || letter == '-' || letter == '_' || letter == '(' || letter == ')' || letter == '.';
+
+        out[used++] = allowed ? letter : '_';
+        replaced |= !allowed;
+    }
+    if (used == 0) {
+        strcpy(out, "profile");
+        used = strlen(out);
+        replaced = 1;
+    }
+    out[used] = 0;
+    if (replaced || length > 0)
+        sprintf(out + used, "-%08x", (unsigned)sts_fnv1a(STS_FNV_START, file, strlen(file)));
+}
+
+static const char *player_key(int player)
+{
+    if (!g_profile_keys[player][0])
+        profile_key(player, g_profile_keys[player]);
+    return g_profile_keys[player];
+}
+
+int player_available(int player)
+{
+    if (player == 0)
+        return 1;
+    return player == 1 && _stricmp(player_key(0), player_key(1)) != 0;
+}
+
+const char *player_profile_name(int player)
+{
+    __try {
+        return (const char *)player_profile(player).name;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return "";
+    }
+}
+
+void player_runs_folder(char *out, size_t size)
+{
+    _snprintf(out, size - 1, "%s" RUNS_FOLDER "%s\\", g_dir, player_key(g_player));
+    out[size - 1] = 0;
+}
+
+/* Each player's values while the other is selected. */
+typedef struct {
+    int active, active_character, slot_differs, rules_changed_character, have_real_deck, state_loaded;
+    sts_deck active_deck, real_deck;
+    sts_state state;
+} player_values;
+static player_values g_stored[RUN_PLAYERS];
+static int g_stored_ready = 0;
+
+static void put_away(player_values *values)
+{
+    values->active = g_active;
+    values->active_character = g_active_character;
+    values->slot_differs = g_slot_differs;
+    values->rules_changed_character = g_rules_changed_character;
+    values->have_real_deck = g_have_real_deck;
+    values->state_loaded = g_saved_state_loaded;
+    values->active_deck = g_active_deck;
+    values->real_deck = g_real_deck;
+    values->state = g_saved_state;
+}
+
+static void bring_back(const player_values *values)
+{
+    g_active = values->active;
+    g_active_character = values->active_character;
+    g_slot_differs = values->slot_differs;
+    g_rules_changed_character = values->rules_changed_character;
+    g_have_real_deck = values->have_real_deck;
+    g_saved_state_loaded = values->state_loaded;
+    g_active_deck = values->active_deck;
+    g_real_deck = values->real_deck;
+    g_saved_state = values->state;
+}
+
+void select_player(int player)
+{
+    int wau;
+
+    if (player < 0 || player >= RUN_PLAYERS || player == g_player)
+        return;
+    if (!g_stored_ready) {
+        for (wau = 0; wau < RUN_PLAYERS; wau++) {
+            memset(&g_stored[wau], 0, sizeof g_stored[wau]);
+            g_stored[wau].rules_changed_character = -1;
+            sts_state_init(&g_stored[wau].state);
+        }
+        g_stored_ready = 1;
+    }
+    put_away(&g_stored[g_player]);
+    bring_back(&g_stored[player]);
+    g_player = player;
+}
+
+/* A player whose profile changed (at the profile menu) starts afresh with that profile's runs. The game
+ * has loaded the new profile's decks into memory, so there is no real deck to put back. */
+static void forget_player(int player)
+{
+    select_player(player);
+    if (g_active)
+        slog("player %d changed profile, so their run is no longer in use", player + 1);
+    g_active = 0;
+    g_slot_differs = 0;
+    g_have_real_deck = 0;
+    g_rules_changed_character = -1;
+    g_saved_state_loaded = 0;
+    g_resumed[player] = 0;
+}
+
+void players_on_title_frame(void)
+{
+    int selected = g_player, player;
+
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        char key[PROFILE_KEY_SIZE];
+
+        profile_key(player, key);
+        if (strcmp(key, g_profile_keys[player]) == 0)
+            continue;
+        if (g_profile_keys[player][0])
+            forget_player(player);
+        strcpy(g_profile_keys[player], key);
+        slog("player %d plays on profile '%s', runs in runs\\%s\\", player + 1, player_profile_name(player), key);
+    }
+    /* On the same profile as player 1, player 2 has no runs of their own: their deck goes back, and
+     * nothing is saved, as the folder is player 1's. */
+    if (!player_available(1)) {
+        select_player(1);
+        if (g_active) {
+            restore_real_deck();
+            g_active = 0;
+            g_slot_differs = 0;
+            slog("player 2 is on the same profile as player 1, so their run is not used");
+        }
+    }
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        if (g_resumed[player] || !player_available(player))
+            continue;
+        g_resumed[player] = 1;
+        select_player(player);
+        resume_active_run();
+    }
+    select_player(selected);
 }

@@ -14,16 +14,20 @@ void screen_set_dir(const char *dir)
     strncpy(g_dir, dir, sizeof g_dir - 1);
 }
 
+/* A save of the selected player's, in their profile's folder. */
 void run_path(char *out, size_t size, int character)
 {
-    _snprintf(out, size - 1, "%s" RUNS_FOLDER "run_%02d.sav", g_dir, character);
+    char folder[MAX_PATH + 80];
+
+    player_runs_folder(folder, sizeof folder);
+    _snprintf(out, size - 1, "%srun_%02d.sav", folder, character);
     out[size - 1] = 0;
 }
 
 /* Whether a save file is there at all, even a damaged one that will not load. */
 int run_file_exists(int character)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
 
     run_path(path, sizeof path, character);
     return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
@@ -31,7 +35,7 @@ int run_file_exists(int character)
 
 int load_data(void)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     int line = 0;
     sts_db_status db = STS_DB_IO;
     sts_settings_status status;
@@ -82,12 +86,14 @@ int load_data(void)
 
 void save_run(void)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     sts_run_status status;
 
-    /* Nothing is in use until a run has been saved, so this is the first write to the folder. If
-     * the folder already exists this fails harmlessly, and a real problem shows up in the save. */
+    /* Nothing is in use until a run has been saved, so this is the first write to the folders. If
+     * they already exist this fails harmlessly, and a real problem shows up in the save. */
     sprintf(path, "%s" RUNS_FOLDER, g_dir);
+    CreateDirectoryA(path, NULL);
+    player_runs_folder(path, sizeof path);
     CreateDirectoryA(path, NULL);
 
     run_path(path, sizeof path, g_run.character);

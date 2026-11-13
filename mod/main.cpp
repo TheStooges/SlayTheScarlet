@@ -211,6 +211,9 @@ static int __fastcall on_result_process(SokuLib::MenuResult *This)
 
     if (screen_is_open()) {
         screen_update(SokuLib::inputMgrs.input);
+        /* Player 2's reward, if one waits, comes straight after player 1's. */
+        if (!screen_is_open())
+            deck_on_result_frame();
         if (!screen_is_open())
             g_result_closing = 1;
         return 1;   /* the menu stays */

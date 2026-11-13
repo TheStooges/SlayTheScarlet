@@ -64,12 +64,12 @@ void set_error(const char *what, const char *detail)
     g_dirty = 1;
 }
 
-static void scan_saves(void)
+void scan_saves(void)
 {
     int character;
 
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
-        char path[MAX_PATH + 32];
+        char path[MAX_PATH + 96];
         static sts_run tmp;
 
         run_path(path, sizeof path, character);
@@ -416,9 +416,9 @@ static void owe_reward_behind_open_screen(int new_match)
         slog("reward lost: the mod's screen was open on something other than an offer");
         return;
     }
-    status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
+    status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result[g_player], &outcome);
     slog("reward: won %d, owed behind the offer on screen, status %s, owed %d",
-         g_match_result.won, sts_run_status_str(status), g_run.owed_count);
+         g_match_result[g_player].won, sts_run_status_str(status), g_run.owed_count);
     if (status == STS_RUN_OK)
         save_run();
     g_dirty = 1;
@@ -428,7 +428,7 @@ static void owe_reward_behind_open_screen(int new_match)
  * this deck became active. Returns 0 if it cannot be loaded. */
 static int load_active_run(void)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     sts_run_status status;
 
     run_path(path, sizeof path, g_active_character);
@@ -449,14 +449,15 @@ static int begin_match_reward(void)
 {
     sts_reward_outcome outcome = STS_REWARD_NONE;
     sts_deck before = g_run.deck;
-    sts_run_status status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
+    sts_run_status status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result[g_player], &outcome);
 
     g_sweep_pending = 0;
     if (outcome == STS_REWARD_AUTO) {
         describe_deck_change(&before);
         prepare_sweep(&before, SWEEP_THEN_ENTER_PHASE);
     }
-    slog("reward: won %d, status %s, outcome %d, owed %d", g_match_result.won, sts_run_status_str(status),
+    slog("reward for player %d: won %d, status %s, outcome %d, owed %d", g_player + 1, g_match_result[g_player].won,
+         sts_run_status_str(status),
          (int)outcome, g_run.owed_count);
     if (status != STS_RUN_OK)
         return 0;
@@ -488,16 +489,13 @@ static void show_reward(int new_match)
         start_deck_timer();
 }
 
-/* Runs on the first title or character select frame after a finished match, and when the game
- * starts with an offer still waiting. */
-void maybe_start_reward(void)
+/* The selected player's reward: see maybe_start_reward. */
+static void start_player_reward(void)
 {
-    int new_match = g_match_new;
+    int new_match = g_match_new[g_player];
 
-    if (!g_match_reward_due)
-        return;
-    g_match_reward_due = 0;
-    g_match_new = 0;
+    g_match_reward_due[g_player] = 0;
+    g_match_new[g_player] = 0;
     if (!g_active)
         return;
     if (g_state != ST_CLOSED) {
@@ -515,6 +513,25 @@ void maybe_start_reward(void)
         return;
     }
     show_reward(new_match);
+}
+
+/* Runs on the first title or character select frame after a finished match, and when the game
+ * starts with an offer still waiting. Each player whose run deck played gets their reward, player 1
+ * first: while one player's reward is on screen, the other's waits its turn. */
+void maybe_start_reward(void)
+{
+    int player;
+
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        if (!g_match_reward_due[player])
+            continue;
+        if (g_state != ST_CLOSED && player != g_player)
+            return;
+        select_player(player);
+        start_player_reward();
+        if (g_state != ST_CLOSED)
+            return;
+    }
 }
 
 /* Records what a reward changed, comparing the deck with its old contents. */
@@ -790,7 +807,7 @@ static void next_available_type(int direction)
  * under the rules it was made under. */
 static void count_discarded_run(int character)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     static sts_run old;
 
     run_path(path, sizeof path, character);
@@ -876,7 +893,7 @@ static void enter_rules_screen(void)
 
 static void open_character(int character)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     sts_run_status status;
 
     g_character = character;
@@ -967,7 +984,7 @@ choose_toggle choose_toggle_for(int character)
 /* The same as the deck screen's toggle, without opening the run. Starting one stops any other. */
 static void toggle_from_chooser(int character)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
     sts_run_status status;
     choose_toggle toggle = choose_toggle_for(character);
 
@@ -1001,28 +1018,58 @@ static int on_last_choose_row(void)
     return g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY;
 }
 
-/* Up and down go through the character rows and the row below them, wrapping round. That row has
- * Settings under the first column and the gallery under the last: the one nearer the column is
- * chosen, Settings from the middle one. */
+/* The row the cursor is on: 0 for the player switch, then the character rows, then Settings and the
+ * gallery. */
+static int choose_row(void)
+{
+    if (g_cursor == CHOOSE_PLAYER)
+        return 0;
+    if (on_last_choose_row())
+        return CHOOSE_ROWS - 1;
+    return 1 + g_cursor / COLS;
+}
+
+/* Up and down go through the rows, wrapping round. The last row has Settings under the first column
+ * and the gallery under the last: the one nearer the column is chosen, Settings from the middle one. */
 static void move_choose_vertically(int direction)
 {
-    int rows = STS_NUM_CHARACTERS / COLS + 1;
-    int row = on_last_choose_row() ? rows - 1 : g_cursor / COLS;
+    int row = choose_row();
 
-    if (!on_last_choose_row())
+    if (row > 0 && row < CHOOSE_ROWS - 1)
         g_choose_column = g_cursor % COLS;
-    row = (row + direction + rows) % rows;
-    if (row < rows - 1)
-        g_cursor = row * COLS + g_choose_column;
-    else
+    row = (row + direction + CHOOSE_ROWS) % CHOOSE_ROWS;
+    if (row == 0)
+        g_cursor = CHOOSE_PLAYER;
+    else if (row == CHOOSE_ROWS - 1)
         g_cursor = g_choose_column > COLS / 2 ? CHOOSE_GALLERY : CHOOSE_SETTINGS;
+    else
+        g_cursor = (row - 1) * COLS + g_choose_column;
+}
+
+/* The menu shows the other player's runs, if that player has a profile of their own. */
+static void switch_player(void)
+{
+    int other = 1 - g_player;
+
+    if (!player_available(other)) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        set_error(tr("Player 2"), tr("on the same profile as player 1, so the runs are player 1's"));
+        g_dirty = 1;
+        return;
+    }
+    select_player(other);
+    if (g_data_ok)
+        scan_saves();
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+    g_error[0] = 0;
+    g_dirty = 1;
 }
 
 /* Deletes a character's run from the character menu. Opening the character afterwards starts a new
  * draft. A run in use stops first, which puts the player's own deck back. */
 static void delete_run(int character)
 {
-    char path[MAX_PATH + 32];
+    char path[MAX_PATH + 96];
 
     if (g_active && g_active_character == character)
         deactivate_run_deck();
@@ -1044,6 +1091,13 @@ static void delete_run(int character)
 
 static void on_choose_event(screen_event event)
 {
+    /* The player switch: left, right and confirm change player; the buttons for runs do nothing. */
+    if (g_cursor == CHOOSE_PLAYER && (event == EV_LEFT || event == EV_RIGHT || event == EV_CONFIRM)) {
+        switch_player();
+        return;
+    }
+    if (g_cursor == CHOOSE_PLAYER && (event == EV_ALT || event == EV_TOGGLE))
+        return;
     /* The last row has Settings and the gallery: left and right go between them, and the buttons
      * for runs do nothing there. Going back up then lands on the column above the entry. */
     if (on_last_choose_row() && (event == EV_ALT || event == EV_TOGGLE))
