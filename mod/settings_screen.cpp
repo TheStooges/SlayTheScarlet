@@ -544,6 +544,23 @@ static int write_settings_file(void)
 }
 
 /* Checks the new settings, asks first if they change the rules of saved runs, then saves. */
+/* Why the settings being edited cannot be saved, or NULL: a rule out of bounds, more offers than fit on
+ * screen, or a starting deck card a character cannot use. */
+static const char *reason_not_to_save(const sts_settings *compatible)
+{
+    static char reason[192];
+    sts_settings_problem_info info;
+    sts_settings_problem found = sts_settings_check(&g_settings_edit, &info);
+    const char *problem;
+
+    describe_problem(found, &info, reason, sizeof reason);
+    problem = found != STS_PROBLEM_NONE ? reason : offers_off_screen(&g_settings_edit);
+    /* Cards that do not belong to a character can only come from the file, so its words will do. */
+    if (!problem && g_data_ok)
+        problem = sts_run_check_starters(&g_db, compatible);
+    return problem;
+}
+
 static void save_settings(int confirmed)
 {
     static sts_settings compatible;
@@ -557,19 +574,9 @@ static void save_settings(int confirmed)
         _snprintf(g_status, sizeof g_status - 1, "%s", tr("Nothing has changed."));
         return;
     }
-    {
-        static char reason[192];
-        sts_settings_problem_info info;
-        sts_settings_problem found = sts_settings_check(&g_settings_edit, &info);
-
-        describe_problem(found, &info, reason, sizeof reason);
-        problem = found != STS_PROBLEM_NONE ? reason : offers_off_screen(&g_settings_edit);
-    }
     compatible = g_settings_edit;
     sts_settings_force_compatible(&compatible);
-    /* Cards that do not belong to a character can only come from the file, so its words will do. */
-    if (!problem && g_data_ok)
-        problem = sts_run_check_starters(&g_db, &compatible);
+    problem = reason_not_to_save(&compatible);
     if (problem) {
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
         set_error(tr("Cannot save"), problem);
@@ -645,13 +652,36 @@ int rule_table_line_count(void)
     return count;
 }
 
+/* Whether a setting is among those already looked at, by section and key. */
+static int already_listed(const char *const *sections, const char *const *keys, int count, const settings_row *row)
+{
+    int wau;
+
+    for (wau = 0; wau < count; wau++)
+        if (strcmp(sections[wau], row->section) == 0 && strcmp(keys[wau], row->key) == 0)
+            return 1;
+    return 0;
+}
+
+static void add_rule_change(int menu, const settings_row *row, const char *now, const char *restored)
+{
+    rule_change *change = &g_rule_changes[g_rule_change_count++];
+
+    change->menu = menu;
+    change->label = row->label;
+    _snprintf(change->now, sizeof change->now - 1, "%s", now);
+    change->now[sizeof change->now - 1] = 0;
+    _snprintf(change->restored, sizeof change->restored - 1, "%s", restored);
+    change->restored[sizeof change->restored - 1] = 0;
+}
+
 void describe_rule_changes(const sts_settings *rules)
 {
     static sts_settings current, changed;
     static settings_row rows[MAX_SETTINGS_ROWS];
     const char *seen_section[SETTINGS_MENU_COUNT * MAX_SETTINGS_ROWS], *seen_key[SETTINGS_MENU_COUNT * MAX_SETTINGS_ROWS];
     int seen_count = 0, described = 0, differing = 0;
-    int menu, pass, wau, j;
+    int menu, pass, wau;
 
     g_rule_change_count = 0;
     g_rule_changes_hidden = 0;
@@ -665,18 +695,13 @@ void describe_rule_changes(const sts_settings *rules)
             g_settings_edit = pass == 0 ? current : changed;
             count = build_menu_rows(menu, rows);
             for (wau = 0; wau < count && g_rule_change_count < RULE_CHANGE_MAX; wau++) {
-                rule_change *change = &g_rule_changes[g_rule_change_count];
                 char before[128], after[128];
 
-                if (!rows[wau].key)
-                    continue;
-                for (j = 0; j < seen_count; j++)
-                    if (strcmp(seen_section[j], rows[wau].section) == 0 && strcmp(seen_key[j], rows[wau].key) == 0)
-                        break;
-                if (j < seen_count)
+                if (!rows[wau].key || already_listed(seen_section, seen_key, seen_count, &rows[wau]))
                     continue;
                 seen_section[seen_count] = rows[wau].section;
                 seen_key[seen_count++] = rows[wau].key;
+                /* Each value as the screen shows it, under the settings in the file and under the run's. */
                 g_settings_edit = current;
                 settings_value_text(&rows[wau], before, sizeof before);
                 g_settings_edit = changed;
@@ -684,13 +709,7 @@ void describe_rule_changes(const sts_settings *rules)
                 g_settings_edit = pass == 0 ? current : changed;
                 if (strcmp(before, after) == 0)
                     continue;
-                change->menu = menu;
-                change->label = rows[wau].label;
-                _snprintf(change->now, sizeof change->now - 1, "%s", before);
-                change->now[sizeof change->now - 1] = 0;
-                _snprintf(change->restored, sizeof change->restored - 1, "%s", after);
-                change->restored[sizeof change->restored - 1] = 0;
-                g_rule_change_count++;
+                add_rule_change(menu, &rows[wau], before, after);
                 described++;
             }
         }

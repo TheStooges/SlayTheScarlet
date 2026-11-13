@@ -1069,33 +1069,37 @@ static void line_at(const char *text, size_t len, size_t pos, text_line *line)
 
 /* Reads a line as the parser does. Returns 1 for a section header (its index in *section, -1 if
  * unknown), 2 for a key line (its key in key), 0 for anything else. */
-static int classify_line(const char *text, const text_line *line, int *section, char *key)
+/* What a line of settings.ini is, for rewriting it. */
+typedef enum { LINE_OTHER, LINE_SECTION, LINE_SETTING } line_kind;
+
+/* A section heading sets *section; a setting's key goes into key. */
+static line_kind classify_line(const char *text, const text_line *line, int *section, char *key)
 {
     char copy[MAX_LINE];
     char *trimmed, *equals;
     size_t length = line->end - line->start;
 
     if (length >= MAX_LINE)
-        return 0;   /* only comments may be this long, or the text would not have parsed */
+        return LINE_OTHER;   /* only comments may be this long, or the text would not have parsed */
     memcpy(copy, text + line->start, length);
     copy[length] = 0;
     trimmed = trim(copy);
     if (!*trimmed || *trimmed == '#' || *trimmed == ';')
-        return 0;
+        return LINE_OTHER;
     if (*trimmed == '[') {
         size_t count = strlen(trimmed);
 
         trimmed[count - 1] = 0;
         *section = section_index(trimmed + 1);
-        return 1;
+        return LINE_SECTION;
     }
     equals = strchr(trimmed, '=');
     if (!equals)
-        return 0;
+        return LINE_OTHER;
     *equals = 0;
     strncpy(key, trim(trimmed), KEY_NAME_SIZE - 1);
     key[KEY_NAME_SIZE - 1] = 0;
-    return 2;
+    return LINE_SETTING;
 }
 
 /* Which of the KEY_COUNT settings a key line in this section is, or -1, matched by the field it
@@ -1135,21 +1139,30 @@ static void put_text(output_text *out, const char *text)
     put_bytes(out, text, strlen(text));
 }
 
+/* A setting of this section that the file does not list but that has changed, so it must be added.
+ * Writes its key and new value into key and new_value. */
+static int missing_and_changed(int index, int section, const int *present, const sts_settings *original,
+                               const sts_settings *settings, char *key, char *new_value)
+{
+    char old_value[VALUE_SIZE];
+    const char *key_section = key_at(index, key);
+
+    if (present[index] || strcmp(key_section, g_sections[section]) != 0)
+        return 0;
+    sts_settings_get(original, key_section, key, old_value, VALUE_SIZE);
+    sts_settings_get(settings, key_section, key, new_value, VALUE_SIZE);
+    return strcmp(old_value, new_value) != 0;
+}
+
 /* Adds the settings of one section that the file does not list and that differ from it. */
 static void put_missing_keys(output_text *out, int section, const int *present, const sts_settings *original,
                              const sts_settings *settings, const char *newline)
 {
-    char key[KEY_NAME_SIZE], old_value[VALUE_SIZE], new_value[VALUE_SIZE];
+    char key[KEY_NAME_SIZE], new_value[VALUE_SIZE];
     int wau;
 
     for (wau = 0; wau < KEY_COUNT; wau++) {
-        const char *key_section = key_at(wau, key);
-
-        if (present[wau] || strcmp(key_section, g_sections[section]) != 0)
-            continue;
-        sts_settings_get(original, key_section, key, old_value, sizeof old_value);
-        sts_settings_get(settings, key_section, key, new_value, sizeof new_value);
-        if (strcmp(old_value, new_value) == 0)
+        if (!missing_and_changed(wau, section, present, original, settings, key, new_value))
             continue;
         put_text(out, key);
         put_text(out, "=");
@@ -1161,20 +1174,31 @@ static void put_missing_keys(output_text *out, int section, const int *present, 
 static int section_has_missing(int section, const int *present, const sts_settings *original,
                                const sts_settings *settings)
 {
-    char key[KEY_NAME_SIZE], old_value[VALUE_SIZE], new_value[VALUE_SIZE];
+    char key[KEY_NAME_SIZE], new_value[VALUE_SIZE];
     int wau;
 
-    for (wau = 0; wau < KEY_COUNT; wau++) {
-        const char *key_section = key_at(wau, key);
-
-        if (present[wau] || strcmp(key_section, g_sections[section]) != 0)
-            continue;
-        sts_settings_get(original, key_section, key, old_value, sizeof old_value);
-        sts_settings_get(settings, key_section, key, new_value, sizeof new_value);
-        if (strcmp(old_value, new_value) != 0)
+    for (wau = 0; wau < KEY_COUNT; wau++)
+        if (missing_and_changed(wau, section, present, original, settings, key, new_value))
             return 1;
-    }
     return 0;
+}
+
+/* A setting's line with only its value replaced: indentation, the key as written, the spaces after
+ * '=' and the line ending all stay. */
+static void put_line_with_value(output_text *out, const char *text, const text_line *line, const char *value)
+{
+    size_t value_start = line->start;
+
+    while (text[value_start] != '=')
+        value_start++;
+    value_start++;
+    while (value_start < line->end && (text[value_start] == ' ' || text[value_start] == '\t'))
+        value_start++;
+    put_bytes(out, text + line->start, value_start - line->start);
+    put_text(out, value);
+    if (line->end > line->start && text[line->end - 1] == '\r')
+        put_text(out, "\r");
+    put_bytes(out, text + line->end, line->next - line->end);
 }
 
 char *sts_settings_rewrite(const char *text, size_t len, const sts_settings *settings, size_t *out_len)
@@ -1200,14 +1224,14 @@ char *sts_settings_rewrite(const char *text, size_t len, const sts_settings *set
     for (pos = 0; pos < len;) {
         text_line line;
         char key[KEY_NAME_SIZE];
-        int kind;
+        line_kind kind;
 
         line_at(text, len, pos, &line);
         kind = classify_line(text, &line, &section, key);
-        if (kind == 1 && section >= 0 && !section_seen[section]) {
+        if (kind == LINE_SECTION && section >= 0 && !section_seen[section]) {
             section_seen[section] = 1;
             section_end[section] = line.next;
-        } else if (kind == 2 && section >= 0) {
+        } else if (kind == LINE_SETTING && section >= 0) {
             int index = key_index_of(&original, g_sections[section], key);
 
             if (index >= 0)
@@ -1228,36 +1252,23 @@ char *sts_settings_rewrite(const char *text, size_t len, const sts_settings *set
     for (pos = 0; pos < len;) {
         text_line line;
         char key[KEY_NAME_SIZE];
-        int kind, index = -1;
+        int index = -1, value_changed = 0;
+        char new_value[VALUE_SIZE];
 
         line_at(text, len, pos, &line);
-        kind = classify_line(text, &line, &section, key);
-        if (kind == 2 && section >= 0)
+        if (classify_line(text, &line, &section, key) == LINE_SETTING && section >= 0)
             index = key_index_of(&original, g_sections[section], key);
         if (index >= 0) {
-            char name[KEY_NAME_SIZE], old_value[VALUE_SIZE], new_value[VALUE_SIZE];
+            char name[KEY_NAME_SIZE], old_value[VALUE_SIZE];
             const char *key_section = key_at(index, name);
 
             sts_settings_get(&original, key_section, name, old_value, sizeof old_value);
             sts_settings_get(settings, key_section, name, new_value, sizeof new_value);
-            if (strcmp(old_value, new_value) != 0) {
-                /* Keep everything up to the value: indentation, the key as written, spaces. */
-                size_t value_start = line.start;
-
-                while (text[value_start] != '=')
-                    value_start++;
-                value_start++;
-                while (value_start < line.end && (text[value_start] == ' ' || text[value_start] == '\t'))
-                    value_start++;
-                put_bytes(&out, text + line.start, value_start - line.start);
-                put_text(&out, new_value);
-                if (line.end > line.start && text[line.end - 1] == '\r')
-                    put_text(&out, "\r");
-                put_bytes(&out, text + line.end, line.next - line.end);
-                index = -2;   /* written */
-            }
+            value_changed = strcmp(old_value, new_value) != 0;
         }
-        if (index != -2)
+        if (value_changed)
+            put_line_with_value(&out, text, &line, new_value);
+        else
             put_bytes(&out, text + line.start, line.next - line.start);
         for (wau = 0; wau < SECTION_COUNT; wau++) {
             if (section_seen[wau] && section_end[wau] == line.next

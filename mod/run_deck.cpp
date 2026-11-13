@@ -398,7 +398,7 @@ void resume_active_run(void)
     if (character < 0)
         return;
 
-    if (character >= 0 && character < STS_NUM_CHARACTERS) {
+    if (character < STS_NUM_CHARACTERS) {
         sts_run_status status;
 
         /* A typo in settings.ini is no reason to forget which run was in use. */

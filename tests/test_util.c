@@ -2,6 +2,8 @@
 #include "test_util.h"
 
 int g_run, g_fail;
+int g_each_failures, g_each_first_line;
+const char *g_each_first_cond;
 sts_card_db g_db;
 
 void fill_legal_deck(sts_deck *deck, int base)

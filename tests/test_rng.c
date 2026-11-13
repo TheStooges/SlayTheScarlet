@@ -18,14 +18,16 @@ void test_rng(void)
     sts_rng_seed(&rng_a, 7, 1);
     sts_rng_seed(&rng_b, 7, 1);
     for (wau = 0; wau < 100; wau++)
-        CHECK(sts_rng_next(&rng_a) == sts_rng_next(&rng_b));
+        CHECK_EACH(sts_rng_next(&rng_a) == sts_rng_next(&rng_b));
+    CHECK_EACH_DONE();
 
     memset(seen, 0, sizeof seen);
     for (wau = 0; wau < 1000; wau++) {
         uint32_t value = sts_rng_below(&rng_a, 7);
-        CHECK(value < 7);
+        CHECK_EACH(value < 7);
         if (value < 7) seen[value] = 1;
     }
+    CHECK_EACH_DONE();
     for (wau = 0; wau < 7; wau++)
         if (!seen[wau]) all_seen = 0;
     CHECK(all_seen);

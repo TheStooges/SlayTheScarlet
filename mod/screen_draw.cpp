@@ -4,6 +4,21 @@
 #include <string.h>
 #include "internal.h"
 
+/* The box under the cursor, and the bar beside a list that scrolls. */
+#define CURSOR_FILL     0x60FFE080u
+#define CURSOR_BORDER   0xFFFFE080u
+#define WARNING_FILL    0x60FF6060u
+#define WARNING_BORDER  0xFFFF6060u
+#define SCROLL_TRACK    0x30FFFFFFu
+#define SCROLL_THUMB    0xC0FFE080u
+#define SCROLLBAR_X     616
+
+/* The character grid, on the main menu and the gallery: a cell of 116 by 60 for each character. */
+#define CELL_X(index) (24 + ((index) % COLS) * 120)
+#define CELL_Y(index) (80 + ((index) / COLS) * 70)
+#define CELL_W 116
+#define CELL_H 60
+
 static SokuLib::SWRFont g_font_big, g_font_small;
 static int g_fonts_ready = 0;
 static Sprite g_labels[MAX_TEXTS];
@@ -393,6 +408,35 @@ static int offer_x(int wau, int count)
     return (SCREEN_W - total) / 2 + wau * (OFFER_W + OFFER_GAP);
 }
 
+/* What a character's run is doing, under its name on the main menu, and the colour to show it in.
+ * Empty for a character with no run. */
+static void run_status(int character, char *out, unsigned *color)
+{
+    out[0] = 0;
+    *color = COLOR_WHITE;
+    if (!g_has_save[character])
+        return;
+    if (g_saved_rules_changed[character]) {
+        sprintf(out, tr("Rules changed"));
+        *color = COLOR_RED;
+    } else if (g_saved_phase[character] == STS_PHASE_DRAFT) {
+        sprintf(out, tr("Draft %d/%d"), g_saved_picks[character], sts_settings_draft_length(&g_settings, character));
+        *color = COLOR_GOLD;
+    } else if (g_saved_phase[character] == STS_PHASE_REWARD) {
+        sprintf(out, tr("Reward waiting"));
+        *color = COLOR_GOLD;
+    } else if (g_saved_phase[character] == STS_PHASE_FINISHED) {
+        sprintf(out, tr("Finished"));
+        *color = COLOR_GREY;
+    } else if (g_active && g_active_character == character) {
+        sprintf(out, tr("In use"));
+        *color = COLOR_GREEN;
+    } else {
+        sprintf(out, tr("Deck ready"));
+        *color = COLOR_GREY;
+    }
+}
+
 static void rebuild_choose(void)
 {
     int character;
@@ -416,34 +460,12 @@ static void rebuild_choose(void)
     add_label(tr("Settings"), g_font_big, CHOOSE_SETTINGS_X + 6, CHOOSE_SETTINGS_Y + 4, 200, 26, COLOR_WHITE);
     add_label(tr("Gallery"), g_font_big, CHOOSE_GALLERY_X + 6, CHOOSE_GALLERY_Y + 4, 110, 26, COLOR_WHITE);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
-        int pos_x = 24 + (character % COLS) * 120;
-        int pos_y = 80 + (character / COLS) * 70;
-        unsigned color = COLOR_WHITE;
+        int pos_x = CELL_X(character);
+        int pos_y = CELL_Y(character);
+        unsigned color;
 
         add_label(character_label(character), g_font_big, pos_x + 6, pos_y + 6, 110, 26, COLOR_WHITE);
-        line[0] = 0;
-        if (g_has_save[character]) {
-            if (g_saved_rules_changed[character]) {
-                sprintf(line, tr("Rules changed"));
-                color = COLOR_RED;
-            } else if (g_saved_phase[character] == STS_PHASE_DRAFT) {
-                sprintf(line, tr("Draft %d/%d"), g_saved_picks[character],
-                        sts_settings_draft_length(&g_settings, character));
-                color = COLOR_GOLD;
-            } else if (g_saved_phase[character] == STS_PHASE_REWARD) {
-                sprintf(line, tr("Reward waiting"));
-                color = COLOR_GOLD;
-            } else if (g_saved_phase[character] == STS_PHASE_FINISHED) {
-                sprintf(line, tr("Finished"));
-                color = COLOR_GREY;
-            } else if (g_active && g_active_character == character) {
-                sprintf(line, tr("In use"));
-                color = COLOR_GREEN;
-            } else {
-                sprintf(line, tr("Deck ready"));
-                color = COLOR_GREY;
-            }
-        }
+        run_status(character, line, &color);
         add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, color);
     }
     switch (choose_toggle_for(g_cursor)) {
@@ -499,17 +521,11 @@ static const sts_offer *shown_offers(int *count)
     return g_run.offers;
 }
 
-static void rebuild_draft(void)
+/* What the offers are for, and where the run is: the match on the reward screen, the pick and the deck
+ * on the draft. */
+static void add_offers_heading(void)
 {
     char line[192];
-    int wau, offer_count;
-    const sts_offer *offers = shown_offers(&offer_count);
-
-    if (draft_deck_shown()) {
-        if (g_deck_art_dirty)
-            load_deck_art();
-        add_label(tr("Your deck so far"), g_font_small, DRAFT_DECK_X, DRAFT_DECK_Y - 24, 320, 20, COLOR_GREY);
-    }
 
     if (g_state == ST_REWARD || g_state == ST_ROULETTE) {
         const char *format = g_state == ST_ROULETTE ? tr("%s: a card is picked at random")
@@ -532,23 +548,41 @@ static void rebuild_draft(void)
         sprintf(line, tr("Deck %d/%d"), g_run.deck.count, g_settings.rules.deck_min);
         add_label(line, g_font_small, 500, 22, 130, 20, COLOR_GREY);
     }
+}
 
-    for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++) {
-        const sts_offer *offer = &offers[wau];
-        const card_text *entry = find_text(offer->id);
-        const sts_card *card = sts_card_db_find(&g_db, g_run.character, offer->id);
-        int pos_x = offer_x(wau, offer_count);
+/* One offer in its box: the card's image, name, type, and copies when there is more than one. */
+static void add_offer_card(int index, const sts_offer *offer, int offer_count)
+{
+    char copies[16];
+    const card_text *entry = find_text(offer->id);
+    const sts_card *card = sts_card_db_find(&g_db, g_run.character, offer->id);
+    int pos_x = offer_x(index, offer_count);
 
-        load_art(wau, offer->id, pos_x + 8, OFFER_Y + 8);
-        add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3,
-                    COLOR_WHITE);
-        if (card)
-            add_card_kind(card, g_run.character, pos_x + 8, OFFER_Y + 202, OFFER_W - 16);
-        if (offer->copies > 1) {
-            sprintf(line, "x%d", offer->copies);
-            add_label(line, g_font_big, pos_x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
-        }
+    load_art(index, offer->id, pos_x + 8, OFFER_Y + 8);
+    add_wrapped(entry ? entry->name : "?", g_font_small, pos_x + 8, OFFER_Y + 146, OFFER_W - 16, 17, 22, 1, 3,
+                COLOR_WHITE);
+    if (card)
+        add_card_kind(card, g_run.character, pos_x + 8, OFFER_Y + 202, OFFER_W - 16);
+    if (offer->copies > 1) {
+        sprintf(copies, "x%d", offer->copies);
+        add_label(copies, g_font_big, pos_x + OFFER_W - 40, OFFER_Y + 8, 36, 28, COLOR_GOLD);
     }
+}
+
+static void rebuild_draft(void)
+{
+    char line[192];
+    int wau, offer_count;
+    const sts_offer *offers = shown_offers(&offer_count);
+
+    if (draft_deck_shown()) {
+        if (g_deck_art_dirty)
+            load_deck_art();
+        add_label(tr("Your deck so far"), g_font_small, DRAFT_DECK_X, DRAFT_DECK_Y - 24, 320, 20, COLOR_GREY);
+    }
+    add_offers_heading();
+    for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++)
+        add_offer_card(wau, &offers[wau], offer_count);
     if (g_cursor < offer_count) {
         const card_text *entry = find_text(offers[g_cursor].id);
         if (entry)
@@ -853,11 +887,12 @@ static void rebuild_deck(void)
 
 /* A finished run: its results, then the starting deck and each match, with what its reward changed.
  * The deck at the chosen point is drawn above the list (draw_score_deck). */
-static void rebuild_score(void)
+/* The run's results, and for events the seed and rules it was played under and how often it was
+ * started over, so a screenshot of this screen shows them. */
+static void add_score_summary(void)
 {
-    char line[192], result[192], change[640];
-    int won, lost, rounds_won, rounds_lost, entry, match;
-    sts_deck deck;
+    char line[192];
+    int won, lost, rounds_won, rounds_lost;
 
     count_results(&g_run, &won, &lost, &rounds_won, &rounds_lost);
     sprintf(line, tr("%s: the run is over"), character_label(g_run.character));
@@ -866,8 +901,6 @@ static void rebuild_score(void)
     add_label(line, g_font_big, 40, 52, 560, 28, COLOR_GOLD);
     sprintf(line, tr("Rounds won %d, lost %d."), rounds_won, rounds_lost);
     add_label(line, g_font_small, 40, 82, 240, 20, COLOR_WHITE);
-    /* For events: the seed and rules the run was played under, and how often it was started over,
-     * so a screenshot of this screen shows them. */
     if (g_run.has_rules && g_run.rules.seed[0])
         _snprintf(line, sizeof line - 1, tr("Seed %s   Rules %08x   Started over: %d"), g_run.rules.seed,
                   (unsigned)g_run.settings_hash, g_run.restarts);
@@ -875,19 +908,14 @@ static void rebuild_score(void)
         _snprintf(line, sizeof line - 1, tr("Rules %08x   Started over: %d"), (unsigned)g_run.settings_hash, g_run.restarts);
     line[sizeof line - 1] = 0;
     add_label(line, g_font_small, 270, 82, 360, 20, COLOR_GREY);
+}
 
-    /* What the deck beside it is. */
-    match = score_entry_match(g_cursor);
-    if (match < 0)
-        sprintf(line, "%s", tr("The draft"));
-    else if (match == g_run.history_count - 1)
-        sprintf(line, "%s", tr("The final match"));
-    else
-        sprintf(line, tr("After match %d"), g_run.history_forgotten + match + 1);
-    add_label(line, g_font_big, SCORE_DECK_X + 340, SCORE_DECK_Y, 240, 28, COLOR_WHITE);
-    /* Above the cards that left, drawn below it. */
-    if (sts_run_deck_after(&g_run, match, &deck) && match >= 0 && g_run.history[match].removed_count > 0)
-        add_label(tr("Replaced"), g_font_small, SCORE_DECK_X + 340, SCORE_DECK_Y + 30, 240, 20, COLOR_RED);
+/* The draft and each match, in two lines each, from the first one shown: the result, and what the
+ * match's reward changed. */
+static void add_score_entries(void)
+{
+    char result[192], change[640];
+    int entry, match;
 
     for (entry = g_score_top; entry < score_entry_count() && entry < g_score_top + SCORE_VISIBLE; entry++) {
         int pos_y = SCORE_LIST_Y + (entry - g_score_top) * SCORE_ENTRY_H;
@@ -902,6 +930,28 @@ static void rebuild_score(void)
         if (change[0])
             add_label(change, g_font_small, 68, pos_y + 17, 532, 20, COLOR_WHITE);
     }
+}
+
+static void rebuild_score(void)
+{
+    char line[192];
+    int match;
+    sts_deck deck;
+
+    add_score_summary();
+    /* What the deck beside it is. */
+    match = score_entry_match(g_cursor);
+    if (match < 0)
+        sprintf(line, "%s", tr("The draft"));
+    else if (match == g_run.history_count - 1)
+        sprintf(line, "%s", tr("The final match"));
+    else
+        sprintf(line, tr("After match %d"), g_run.history_forgotten + match + 1);
+    add_label(line, g_font_big, SCORE_DECK_X + 340, SCORE_DECK_Y, 240, 28, COLOR_WHITE);
+    /* Above the cards that left, drawn below it. */
+    if (sts_run_deck_after(&g_run, match, &deck) && match >= 0 && g_run.history[match].removed_count > 0)
+        add_label(tr("Replaced"), g_font_small, SCORE_DECK_X + 340, SCORE_DECK_Y + 30, 240, 20, COLOR_RED);
+    add_score_entries();
 
     sprintf(line, tr("Up/Down: choose   %s: see this deck   %s: back"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
@@ -922,11 +972,14 @@ static int settings_menu_y(int index)
 /* The seed's text box, over the help below the settings. */
 #define SEED_BOX_Y 344
 
-static void rebuild_settings(void)
+/* The help runs from SETTINGS_HELP_Y down to four lines below it, or fewer above a longer error. */
+#define SETTINGS_HELP_Y 349
+
+/* The title, and the list of menus or the open menu's settings, with what changed marked in gold. */
+static void add_settings_list(void)
 {
     char line[256], value[128];
-    /* Help runs from help_y down to help_bottom: four lines, or fewer above a longer error. */
-    int wau, unsaved = 0, help_y = 349, help_bottom = 349 + 4 * 17;
+    int wau, unsaved = 0;
 
     for (wau = 0; wau < SETTINGS_MENU_COUNT; wau++)
         if (settings_menu_changed(wau))
@@ -943,69 +996,77 @@ static void rebuild_settings(void)
             if (wau < SETTINGS_MENU_COUNT && settings_menu_changed(wau))
                 add_label(tr("Changed"), g_font_small, 470, pos_y + 6, 140, 20, COLOR_GOLD);
         }
-    } else {
-        sprintf(line, tr("Settings: %s"), settings_menu_name(g_settings_menu));
-        add_label(line, g_font_big, 20, 16, 440, 30, COLOR_WHITE);
-        for (wau = 0; wau < SETTINGS_VISIBLE_ROWS && g_settings_top + wau < g_settings_row_count; wau++) {
-            const settings_row *row = &g_settings_rows[g_settings_top + wau];
-            int pos_y = SETTINGS_LIST_Y + wau * SETTINGS_ROW_H;
-
-            add_label(row->label, g_font_small, 48, pos_y, 320, 20, COLOR_WHITE);
-            settings_value_text(row, value, sizeof value);
-            add_label(value, g_font_small, 380, pos_y, 226, 20, settings_row_changed(row) ? COLOR_GOLD : COLOR_WHITE);
-        }
-    }
-
-    if (g_state == ST_SETTINGS_CONFIRM) {
-        _snprintf(line, sizeof line - 1, tr("Saving changes the rules of: %s."), g_settings_affected);
-        line[sizeof line - 1] = 0;
-        add_help(line, 348, 2, COLOR_GOLD);
-        add_help(tr("Those runs will need to start over, or carry on if that is allowed."), 383, 2, COLOR_WHITE);
-        sprintf(line, tr("%s: save anyway   %s: keep editing"), BUTTON_A, BUTTON_B);
-        add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
         return;
     }
-    /* An error may take two lines, ending above the key prompts and lined up with the help, which
-     * gives up room for it. */
-    if (g_error[0]) {
-        int error_lines = count_wrapped_lines(g_error, HELP_COLUMNS, !game_is_japanese());
+    sprintf(line, tr("Settings: %s"), settings_menu_name(g_settings_menu));
+    add_label(line, g_font_big, 20, 16, 440, 30, COLOR_WHITE);
+    for (wau = 0; wau < SETTINGS_VISIBLE_ROWS && g_settings_top + wau < g_settings_row_count; wau++) {
+        const settings_row *row = &g_settings_rows[g_settings_top + wau];
+        int pos_y = SETTINGS_LIST_Y + wau * SETTINGS_ROW_H;
 
-        if (error_lines > 2)
-            error_lines = 2;
-        help_bottom -= (error_lines - 1) * 17;
-        add_wrapped(g_error, g_font_small, 28, 416 - (error_lines - 1) * 17, 590, 17, HELP_COLUMNS, !game_is_japanese(), 2,
-                    COLOR_RED);
-    } else {
+        add_label(row->label, g_font_small, 48, pos_y, 320, 20, COLOR_WHITE);
+        settings_value_text(row, value, sizeof value);
+        add_label(value, g_font_small, 380, pos_y, 226, 20, settings_row_changed(row) ? COLOR_GOLD : COLOR_WHITE);
+    }
+}
+
+/* Saving would change the rules of saved runs: which ones, and the choice. */
+static void add_settings_confirm(void)
+{
+    char line[256];
+
+    _snprintf(line, sizeof line - 1, tr("Saving changes the rules of: %s."), g_settings_affected);
+    line[sizeof line - 1] = 0;
+    add_help(line, 348, 2, COLOR_GOLD);
+    add_help(tr("Those runs will need to start over, or carry on if that is allowed."), 383, 2, COLOR_WHITE);
+    sprintf(line, tr("%s: save anyway   %s: keep editing"), BUTTON_A, BUTTON_B);
+    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
+/* The error (in red, up to two lines, ending above the key prompts) or the status line. Returns where
+ * the help must end: an error of two lines takes a line from it. */
+static int add_settings_error(int help_bottom)
+{
+    int error_lines;
+
+    if (!g_error[0]) {
         add_label(g_status, g_font_small, 28, 416, 590, 20, COLOR_GREEN);
+        return help_bottom;
     }
+    error_lines = count_wrapped_lines(g_error, HELP_COLUMNS, !game_is_japanese());
+    if (error_lines > 2)
+        error_lines = 2;
+    add_wrapped(g_error, g_font_small, 28, 416 - (error_lines - 1) * 17, 590, 17, HELP_COLUMNS, !game_is_japanese(), 2,
+                COLOR_RED);
+    return help_bottom - (error_lines - 1) * 17;
+}
 
-    if (g_settings_menu < 0) {
-        add_help(settings_menu_help(g_cursor), 366, (help_bottom - 366) / 17, COLOR_WHITE);
-        if (g_settings_leave_armed)
-            sprintf(line, tr("Press %s again to leave without saving."), BUTTON_B);
-        else
-            sprintf(line, tr("Up/Down: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
-        add_label(line, g_font_small, 20, 440, 600, 20, g_settings_leave_armed ? COLOR_RED : COLOR_GREY);
-        return;
-    }
+/* The seed's text box, in place of the help while it is open. */
+static void add_seed_entry(void)
+{
+    char line[256];
 
-    /* The seed's text box takes the place of the help while it is open. */
-    if (seed_entry_open()) {
-        _snprintf(line, sizeof line - 1, "%s_", g_seed_entry);
-        line[sizeof line - 1] = 0;
-        add_label(tr("Type a seed:"), g_font_small, 36, SEED_BOX_Y + 8, 140, 20, COLOR_WHITE);
-        add_label(line, g_font_big, 176, SEED_BOX_Y + 4, 420, 28, COLOR_GOLD);
-        add_label(tr("Letters, digits, - and _, up to 24, and capitals count. Empty turns the seed off."), g_font_small, 36,
-                  SEED_BOX_Y + 38, 580, 20, COLOR_GREY);
-        add_label(tr("Enter: done   Esc: cancel   Backspace: delete"), g_font_small, 20, 440, 600, 20, COLOR_GREY);
-        return;
-    }
+    _snprintf(line, sizeof line - 1, "%s_", g_seed_entry);
+    line[sizeof line - 1] = 0;
+    add_label(tr("Type a seed:"), g_font_small, 36, SEED_BOX_Y + 8, 140, 20, COLOR_WHITE);
+    add_label(line, g_font_big, 176, SEED_BOX_Y + 4, 420, 28, COLOR_GOLD);
+    add_label(tr("Letters, digits, - and _, up to 24, and capitals count. Empty turns the seed off."), g_font_small, 36,
+              SEED_BOX_Y + 38, 580, 20, COLOR_GREY);
+    add_label(tr("Enter: done   Esc: cancel   Backspace: delete"), g_font_small, 20, 440, 600, 20, COLOR_GREY);
+}
+
+/* The setting under the cursor: where it is in settings.ini, its help (each value's line starting on
+ * a line of its own), and the keys. */
+static void add_setting_help(int help_bottom)
+{
+    char line[256];
+    int help_y = SETTINGS_HELP_Y, wau;
+
     if (g_cursor < g_settings_row_count) {
         const settings_row *current = &g_settings_rows[g_cursor];
 
         sprintf(line, "settings.ini: [%s] %s", current->section, current->key);
         add_label(line, g_font_small, 28, 331, 590, 20, COLOR_GREY);
-        /* Each value's line starts on a line of its own. */
         for (wau = 0; wau < current->help_count; wau++)
             if (settings_help_shown(current, wau))
                 help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
@@ -1017,6 +1078,32 @@ static void rebuild_settings(void)
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
     sprintf(line, tr("%s: default value"), BUTTON_C);
     add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+}
+
+static void rebuild_settings(void)
+{
+    char line[256];
+    int help_bottom = SETTINGS_HELP_Y + 4 * 17;
+
+    add_settings_list();
+    if (g_state == ST_SETTINGS_CONFIRM) {
+        add_settings_confirm();
+        return;
+    }
+    help_bottom = add_settings_error(help_bottom);
+    if (g_settings_menu < 0) {
+        add_help(settings_menu_help(g_cursor), 366, (help_bottom - 366) / 17, COLOR_WHITE);
+        if (g_settings_leave_armed)
+            sprintf(line, tr("Press %s again to leave without saving."), BUTTON_B);
+        else
+            sprintf(line, tr("Up/Down: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
+        add_label(line, g_font_small, 20, 440, 600, 20, g_settings_leave_armed ? COLOR_RED : COLOR_GREY);
+        return;
+    }
+    if (seed_entry_open())
+        add_seed_entry();
+    else
+        add_setting_help(help_bottom);
 }
 
 /* The gallery's card images, loaded once for each list of cards. A card not found in a run yet shows
@@ -1145,8 +1232,8 @@ static void rebuild_gallery_characters(void)
     add_label(g_gallery_kind == STS_CARD_SKILL ? tr("Gallery: skill cards") : tr("Gallery: spell cards"),
               g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
-        int pos_x = 24 + (character % COLS) * 120;
-        int pos_y = 80 + (character / COLS) * 70;
+        int pos_x = CELL_X(character);
+        int pos_y = CELL_Y(character);
 
         add_label(character_label(character), g_font_big, pos_x + 6, pos_y + 6, 110, 26, COLOR_WHITE);
         sprintf(line, tr("%d of %d found"), found_of_kind(character, g_gallery_kind),
@@ -1358,7 +1445,7 @@ static void draw_gallery_cards(void)
         int pos_y = DECK_Y + (wau / DECK_COLS - top) * DECK_PITCH_Y;
 
         if (wau == g_cursor)
-            draw_box_around(&g_gallery_art[wau], g_has_gallery_art[wau], pos_x, pos_y, 0x60FFE080u, 0xFFFFE080u);
+            draw_box_around(&g_gallery_art[wau], g_has_gallery_art[wau], pos_x, pos_y, CURSOR_FILL, CURSOR_BORDER);
         if (g_has_gallery_art[wau]) {
             g_gallery_art[wau].tint = COLOR_WHITE;
             g_gallery_art[wau].setPosition({pos_x, pos_y});
@@ -1471,127 +1558,166 @@ static void draw_score_deck(void)
     }
 }
 
+static void draw_cursor_box(int pos_x, int pos_y, int width, int height)
+{
+    draw_box(pos_x, pos_y, width, height, CURSOR_FILL, CURSOR_BORDER);
+}
+
+/* A thin bar beside a list that shows `shown` of its `total` entries from `top`: the track, and the
+ * part of it the visible entries cover. Nothing when everything fits. */
+static void draw_scrollbar(int pos_y, int height, int shown, int total, int top)
+{
+    if (total <= shown)
+        return;
+    draw_box(SCROLLBAR_X, pos_y, 4, height, SCROLL_TRACK, SCROLL_TRACK);
+    draw_box(SCROLLBAR_X, pos_y + height * top / total, 4, height * shown / total, SCROLL_THUMB, SCROLL_THUMB);
+}
+
+static void draw_offers(void)
+{
+    int offer_count, wau;
+
+    shown_offers(&offer_count);
+    for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++) {
+        int selected = wau == g_cursor;
+
+        draw_box(offer_x(wau, offer_count), OFFER_Y, OFFER_W, 226, selected ? CURSOR_FILL : 0x40FFFFFFu,
+                 selected ? CURSOR_BORDER : 0x80FFFFFFu);
+        if (g_has_art[wau])
+            g_art[wau].draw();
+    }
+    if (draft_deck_shown())
+        draw_draft_deck();
+}
+
+/* The run deck as a grid, two rows at a time (the details of the card under the cursor go below), on
+ * the deck screen and the screens that take cards out of it. */
+static void draw_deck_grid(void)
+{
+    /* The type screen's cursor is on the types, not the cards, so its grid does not scroll. */
+    int on_cards = g_state != ST_REWARD_TYPE;
+    int removing = g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_SWEEP;
+    int incoming = g_run.offers[g_pending_offer].id;
+    int top = on_cards && g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
+    int wau;
+
+    for (wau = top * DECK_COLS; wau < g_run.deck.count && wau < MAX_DECK_ART && wau < (top + 2) * DECK_COLS; wau++) {
+        int pos_x = DECK_X + (wau % DECK_COLS) * DECK_PITCH_X;
+        int pos_y = DECK_Y + (wau / DECK_COLS - top) * DECK_PITCH_Y;
+        int picked = removing && g_selected[wau];
+
+        /* The draft screen draws these same images smaller. */
+        if (g_has_deck_art[wau])
+            g_deck_art[wau].setSize(g_deck_art[wau].texture.getSize());
+
+        /* On the type screen, a soft outline on the cards of the type under the cursor that can leave,
+         * so it does not compete with the cursor box. */
+        if (!on_cards && g_run.deck.ids[wau] != incoming) {
+            const sts_card *card = sts_card_db_find(&g_db, g_run.character, g_run.deck.ids[wau]);
+
+            if (card && (int)card->type == g_cursor)
+                draw_card_box(wau, pos_x, pos_y, 0x28FFE080u, 0x90FFE080u);
+        }
+        if (picked)
+            draw_card_box(wau, pos_x, pos_y, 0x80FF6060u, WARNING_BORDER);
+        else if (on_cards && wau == g_cursor)
+            draw_card_box(wau, pos_x, pos_y, CURSOR_FILL, CURSOR_BORDER);
+        if (g_has_deck_art[wau]) {
+            /* Cards that cannot leave are greyed out: copies of the incoming card, or on the sweep, the
+             * cards that were never in the running. */
+            int blocked = g_state == ST_SWEEP ? !g_sweep_candidate[wau]
+                : (removing || g_state == ST_REWARD_TYPE) && g_run.deck.ids[wau] == incoming;
+
+            g_deck_art[wau].tint = blocked ? 0xFF505050u : COLOR_WHITE;
+            g_deck_art[wau].setPosition({pos_x, pos_y});
+            g_deck_art[wau].draw();
+        }
+    }
+}
+
+static void draw_settings_cursor(void)
+{
+    int row = g_cursor - g_settings_top;
+
+    if (g_settings_menu < 0) {
+        draw_cursor_box(44, settings_menu_y(g_cursor) - 6, 552, 38);
+        return;
+    }
+    if (row >= 0 && row < SETTINGS_VISIBLE_ROWS)
+        draw_cursor_box(40, SETTINGS_LIST_Y + row * SETTINGS_ROW_H - 1, 568, SETTINGS_ROW_H + 1);
+    draw_scrollbar(SETTINGS_LIST_Y, SETTINGS_VISIBLE_ROWS * SETTINGS_ROW_H, SETTINGS_VISIBLE_ROWS,
+                   g_settings_row_count, g_settings_top);
+}
+
+/* What each screen draws under its text: the cursor, card images, and scrollbars. */
+static void draw_screen_parts(void)
+{
+    switch (g_state) {
+    case ST_CHOOSE:
+        if (g_cursor == CHOOSE_SETTINGS)
+            draw_cursor_box(CHOOSE_SETTINGS_X, CHOOSE_SETTINGS_Y, 116, 32);
+        else if (g_cursor == CHOOSE_GALLERY)
+            draw_cursor_box(CHOOSE_GALLERY_X, CHOOSE_GALLERY_Y, 116, 32);
+        else
+            draw_cursor_box(CELL_X(g_cursor), CELL_Y(g_cursor), CELL_W, CELL_H);
+        break;
+    case ST_GALLERY_KINDS:
+        draw_cursor_box(44, GALLERY_KIND_Y(g_cursor) - 6, 552, 38);
+        break;
+    case ST_GALLERY_CHARACTERS:
+        draw_cursor_box(CELL_X(g_cursor), CELL_Y(g_cursor), CELL_W, CELL_H);
+        break;
+    case ST_GALLERY_CARDS:
+        draw_gallery_cards();
+        break;
+    case ST_SETTINGS:
+    case ST_SETTINGS_CONFIRM:
+        draw_settings_cursor();
+        if (g_state == ST_SETTINGS && seed_entry_open())
+            draw_box(24, SEED_BOX_Y, 592, 64, 0xC0101010u, CURSOR_BORDER);
+        break;
+    case ST_RULES_RESTORE:
+        draw_scrollbar(RULE_TABLE_Y, rule_table_rows() * RULE_TABLE_ROW_H, rule_table_rows(), rule_table_line_count(),
+                       g_rule_table_top);
+        break;
+    case ST_RULES:
+        draw_box(44, RULES_ROW_Y - 6 + g_cursor * RULES_ROW_PITCH, 552, 58,
+                 g_rules_start_over_armed ? WARNING_FILL : CURSOR_FILL,
+                 g_rules_start_over_armed ? WARNING_BORDER : CURSOR_BORDER);
+        break;
+    case ST_SCORE:
+        draw_cursor_box(36, SCORE_LIST_Y - 3 + (g_cursor - g_score_top) * SCORE_ENTRY_H, 568, SCORE_ENTRY_H - 2);
+        draw_scrollbar(SCORE_LIST_Y, SCORE_VISIBLE * SCORE_ENTRY_H, SCORE_VISIBLE, score_entry_count(), g_score_top);
+        draw_score_deck();
+        break;
+    case ST_DRAFT:
+    case ST_REWARD:
+    case ST_ROULETTE:
+        draw_offers();
+        break;
+    case ST_REWARD_TYPE:
+        draw_cursor_box(44, REWARD_TYPE_Y - 6 + g_cursor * REWARD_TYPE_PITCH, 552, 38);
+        draw_deck_grid();
+        break;
+    case ST_DECK:
+    case ST_REWARD_REMOVE:
+    case ST_REWARD_CONFIRM:
+    case ST_SWEEP:
+        draw_deck_grid();
+        break;
+    case ST_CLOSED:
+        break;
+    }
+}
+
 void screen_render(int opaque)
 {
     int wau;
 
     if (g_dirty)
         rebuild();
-
     draw_background(opaque);
-    if (g_state == ST_CHOOSE && g_cursor == CHOOSE_SETTINGS) {
-        draw_box(CHOOSE_SETTINGS_X, CHOOSE_SETTINGS_Y, 116, 32, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_CHOOSE && g_cursor == CHOOSE_GALLERY) {
-        draw_box(CHOOSE_GALLERY_X, CHOOSE_GALLERY_Y, 116, 32, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_GALLERY_KINDS) {
-        draw_box(44, GALLERY_KIND_Y(g_cursor) - 6, 552, 38, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_GALLERY_CARDS) {
-        draw_gallery_cards();
-    } else if (g_state == ST_CHOOSE || g_state == ST_GALLERY_CHARACTERS) {
-        int pos_x = 24 + (g_cursor % COLS) * 120;
-        int pos_y = 80 + (g_cursor / COLS) * 70;
-        draw_box(pos_x, pos_y, 116, 60, 0x60FFE080u, 0xFFFFE080u);
-    } else if ((g_state == ST_SETTINGS || g_state == ST_SETTINGS_CONFIRM) && g_settings_menu < 0) {
-        draw_box(44, settings_menu_y(g_cursor) - 6, 552, 38, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_SETTINGS || g_state == ST_SETTINGS_CONFIRM) {
-        int row = g_cursor - g_settings_top;
-
-        if (row >= 0 && row < SETTINGS_VISIBLE_ROWS)
-            draw_box(40, SETTINGS_LIST_Y + row * SETTINGS_ROW_H - 1, 568, SETTINGS_ROW_H + 1, 0x60FFE080u, 0xFFFFE080u);
-        /* Where the visible rows are in the whole list. */
-        if (g_settings_row_count > SETTINGS_VISIBLE_ROWS) {
-            int track = SETTINGS_VISIBLE_ROWS * SETTINGS_ROW_H;
-            int thumb = track * SETTINGS_VISIBLE_ROWS / g_settings_row_count;
-            int offset = track * g_settings_top / g_settings_row_count;
-
-            draw_box(616, SETTINGS_LIST_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
-            draw_box(616, SETTINGS_LIST_Y + offset, 4, thumb, 0xC0FFE080u, 0xC0FFE080u);
-        }
-    } else if (g_state == ST_RULES_RESTORE && rule_table_line_count() > rule_table_rows()) {
-        /* Where the lines shown are in the whole table. */
-        int lines = rule_table_line_count();
-        int track = rule_table_rows() * RULE_TABLE_ROW_H;
-
-        draw_box(616, RULE_TABLE_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
-        draw_box(616, RULE_TABLE_Y + track * g_rule_table_top / lines, 4, track * rule_table_rows() / lines,
-                 0xC0FFE080u, 0xC0FFE080u);
-    } else if (g_state == ST_SCORE) {
-        int entries = score_entry_count();
-
-        draw_box(36, SCORE_LIST_Y - 3 + (g_cursor - g_score_top) * SCORE_ENTRY_H, 568, SCORE_ENTRY_H - 2,
-                 0x60FFE080u, 0xFFFFE080u);
-        /* Where the entries shown are in the whole list. */
-        if (entries > SCORE_VISIBLE) {
-            int track = SCORE_VISIBLE * SCORE_ENTRY_H;
-
-            draw_box(616, SCORE_LIST_Y, 4, track, 0x30FFFFFFu, 0x30FFFFFFu);
-            draw_box(616, SCORE_LIST_Y + track * g_score_top / entries, 4, track * SCORE_VISIBLE / entries,
-                     0xC0FFE080u, 0xC0FFE080u);
-        }
-        draw_score_deck();
-    } else if (g_state == ST_REWARD_TYPE) {
-        draw_box(44, REWARD_TYPE_Y - 6 + g_cursor * REWARD_TYPE_PITCH, 552, 38, 0x60FFE080u, 0xFFFFE080u);
-    } else if (g_state == ST_RULES) {
-        draw_box(44, RULES_ROW_Y - 6 + g_cursor * RULES_ROW_PITCH, 552, 58,
-                 g_rules_start_over_armed ? 0x60FF6060u : 0x60FFE080u,
-                 g_rules_start_over_armed ? 0xFFFF6060u : 0xFFFFE080u);
-    } else if (g_state == ST_DRAFT || g_state == ST_REWARD || g_state == ST_ROULETTE) {
-        int offer_count;
-
-        shown_offers(&offer_count);
-        for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++) {
-            int selected = wau == g_cursor;
-            draw_box(offer_x(wau, offer_count), OFFER_Y, OFFER_W, 226,
-                     selected ? 0x60FFE080u : 0x40FFFFFFu, selected ? 0xFFFFE080u : 0x80FFFFFFu);
-            if (g_has_art[wau])
-                g_art[wau].draw();
-        }
-        if (draft_deck_shown())
-            draw_draft_deck();
-    }
-    if (g_state == ST_DECK || g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE
-        || g_state == ST_SWEEP) {
-        /* Two rows fit above the card details. A larger deck scrolls with the cursor, except on the
-         * type screen, whose cursor is on the types. */
-        int on_cards = g_state != ST_REWARD_TYPE;
-        int top = on_cards && g_cursor / DECK_COLS > 0 ? g_cursor / DECK_COLS - 1 : 0;
-
-        for (wau = top * DECK_COLS; wau < g_run.deck.count && wau < MAX_DECK_ART && wau < (top + 2) * DECK_COLS; wau++) {
-            int pos_x = DECK_X + (wau % DECK_COLS) * DECK_PITCH_X;
-            int pos_y = DECK_Y + (wau / DECK_COLS - top) * DECK_PITCH_Y;
-
-            int picked = (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_SWEEP) && g_selected[wau];
-
-            /* The draft screen draws these same images smaller. */
-            if (g_has_deck_art[wau])
-                g_deck_art[wau].setSize(g_deck_art[wau].texture.getSize());
-
-            /* On the type screen, a soft outline on the cards of the type under the cursor that can
-             * leave, so it does not compete with the cursor box. */
-            if (!on_cards && g_run.deck.ids[wau] != g_run.offers[g_pending_offer].id) {
-                const sts_card *card = sts_card_db_find(&g_db, g_run.character, g_run.deck.ids[wau]);
-
-                if (card && (int)card->type == g_cursor)
-                    draw_card_box(wau, pos_x, pos_y, 0x28FFE080u, 0x90FFE080u);
-            }
-            if ((on_cards && wau == g_cursor) || picked) {
-                draw_card_box(wau, pos_x, pos_y, picked ? 0x80FF6060u : 0x60FFE080u,
-                              picked ? 0xFFFF6060u : 0xFFFFE080u);
-            }
-            if (g_has_deck_art[wau]) {
-                /* Copies of the incoming card are greyed out on the removal screens. */
-                int blocked = g_state == ST_SWEEP ? !g_sweep_candidate[wau]
-                    : (g_state == ST_REWARD_REMOVE || g_state == ST_REWARD_CONFIRM || g_state == ST_REWARD_TYPE)
-                      && g_run.deck.ids[wau] == g_run.offers[g_pending_offer].id;
-
-                g_deck_art[wau].tint = blocked ? 0xFF505050u : COLOR_WHITE;
-                g_deck_art[wau].setPosition({pos_x, pos_y});
-                g_deck_art[wau].draw();
-            }
-        }
-    }
-    if (g_state == ST_SETTINGS && seed_entry_open())
-        draw_box(24, SEED_BOX_Y, 592, 64, 0xC0101010u, 0xFFFFE080u);
+    draw_screen_parts();
     for (wau = 0; wau < g_label_count; wau++)
         g_labels[wau].draw();
     for (wau = 0; wau < g_input_draw_count; wau++) {

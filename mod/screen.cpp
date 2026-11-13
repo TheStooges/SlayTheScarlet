@@ -402,74 +402,77 @@ int score_entry_match(int entry)
     return g_run.history_forgotten == 0 ? entry - 1 : entry;
 }
 
-/* Runs on the first title or character select frame after a finished match. */
-void maybe_start_reward(void)
+/* The mod's screen was already open when a match ended. If it is an offer from an earlier match (a
+ * disconnect left it under the game's network menu and the player reconnected from there), this
+ * match's reward waits behind it, and comes up once it is taken. Anything else on screen loses it. */
+static void owe_reward_behind_open_screen(int new_match)
 {
-    char path[MAX_PATH + 32];
     sts_reward_outcome outcome = STS_REWARD_NONE;
     sts_run_status status;
-    int new_match = g_match_new;
 
-    if (!g_match_reward_due)
+    if (!new_match)
         return;
-    g_match_reward_due = 0;
-    g_match_new = 0;
-    if (!g_active)
-        return;
-    if (g_state != ST_CLOSED) {
-        /* An offer still open from an earlier match: a disconnect left it under the game's network
-         * menu and the player reconnected from there. This match's reward waits behind it, and
-         * comes up once it is taken. */
-        if (new_match && on_reward_screen() && g_run.character == g_active_character) {
-            status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
-            slog("reward: won %d, owed behind the offer on screen, status %s, owed %d",
-                 g_match_result.won, sts_run_status_str(status), g_run.owed_count);
-            if (status == STS_RUN_OK)
-                save_run();
-            g_dirty = 1;
-        } else if (new_match) {
-            slog("reward lost: the mod's screen was open on something other than an offer");
-        }
+    if (!on_reward_screen() || g_run.character != g_active_character) {
+        slog("reward lost: the mod's screen was open on something other than an offer");
         return;
     }
+    status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
+    slog("reward: won %d, owed behind the offer on screen, status %s, owed %d",
+         g_match_result.won, sts_run_status_str(status), g_run.owed_count);
+    if (status == STS_RUN_OK)
+        save_run();
+    g_dirty = 1;
+}
 
-    /* g_run may hold another character if the screen was used since this deck became active. */
+/* Loads the run in use into g_run, which may hold another character if the screen was used since
+ * this deck became active. Returns 0 if it cannot be loaded. */
+static int load_active_run(void)
+{
+    char path[MAX_PATH + 32];
+    sts_run_status status;
+
     run_path(path, sizeof path, g_active_character);
     status = sts_run_load(path, &g_run);
     if (status == STS_RUN_OK)
         status = sts_run_validate(&g_run, &g_db, &g_settings);
     if (status != STS_RUN_OK) {
         slog("reward skipped, the run could not be loaded: %s", sts_run_status_str(status));
-        return;
+        return 0;
     }
     load_card_text(g_active_character);
-    if (new_match) {
-        sts_deck before = g_run.deck;
+    return 1;
+}
 
-        /* An offer still waiting from before is shown again, and this match's reward is owed. */
-        status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
-        g_sweep_pending = 0;
-        if (outcome == STS_REWARD_AUTO) {
-            describe_deck_change(&before);
-            prepare_sweep(&before, SWEEP_THEN_ENTER_PHASE);
-        }
-        slog("reward: won %d, status %s, outcome %d, owed %d", g_match_result.won, sts_run_status_str(status),
-             (int)outcome, g_run.owed_count);
-        if (status != STS_RUN_OK)
-            return;
-        save_run();
-        if (outcome == STS_REWARD_FINISHED)
-            on_run_finished();
-        if (outcome == STS_REWARD_NONE) {
-            g_match_no_offer = 1;
-            return;
-        }
-    } else if (g_run.phase == STS_PHASE_REWARD) {
-        slog("showing the offer that was already waiting");
-    } else {
-        return;
+/* Begins the reward for the match just played, and saves it. An offer still waiting from before is
+ * shown again, and this match's reward is owed. Returns 1 if there is something to show. */
+static int begin_match_reward(void)
+{
+    sts_reward_outcome outcome = STS_REWARD_NONE;
+    sts_deck before = g_run.deck;
+    sts_run_status status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result, &outcome);
+
+    g_sweep_pending = 0;
+    if (outcome == STS_REWARD_AUTO) {
+        describe_deck_change(&before);
+        prepare_sweep(&before, SWEEP_THEN_ENTER_PHASE);
     }
+    slog("reward: won %d, status %s, outcome %d, owed %d", g_match_result.won, sts_run_status_str(status),
+         (int)outcome, g_run.owed_count);
+    if (status != STS_RUN_OK)
+        return 0;
+    save_run();
+    if (outcome == STS_REWARD_FINISHED)
+        on_run_finished();
+    if (outcome == STS_REWARD_NONE) {
+        g_match_no_offer = 1;
+        return 0;
+    }
+    return 1;
+}
 
+/* Opens the screen on the reward: a random pick or removal shown first, else the run's phase. */
+static void show_reward(int new_match)
+{
     g_error[0] = 0;
     g_status[0] = 0;
     g_close_after_deck = 1;
@@ -483,6 +486,35 @@ void maybe_start_reward(void)
     enter_phase();
     if (g_state == ST_DECK)
         start_deck_timer();
+}
+
+/* Runs on the first title or character select frame after a finished match, and when the game
+ * starts with an offer still waiting. */
+void maybe_start_reward(void)
+{
+    int new_match = g_match_new;
+
+    if (!g_match_reward_due)
+        return;
+    g_match_reward_due = 0;
+    g_match_new = 0;
+    if (!g_active)
+        return;
+    if (g_state != ST_CLOSED) {
+        owe_reward_behind_open_screen(new_match);
+        return;
+    }
+    if (!load_active_run())
+        return;
+    if (new_match) {
+        if (!begin_match_reward())
+            return;
+    } else if (g_run.phase == STS_PHASE_REWARD) {
+        slog("showing the offer that was already waiting");
+    } else {
+        return;
+    }
+    show_reward(new_match);
 }
 
 /* Records what a reward changed, comparing the deck with its old contents. */

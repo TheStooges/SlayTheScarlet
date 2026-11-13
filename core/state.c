@@ -68,10 +68,21 @@ int sts_state_add_found(sts_state *state, int owner, unsigned id)
     return 1;
 }
 
+static int set_has_found(const sts_state *state, int owner)
+{
+    unsigned id;
+
+    for (id = 0; id < STS_STATE_CARD_IDS; id++)
+        if (sts_state_found(state, owner, id))
+            return 1;
+    return 0;
+}
+
 size_t sts_state_serialize(const sts_state *state, char *buf, size_t cap)
 {
     size_t offset = 0;
-    int wau;
+    int sets = 0, owner, wau;
+    unsigned id;
 
 #define PUT(...) do { \
         int written = snprintf(buf + offset, cap - offset, __VA_ARGS__); \
@@ -89,35 +100,47 @@ size_t sts_state_serialize(const sts_state *state, char *buf, size_t cap)
         PUT("%d %08x %d\n", state->counts[wau].character, (unsigned)state->counts[wau].rules_hash,
             state->counts[wau].restarts);
     /* One line for each set of cards found that has any: the owner, then the IDs. */
-    {
-        int sets = 0, owner;
-        unsigned id;
-
-        for (owner = 0; owner < STS_STATE_FOUND_SETS; owner++)
-            for (id = 0; id < STS_STATE_CARD_IDS; id++)
-                if (sts_state_found(state, owner, id)) {
-                    sets++;
-                    break;
-                }
-        PUT("found %d\n", sets);
-        for (owner = 0; owner < STS_STATE_FOUND_SETS; owner++) {
-            int any = 0;
-
-            for (id = 0; id < STS_STATE_CARD_IDS; id++) {
-                if (!sts_state_found(state, owner, id))
-                    continue;
-                if (!any)
-                    PUT("%d", owner);
+    for (owner = 0; owner < STS_STATE_FOUND_SETS; owner++)
+        sets += set_has_found(state, owner);
+    PUT("found %d\n", sets);
+    for (owner = 0; owner < STS_STATE_FOUND_SETS; owner++) {
+        if (!set_has_found(state, owner))
+            continue;
+        PUT("%d", owner);
+        for (id = 0; id < STS_STATE_CARD_IDS; id++)
+            if (sts_state_found(state, owner, id))
                 PUT(" %u", id);
-                any = 1;
-            }
-            if (any)
-                PUT("\n");
-        }
+        PUT("\n");
     }
     PUT("gallery_unlocked %d\n", state->gallery_unlocked ? 1 : 0);
 #undef PUT
     return offset;
+}
+
+/* One line of cards found: the owner, then its card IDs. Returns where the next line starts, or NULL
+ * if the line is damaged. */
+static char *parse_found_line(char *cursor, sts_state *out)
+{
+    char *line_end = strchr(cursor, '\n');
+    char *number_end;
+    long owner, id;
+
+    if (!line_end)
+        line_end = cursor + strlen(cursor);
+    owner = strtol(cursor, &number_end, 10);
+    if (number_end == cursor || owner < 0 || owner >= STS_STATE_FOUND_SETS)
+        return NULL;
+    cursor = number_end;
+    while (cursor < line_end) {
+        id = strtol(cursor, &number_end, 10);
+        if (number_end == cursor || number_end > line_end || id < 0 || id >= STS_STATE_CARD_IDS)
+            return NULL;
+        sts_state_add_found(out, (int)owner, (unsigned)id);
+        cursor = number_end;
+        while (cursor < line_end && *cursor == ' ')
+            cursor++;
+    }
+    return *cursor == '\n' ? cursor + 1 : cursor;
 }
 
 int sts_state_parse(const char *text, size_t len, sts_state *out)
@@ -156,29 +179,9 @@ int sts_state_parse(const char *text, size_t len, sts_state *out)
         if (count < 0 || count > STS_STATE_FOUND_SETS)
             goto bad;
         cursor += consumed;
-        for (wau = 0; wau < count; wau++) {
-            char *line_end = strchr(cursor, '\n');
-            char *number_end;
-            long owner, id;
-
-            if (!line_end)
-                line_end = cursor + strlen(cursor);
-            owner = strtol(cursor, &number_end, 10);
-            if (number_end == cursor || owner < 0 || owner >= STS_STATE_FOUND_SETS)
+        for (wau = 0; wau < count; wau++)
+            if (!(cursor = parse_found_line(cursor, out)))
                 goto bad;
-            cursor = number_end;
-            while (cursor < line_end) {
-                id = strtol(cursor, &number_end, 10);
-                if (number_end == cursor || number_end > line_end || id < 0 || id >= STS_STATE_CARD_IDS)
-                    goto bad;
-                sts_state_add_found(out, (int)owner, (unsigned)id);
-                cursor = number_end;
-                while (cursor < line_end && *cursor == ' ')
-                    cursor++;
-            }
-            if (*cursor == '\n')
-                cursor++;
-        }
         consumed = 0;
         if (sscanf(cursor, "gallery_unlocked %d\n%n", &out->gallery_unlocked, &consumed) == 1 && consumed > 0
             && out->gallery_unlocked != 0 && out->gallery_unlocked != 1)

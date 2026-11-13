@@ -38,17 +38,18 @@ static void test_run_starter(void)
             int wau;
 
             sts_settings_starter(&settings, character, &starter);
-            CHECK(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
-            CHECK(run.phase == STS_PHASE_DRAFT && decks_equal(&run.deck, &starter) && run.offer_count == 3);
-            CHECK(sts_run_validate(&run, &g_db, &settings) == STS_RUN_OK);
-            CHECK(finish_draft(&run, &settings) == STS_RUN_OK);
-            CHECK(run.phase == STS_PHASE_READY && run.picks_done == 12);
-            CHECK(run.picks_done == sts_settings_draft_length(&settings, character));
-            CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+            CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
+            CHECK_EACH(run.phase == STS_PHASE_DRAFT && decks_equal(&run.deck, &starter) && run.offer_count == 3);
+            CHECK_EACH(sts_run_validate(&run, &g_db, &settings) == STS_RUN_OK);
+            CHECK_EACH(finish_draft(&run, &settings) == STS_RUN_OK);
+            CHECK_EACH(run.phase == STS_PHASE_READY && run.picks_done == 12);
+            CHECK_EACH(run.picks_done == sts_settings_draft_length(&settings, character));
+            CHECK_EACH(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
             for (wau = 0; wau < starter.count; wau++)
-                CHECK(sts_deck_count_of(&run.deck, starter.ids[wau]) >= sts_deck_count_of(&starter, starter.ids[wau]));
+                CHECK_EACH(sts_deck_count_of(&run.deck, starter.ids[wau]) >= sts_deck_count_of(&starter, starter.ids[wau]));
         }
     }
+    CHECK_EACH_DONE();
 
     /* A card the character cannot use (no one has a card 299) is caught before any run starts,
      * and only that character's run is refused. */
@@ -76,20 +77,21 @@ void test_run_draft(void)
     for (seed = 0; seed < 20; seed++) {
         for (character = 0; character < STS_NUM_CHARACTERS; character++) {
             int pick = 0;
-            CHECK(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
-            CHECK(run.phase == STS_PHASE_DRAFT && run.deck.count == 0);
+            CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
+            CHECK_EACH(run.phase == STS_PHASE_DRAFT && run.deck.count == 0);
             while (run.phase == STS_PHASE_DRAFT) {
-                CHECK(run.offer_count == 3);
-                CHECK(run.deck.count == pick);
-                CHECK(sts_run_draft_pick(&run, &g_db, &settings, pick % 3) == STS_RUN_OK);
+                CHECK_EACH(run.offer_count == 3);
+                CHECK_EACH(run.deck.count == pick);
+                CHECK_EACH(sts_run_draft_pick(&run, &g_db, &settings, pick % 3) == STS_RUN_OK);
                 pick++;
             }
-            CHECK(pick == 20 && run.phase == STS_PHASE_READY && run.offer_count == 0);
-            CHECK(run.picks_done == 20);
-            CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
-            CHECK(sts_deck_cards_legal(&g_db, character, &run.deck, NULL));
+            CHECK_EACH(pick == 20 && run.phase == STS_PHASE_READY && run.offer_count == 0);
+            CHECK_EACH(run.picks_done == 20);
+            CHECK_EACH(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+            CHECK_EACH(sts_deck_cards_legal(&g_db, character, &run.deck, NULL));
         }
     }
+    CHECK_EACH_DONE();
 
     /* Refused actions change nothing. */
     CHECK(sts_run_start(&run, &g_db, &settings, 0, 1) == STS_RUN_OK);
@@ -125,12 +127,13 @@ void test_run_draft(void)
             for (character = 0; character < STS_NUM_CHARACTERS; character++) {
                 for (seed = 0; seed < 5; seed++) {
                     sts_run_status status;
-                    CHECK(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
+                    CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, (uint64_t)seed) == STS_RUN_OK);
                     status = finish_draft(&run, &settings);
-                    CHECK(status == STS_RUN_OK);
-                    CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+                    CHECK_EACH(status == STS_RUN_OK);
+                    CHECK_EACH(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
                 }
             }
+            CHECK_EACH_DONE();
         }
     }
 
@@ -236,13 +239,14 @@ static void test_rewards_automatic(void)
         ready_run(&run, &settings, 9, 21);
         for (j = 0; j < 100; j++) {
             before = run;
-            CHECK(begin_reward(&run, &g_db, &settings, wau, &out) == STS_RUN_OK);
-            CHECK(out == STS_REWARD_AUTO && run.phase == STS_PHASE_READY && run.offer_count == 0);
-            CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+            CHECK_EACH(begin_reward(&run, &g_db, &settings, wau, &out) == STS_RUN_OK);
+            CHECK_EACH(out == STS_REWARD_AUTO && run.phase == STS_PHASE_READY && run.offer_count == 0);
+            CHECK_EACH(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
             if (!decks_equal(&run.deck, &before.deck)) changed++;
         }
-        CHECK(changed > 50);
+        CHECK_EACH(changed > 50);
     }
+    CHECK_EACH_DONE();
 }
 
 /* Random removal has no by_type limit on copies: no type here has 3 cards, but the deck can still
@@ -351,30 +355,31 @@ static void test_rewards_by_type(void)
     for (j = 0; j < 50; j++) {
         int type;
         int types_before[3], types_after[3];
-        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
         for (type = 0; type < 3; type++)
             types_before[type] = count_type_in_deck(&run.deck, run.character, type);
         choice.remove_ids = NULL;
         choice.remove_count = 0;
         choice.type = 99;
-        CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, &choice) == STS_RUN_BAD_CHOICE);
+        CHECK_EACH(sts_run_reward_pick(&run, &g_db, &settings, 0, &choice) == STS_RUN_BAD_CHOICE);
         /* The biggest type always has a card to give up. */
         choice.type = 0;
         for (type = 1; type < 3; type++)
             if (types_before[type] > types_before[choice.type]) choice.type = type;
         {
             int offered_type = run.offers[0].type;
-            CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, &choice) == STS_RUN_OK);
+            CHECK_EACH(sts_run_reward_pick(&run, &g_db, &settings, 0, &choice) == STS_RUN_OK);
             for (type = 0; type < 3; type++)
                 types_after[type] = count_type_in_deck(&run.deck, run.character, type);
-            CHECK(types_after[offered_type] >= types_before[offered_type] - (offered_type == choice.type ? 1 : 0));
+            CHECK_EACH(types_after[offered_type] >= types_before[offered_type] - (offered_type == choice.type ? 1 : 0));
             if (offered_type != choice.type)
-                CHECK(types_after[choice.type] == types_before[choice.type] - 1);
+                CHECK_EACH(types_after[choice.type] == types_before[choice.type] - 1);
             else
-                CHECK(types_after[choice.type] == types_before[choice.type]);
+                CHECK_EACH(types_after[choice.type] == types_before[choice.type]);
         }
-        CHECK(run.deck.count == 20);
+        CHECK_EACH(run.deck.count == 20);
     }
+    CHECK_EACH_DONE();
 }
 
 /* replace + random needs no choice from the player. */
@@ -389,10 +394,11 @@ static void test_rewards_random(void)
     settings.reward.replace = STS_REPLACE_RANDOM;
     ready_run(&run, &settings, 2, 32);
     for (j = 0; j < 50; j++) {
-        CHECK(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
-        CHECK(sts_run_reward_pick(&run, &g_db, &settings, (int)(j % 3), NULL) == STS_RUN_OK);
-        CHECK(run.deck.count == 20 && sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, 0, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK_EACH(sts_run_reward_pick(&run, &g_db, &settings, (int)(j % 3), NULL) == STS_RUN_OK);
+        CHECK_EACH(run.deck.count == 20 && sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
     }
+    CHECK_EACH_DONE();
 }
 
 /* A match finished while offers wait (a reconnect after a disconnect during an offer) is owed:
@@ -475,20 +481,21 @@ static void test_rewards_at_random(void)
         int won = wau % 2;
         sts_deck before = run.deck;
 
-        CHECK(begin_reward(&run, &g_db, &settings, won, &out) == STS_RUN_OK);
-        CHECK(begin_reward(&again, &g_db, &settings, won, &out_again) == STS_RUN_OK);
-        CHECK(out == out_again);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, won, &out) == STS_RUN_OK);
+        CHECK_EACH(begin_reward(&again, &g_db, &settings, won, &out_again) == STS_RUN_OK);
+        CHECK_EACH(out == out_again);
         if (out == STS_REWARD_OFFERS) {
             offers[won]++;
-            CHECK(run.phase == STS_PHASE_REWARD);
-            CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
-            CHECK(sts_run_reward_pick(&again, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+            CHECK_EACH(run.phase == STS_PHASE_REWARD);
+            CHECK_EACH(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+            CHECK_EACH(sts_run_reward_pick(&again, &g_db, &settings, 0, NULL) == STS_RUN_OK);
         } else {
             none[won]++;
-            CHECK(out == STS_REWARD_NONE && run.phase == STS_PHASE_READY && decks_equal(&run.deck, &before));
+            CHECK_EACH(out == STS_REWARD_NONE && run.phase == STS_PHASE_READY && decks_equal(&run.deck, &before));
         }
-        CHECK(decks_equal(&run.deck, &again.deck));
+        CHECK_EACH(decks_equal(&run.deck, &again.deck));
     }
+    CHECK_EACH_DONE();
     CHECK(run.matches_played == 400);
     for (wau = 0; wau < 2; wau++)
         CHECK(offers[wau] > 60 && none[wau] > 60);
@@ -497,24 +504,27 @@ static void test_rewards_at_random(void)
     settings.random_chance = 0;
     ready_run(&run, &settings, 5, 91);
     for (wau = 0; wau < 50; wau++) {
-        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     }
+    CHECK_EACH_DONE();
     settings.random_chance = 100;
     ready_run(&run, &settings, 5, 92);
     for (wau = 0; wau < 50; wau++) {
-        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
-        CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+        CHECK_EACH(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
     }
+    CHECK_EACH_DONE();
     settings.random_chance = 25;
     ready_run(&run, &settings, 5, 93);
     offers[0] = 0;
     for (wau = 0; wau < 400; wau++) {
-        CHECK(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, wau % 2, &out) == STS_RUN_OK);
         if (out == STS_REWARD_OFFERS) {
             offers[0]++;
-            CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
+            CHECK_EACH(sts_run_reward_pick(&run, &g_db, &settings, 0, NULL) == STS_RUN_OK);
         }
     }
+    CHECK_EACH_DONE();
     CHECK(offers[0] > 60 && offers[0] < 140);
 }
 
@@ -993,8 +1003,9 @@ static void test_history(void)
         result.rounds_won = wau % 2;
         result.rounds_lost = wau;   /* not a real score: tells the records apart */
         result.opponent = wau % STS_NUM_CHARACTERS;
-        CHECK(sts_run_begin_reward(&run, &g_db, &winner, &result, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
+        CHECK_EACH(sts_run_begin_reward(&run, &g_db, &winner, &result, &out) == STS_RUN_OK && out == STS_REWARD_NONE);
     }
+    CHECK_EACH_DONE();
     CHECK(run.history_count == STS_RUN_HISTORY_MAX && run.history_forgotten == 5 && run.matches_played == 105);
     CHECK(run.history[0].rounds_lost == 5 && run.history[STS_RUN_HISTORY_MAX - 1].rounds_lost == 104);
     CHECK(!run.history[0].pending && run.history[0].added_count == 0 && run.history[0].removed_count == 0);
@@ -1245,13 +1256,14 @@ static void test_reward_time_out(void)
     /* Nothing chosen: two random cards leave, never the one coming in. */
     for (wau = 0; wau < 20; wau++) {
         ready_run(&run, &settings, 2, (uint64_t)(140 + wau));
-        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
         offer = run.offers[0];
         before = run.deck;
-        CHECK(sts_run_reward_time_out(&run, &g_db, &settings, 0, NULL, 0, -1) == STS_RUN_OK);
-        CHECK(sts_deck_count_of(&run.deck, offer.id) == sts_deck_count_of(&before, offer.id) + 2);
-        CHECK(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
+        CHECK_EACH(sts_run_reward_time_out(&run, &g_db, &settings, 0, NULL, 0, -1) == STS_RUN_OK);
+        CHECK_EACH(sts_deck_count_of(&run.deck, offer.id) == sts_deck_count_of(&before, offer.id) + 2);
+        CHECK_EACH(sts_deck_validate(&run.deck, &settings.rules, NULL) == STS_DECK_OK);
     }
+    CHECK_EACH_DONE();
 
     /* By type: the type chosen leaves, or a random type that can. */
     CHECK(parse_ini("[reward]\nreplacement=by_type\n", &settings, &line) == STS_SETTINGS_OK);
@@ -1259,14 +1271,15 @@ static void test_reward_time_out(void)
         int type = wau % 2 ? -1 : STS_CARD_SYSTEM;
 
         ready_run(&run, &settings, 2, (uint64_t)(160 + wau));
-        CHECK(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
-        CHECK(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, type) == STS_RUN_OK);
-        CHECK(run.phase == STS_PHASE_READY && run.history[0].removed_count == 1);
+        CHECK_EACH(begin_reward(&run, &g_db, &settings, 1, &out) == STS_RUN_OK);
+        CHECK_EACH(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, type) == STS_RUN_OK);
+        CHECK_EACH(run.phase == STS_PHASE_READY && run.history[0].removed_count == 1);
         if (type >= 0) {
             const sts_card *card = sts_card_db_find(&g_db, 2, run.history[0].removed[0]);
-            CHECK(card && (int)card->type == type);
+            CHECK_EACH(card && (int)card->type == type);
         }
     }
+    CHECK_EACH_DONE();
 }
 
 /* A pick made at random keeps the offers it was made from, for the screen to show, but only until the

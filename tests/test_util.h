@@ -30,6 +30,26 @@ extern int g_run, g_fail;
     if (!(cond)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } \
 } while (0)
 
+/* For a check made on every round of a loop (every roll of the offers, every pick of a draft):
+ * CHECK_EACH inside the loop only counts failures, and CHECK_EACH_DONE after it counts the whole loop
+ * as one check, naming how many rounds failed and where the first one was. */
+extern int g_each_failures, g_each_first_line;
+extern const char *g_each_first_cond;
+
+#define CHECK_EACH(cond) do { \
+    if (!(cond) && g_each_failures++ == 0) { g_each_first_line = __LINE__; g_each_first_cond = #cond; } \
+} while (0)
+
+#define CHECK_EACH_DONE() do { \
+    g_run++; \
+    if (g_each_failures) { \
+        g_fail++; \
+        printf("FAIL %s:%d: %s (failed %d times in a loop)\n", __FILE__, g_each_first_line, g_each_first_cond, \
+               g_each_failures); \
+    } \
+    g_each_failures = 0; \
+} while (0)
+
 /* The real card table. test_card_db_file loads it, so it must run before anything using this. */
 extern sts_card_db g_db;
 
