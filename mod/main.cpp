@@ -4,6 +4,7 @@
 #include <shlwapi.h>
 #include <string.h>
 #include "netlog.h"
+#include "spectator.h"
 #include "log.h"
 #include "match.h"
 #include "run_deck.h"
@@ -72,6 +73,16 @@ NET_LOADING_HOOK(LoadingClient, "loading, as client")
  * select, and is sometimes sent back to the battle to catch up on the last one. */
 NET_LOADING_HOOK(LoadingWatch, "loading, as spectator")
 NET_LOADING_HOOK(BattleWatch, "battle, as spectator")
+
+/* A spectator's battle: each player's deck changes since the last match, over the game's drawing. */
+static int (SokuLib::BattleWatch::*g_og_BattleWatch_render)();
+static int __fastcall on_BattleWatch_render(SokuLib::BattleWatch *This)
+{
+    int result = (This->*g_og_BattleWatch_render)();
+
+    spectator_render();
+    return result;
+}
 NET_BATTLE_HOOK(BattleServer, "battle, as host")
 NET_BATTLE_HOOK(BattleClient, "battle, as client")
 
@@ -362,6 +373,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     g_og_BattleClient = SokuLib::TamperDword(&SokuLib::VTable_BattleClient.onProcess, on_BattleClient);
     g_og_LoadingWatch = SokuLib::TamperDword(&SokuLib::VTable_LoadingWatch.onProcess, on_LoadingWatch);
     g_og_BattleWatch = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onProcess, on_BattleWatch);
+    g_og_BattleWatch_render = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onRender, on_BattleWatch_render);
     netlog_install();
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
     FlushInstructionCache(GetCurrentProcess(), nullptr, 0);

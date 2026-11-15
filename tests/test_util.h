@@ -64,6 +64,7 @@ sts_rules open_rules(void);
 /* The tests, one list per file, in the order test_main.c runs them. */
 void test_rules_and_validation(void);
 void test_deck_helpers(void);
+void test_deck_changes(void);
 void test_pf_synthetic_roundtrip(void);
 void test_real_profile(void);
 void test_randomizer_output(void);

@@ -588,12 +588,36 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    deck size, the mod only overwrites a slot of the same size, and the game rejects non-20 decks.
 5. Full mode networking: version handshake, pick visibility, waiting state, spectator relay.
    Everything up to v0.4 is client-side: it works against vanilla players, sends no custom packets
-   and changes none (the network hooks only read, for logging). First step, moved past v0.4 by
-   decision: a modded spectator's loading screen shows each player's deck change, from the
-   `GAME_MATCH` decks it already receives, tied to the match id (still no packets; needs a spectator
-   test with other people). Then live picks over a Giuroll-dropped packet type (0x6F-0x80), relayed
+   and changes none (the network hooks only read, for logging). First step (built after v0.5, not yet
+   seen with real spectators; needs other people): `mod/spectator.cpp` shows each player's deck
+   changes on a modded spectator's screen, worked out from the `GAME_MATCH` decks it already receives
+   (`sts_deck_changes` in `core/deck`), so nothing is sent and it works for unmodded players too. Shown
+   at the start of the match, not on the loading screen: the packet only arrives just before the
+   battle. Each side's changes show as card images (each copy its own card, outlined green for in and red
+   for out, no text) at half size under that player's half of the screen, cards in then cards out on
+   one row, 8 to a row, for 8 s, then fade. It is the fallback once
+   packets exist (they reach a spectator during loading, but only with both players modded). Only a
+   match numbered one after the last gets a notice (a new pair or a late join gets none), and only
+   while the spectator's replay requests ask for that match (their match byte counts the same way as
+   `GAME_MATCH`'s, seen in the v0.3.2 spectator log), so a catch-up replay of the previous match does
+   not show it. Then live picks over a Giuroll-dropped packet type (0x6F-0x80), relayed
    by the client down the spectator tree.
-6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first).
+   By decision (2026-11-15), deck sizes other than 20 are for full mode only: the game nullifies a
+   deck that is not 20 cards (seen with DeckRandomizer), so a vanilla opponent would get no deck.
+6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first). Can be built and
+   tested offline, but by decision (2026-11-15) online they need full mode, as both machines must
+   know both players' items. Ideas (2026-11-16, not yet checked for feasibility; each needs testing
+   in game first):
+   - Effects to mix and match into double-edged items, the pairs decided by balance: flat HP or
+     card meter gain rate changes; passive HP loss or meter gain over time; spirit regen delay or
+     rate changes; starting the match with something done (1 card's worth of meter, 1 spirit orb
+     crushed); starting with an alternate skill already equipped (level 0), but the first Sprinkle
+     weather (which maxes every skill's level while it lasts) does not affect that player; weak or
+     strong shot bullets that are bigger (and possibly do more damage) but cost more.
+   - Character items: one per character, only that character can get it, a pure buff (no debuff) to
+     their own system card (the system card whose owner index in `spellcard.csv` is that
+     character). Examples: Reimu's Spiritual Strike Talisman applies 100% limit instead of 60%;
+     Sakuya's Stopwatch lets her attack during the time stop.
 7. (done for v0.2, played in game) Starting deck, as in Slay the Spire: the draft starts
    from built-in starter cards (`default_starter` in `core/settings.c`) and the picks fill the rest.
    Off by default (`[starter] enabled=false`). By decision (v0.3), the cards are not configurable,

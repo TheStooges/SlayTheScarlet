@@ -3,6 +3,15 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## Unreleased
+
+### New
+
+- **Deck changes for spectators.** A spectator with the mod sees, at the start of each match, the
+  cards each player's deck gained and lost since the last match, under that player's side of the
+  screen: green outlines for cards that came in, red for cards that left. It is worked out from the decks the spectator already receives, so nothing is sent, and the
+  players do not need the mod.
+
 ## 0.5 - 2026-11-15
 
 ### New

@@ -360,7 +360,7 @@ static void add_reward_notice(const char *text, int last_y, unsigned color)
 }
 
 /* A card's image. The character is whose card it is: the same ID is a different card for each. */
-static int load_card_sprite(Sprite *sprite, int character, uint16_t id, int pos_x, int pos_y, unsigned scale)
+int load_card_sprite(Sprite *sprite, int character, uint16_t id, int pos_x, int pos_y, unsigned scale)
 {
     char path[128];
     SokuLib::Vector2u size;

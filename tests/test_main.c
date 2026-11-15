@@ -11,6 +11,7 @@ int main(void)
 {
     test_rules_and_validation();
     test_deck_helpers();
+    test_deck_changes();
     test_pf_synthetic_roundtrip();
     test_real_profile();
     test_randomizer_output();

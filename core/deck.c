@@ -60,3 +60,26 @@ const char *sts_deck_status_str(sts_deck_status status)
     }
     return "unknown";
 }
+
+void sts_deck_changes(const sts_deck *before, const sts_deck *after, sts_deck *added, sts_deck *removed)
+{
+    sts_deck old_cards = *before, new_cards = *after;
+    int old_index = 0, new_index = 0;
+
+    sts_deck_clear(added);
+    sts_deck_clear(removed);
+    sts_deck_sort(&old_cards);
+    sts_deck_sort(&new_cards);
+    /* Both sorted, so walking them side by side pairs off the copies they share. */
+    while (old_index < old_cards.count || new_index < new_cards.count) {
+        if (new_index >= new_cards.count
+            || (old_index < old_cards.count && old_cards.ids[old_index] < new_cards.ids[new_index])) {
+            sts_deck_add(removed, old_cards.ids[old_index++]);
+        } else if (old_index >= old_cards.count || new_cards.ids[new_index] < old_cards.ids[old_index]) {
+            sts_deck_add(added, new_cards.ids[new_index++]);
+        } else {
+            old_index++;
+            new_index++;
+        }
+    }
+}

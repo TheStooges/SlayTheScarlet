@@ -36,4 +36,8 @@ sts_deck_status sts_deck_validate(const sts_deck *deck, const sts_rules *rules, 
 
 const char *sts_deck_status_str(sts_deck_status status);
 
+/* What changed from one deck to the next, counting copies: added gets the cards after has more of,
+ * removed the cards before had more of, each sorted. A card that only moved in the list is no change. */
+void sts_deck_changes(const sts_deck *before, const sts_deck *after, sts_deck *added, sts_deck *removed);
+
 #endif

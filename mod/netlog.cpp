@@ -7,6 +7,7 @@
 #include "netlog.h"
 #include "log.h"
 #include "run_deck.h"
+#include "spectator.h"
 
 /* The game's import table entries (v1.10a), found by the OnlinePractice mod's log. */
 #define IAT_SENDTO   0x00857290u
@@ -177,8 +178,11 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
             slog("%s first packet of type 0x%02X, length %d", dir, type, len);
     }
 
-    if (sending && type == SokuLib::CLIENT_GAME && inner == SokuLib::GAME_REPLAY_REQUEST)
+    if (sending && type == SokuLib::CLIENT_GAME && inner == SokuLib::GAME_REPLAY_REQUEST) {
         log_replay_request(packet, len, g_replies_since_request_line);
+        if (len >= 7)
+            spectator_on_replay_request(packet[6]);
+    }
     if (!sending && type == SokuLib::HOST_GAME && inner == SokuLib::GAME_REPLAY)
         g_replies_since_request_line++;
 
@@ -198,6 +202,8 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
             else if (offset < 0)
                 slog("   did not fit the expected layout, length %d", len);
         }
+        if (!sending)
+            spectator_on_match(packet, len);
     }
     LeaveCriticalSection(&g_lock);
 }
@@ -229,6 +235,7 @@ static int __stdcall hook_recvfrom(UINT_PTR socket_handle, char *buf, int len, i
 void netlog_install(void)
 {
     InitializeCriticalSection(&g_lock);
+    spectator_install();
     g_og_sendto = *(sendto_fn *)IAT_SENDTO;
     g_og_recvfrom = *(recvfrom_fn *)IAT_RECVFROM;
     *(sendto_fn *)IAT_SENDTO = hook_sendto;
