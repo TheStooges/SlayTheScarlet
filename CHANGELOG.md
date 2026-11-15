@@ -3,7 +3,7 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
-## Unreleased
+## 0.5 - 2026-11-15
 
 ### New
 
