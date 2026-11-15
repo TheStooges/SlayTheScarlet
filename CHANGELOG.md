@@ -11,17 +11,36 @@ What changed in each release of Slay the Scarlet. Releases are on the
   game, by type and then by character, laid out like the deck screen. A card shows once it has been
   offered to you in a run, at the draft or after a match, whether you took it or not, or was in a
   starting deck, and stays face down until then (Unlock the gallery shows them all). Skill cards are in input order (236, 623, 214,
-  421, 22) and spell cards by cost. The card under the cursor plays the sounds it makes in a match,
-  taken from the game's own sound files; the confirm button plays them again.
+  421, 22) and spell cards by cost. Use Card plays the sounds the card under the cursor makes in a
+  match, taken from the game's own sound files.
 - **Player 2.** In VS Player, player 2 can play a run too, with a run in use of their own: each profile
   now keeps its own runs. After a match, each side that played its run deck gets its own reward,
   player 1's first. On the F7 menu, a Player 1 / Player 2 switch above the characters chooses whose
   runs it shows, and the main menu's hint shows player 2's run in use. Runs from before this release
   are not carried over.
-- **Card sounds on offers.** On the draft and the reward screen, the card under the cursor plays its
-  sounds once the cursor has rested on it for a moment. "Card sounds" in a new Settings menu, Sounds
-  (or `[sound] card_sounds`), turns them off there and in the gallery; it is not a rule, so runs carry
-  on when it changes.
+- **Card sounds.** On the draft, the reward screen, and the deck screen, Use Card plays the sounds of
+  the card under the cursor. A new Settings menu, Sounds, has one setting, Card sounds
+  (`[sound] card_sounds`): On Use Card (the default), Automatic (offers also play once the cursor has
+  rested on them for a moment), or Off. It is not a rule, so runs carry on when it changes.
+- **Choose the run's deck slot.** "Deck the run takes over" in Settings, Runs (or `[run] deck`) picks
+  which of the character's decks a run deck replaces while in use: Deck 1 (the default) to 4, shown
+  with the game's deck icon. A run in use moves to the new slot
+  when it changes, and your own deck goes back in the old one. It is not a rule.
+
+### Changed
+
+- Key prompts name each button by what it does, with the key or pad button your profile uses:
+  "Melee (Z): open".
+- A setting that needs another one first (such as Chance of an offer) is greyed out and skipped
+  instead of hidden.
+- Deleting or starting over a run, and unlocking the gallery, warn with a sound on the first press.
+
+### Upgrading
+
+- Delete the old `SlayTheScarlet` folder and unzip the new one in its place, then copy back
+  `settings.ini` if you want to keep it. Its new settings (`[run] deck`, `[sound] card_sounds`) take their
+  defaults until changed, and saving from the Settings screen adds them to the file. Runs from earlier releases are not carried over: runs are now kept for each profile, in
+  `runs/<profile name>/`.
 
 ## 0.4 - 2026-11-13
 

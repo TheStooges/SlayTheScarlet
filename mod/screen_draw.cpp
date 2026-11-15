@@ -162,34 +162,41 @@ static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int p
 
 /* The player's real button, as the game's key config shows it: "Z or Pad2". Takes one of the
  * fields of KeyBindings. Keeps a few buffers so one line of text can name several buttons. */
-static const char *button_name(int SokuLib::KeyBindings::*field)
+/* A button by what it does in a match, and the key or pad button it is on for the selected player
+ * (player 2 works their own screens): "Melee (Z)". Only the device the profile is set to counts, as the
+ * profile's own settings name it: the keyboard, or a pad. Keeps a few buffers, so one line of text can
+ * name several buttons. */
+static const char *button_name(int SokuLib::KeyBindings::*field, const char *action)
 {
-    static char buffers[4][48];
+    static char buffers[6][64];
     static int next = 0;
     char *out = buffers[next];
     char key[32] = "";
-    /* The selected player's buttons: player 2 works their own screens. */
-    int dik = player_profile(g_player).keyboardBindings.*field;
-    int pad = player_profile(g_player).controllerBindings.*field;
-    /* The scan code goes in bits 16-23, with bit 24 marking DirectInput's extended keys. */
-    LONG param = (LONG)((dik & 0x7F) << 16) | ((dik & 0x80) ? (1L << 24) : 0);
+    SokuLib::Profile &profile = player_profile(g_player);
 
-    next = (next + 1) % 4;
-    if (!GetKeyNameTextA(param, key, sizeof key))
-        sprintf(key, "Key%d", dik);
-    /* The key config screen counts pad buttons from 1. */
-    if (pad >= 0)
-        _snprintf(out, 47, tr("%s or Pad%d"), key, pad + 1);
-    else
-        _snprintf(out, 47, "%s", key);
-    out[47] = 0;
+    next = (next + 1) % 6;
+    if (profile.controllerIndex < 0) {
+        int dik = profile.keyboardBindings.*field;
+        /* The scan code goes in bits 16-23, with bit 24 marking DirectInput's extended keys. */
+        LONG param = (LONG)((dik & 0x7F) << 16) | ((dik & 0x80) ? (1L << 24) : 0);
+
+        if (!GetKeyNameTextA(param, key, sizeof key))
+            sprintf(key, "Key%d", dik);
+    } else {
+        /* The key config screen counts pad buttons from 1. */
+        _snprintf(key, sizeof key - 1, tr("Pad%d"), profile.controllerBindings.*field + 1);
+        key[sizeof key - 1] = 0;
+    }
+    _snprintf(out, 63, tr("%s (%s)"), action, key);
+    out[63] = 0;
     return out;
 }
 
-#define BUTTON_A button_name(&SokuLib::KeyBindings::a)
-#define BUTTON_B button_name(&SokuLib::KeyBindings::b)
-#define BUTTON_C button_name(&SokuLib::KeyBindings::c)
-#define BUTTON_D button_name(&SokuLib::KeyBindings::d)
+#define BUTTON_A button_name(&SokuLib::KeyBindings::a, tr("Melee"))
+#define BUTTON_B button_name(&SokuLib::KeyBindings::b, tr("Weak Shot"))
+#define BUTTON_C button_name(&SokuLib::KeyBindings::c, tr("Strong Shot"))
+#define BUTTON_D button_name(&SokuLib::KeyBindings::d, tr("Dash"))
+#define BUTTON_CARD button_name(&SokuLib::KeyBindings::spellcard, tr("Use Card"))
 
 /* Skill inputs use the game's own deck screen images, one per input, in the skill's
  * cost_or_slot order. Each has "Skill Card" on its top half and the arrows and button name
@@ -634,9 +641,13 @@ static void rebuild_draft(void)
     if (g_state == ST_ROULETTE)
         sprintf(line, tr("%s: skip"), BUTTON_A);
     else if (g_state == ST_REWARD && g_run.offer_count == 1)
-        sprintf(line, tr("%s: take"), BUTTON_A);
+        sprintf(line, card_sounds_on() ? tr("%s: take   %s: play sound") : tr("%s: take"), BUTTON_A, BUTTON_CARD);
     else if (g_state == ST_REWARD)
-        sprintf(line, tr("Left/Right: choose   %s: take"), BUTTON_A);
+        sprintf(line, card_sounds_on() ? tr("Left/Right: choose   %s: take   %s: play sound") : tr("Left/Right: choose   %s: take"),
+                BUTTON_A, BUTTON_CARD);
+    else if (card_sounds_on())
+        sprintf(line, tr("Left/Right: choose   %s: take   %s: play sound   %s: back (progress is saved)"), BUTTON_A,
+                BUTTON_CARD, BUTTON_B);
     else
         sprintf(line, tr("Left/Right: choose   %s: take   %s: back (progress is saved)"), BUTTON_A, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
@@ -910,13 +921,20 @@ static void rebuild_deck(void)
     add_change_list(pos_y, tr("Removed"), tr("Added"));
     if (g_run.phase == STS_PHASE_FINISHED) {
         add_label(tr("This run is over, so its deck is no longer used."), g_font_small, 20, 396, 600, 20, COLOR_GREY);
-        sprintf(line, tr("Arrows: inspect   %s: back to the score"), BUTTON_B);
+        if (card_sounds_on())
+            sprintf(line, tr("Arrows: inspect   %s: play sound   %s: back to the score"), BUTTON_CARD, BUTTON_B);
+        else
+            sprintf(line, tr("Arrows: inspect   %s: back to the score"), BUTTON_B);
         add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
         return;
     }
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
     /* With the other key prompts at the bottom, not the status line above. */
-    sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
+    if (card_sounds_on())
+        sprintf(line, run_deck_in_use() ? tr("%s: stop using this run   %s: play sound") : tr("%s: use this run   %s: play sound"),
+                BUTTON_D, BUTTON_CARD);
+    else
+        sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
     add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
     if (g_run.phase == STS_PHASE_REWARD)
         sprintf(line, tr("Arrows: inspect   %s: next offer"), BUTTON_A);
@@ -1017,6 +1035,16 @@ static int settings_menu_y(int index)
 /* The help runs from SETTINGS_HELP_Y down to four lines below it, or fewer above a longer error. */
 #define SETTINGS_HELP_Y 349
 
+/* The deck slots' icons, from the game's character select: one image of five, the first four being
+ * Deck 1 to 4 (green, red, blue, yellow). Shown beside the setting that picks the run's slot. */
+#define DECK_ICONS_PATH "data/scene/select/character/kidoairaku.bmp"
+#define DECK_ICON_SIZE 16
+
+static int is_deck_slot_row(const settings_row *row)
+{
+    return row->key && strcmp(row->section, "run") == 0 && strcmp(row->key, "deck") == 0;
+}
+
 /* The title, and the list of menus or the open menu's settings, with what changed marked in gold. */
 static void add_settings_list(void)
 {
@@ -1046,9 +1074,12 @@ static void add_settings_list(void)
         const settings_row *row = &g_settings_rows[g_settings_top + wau];
         int pos_y = SETTINGS_LIST_Y + wau * SETTINGS_ROW_H;
 
-        add_label(row->label, g_font_small, 48, pos_y, 320, 20, COLOR_WHITE);
+        /* A greyed-out setting needs another changed first. */
+        add_label(row->label, g_font_small, 48, pos_y, 320, 20, row->disabled ? COLOR_GREY : COLOR_WHITE);
         settings_value_text(row, value, sizeof value);
-        add_label(value, g_font_small, 380, pos_y, 226, 20, settings_row_changed(row) ? COLOR_GOLD : COLOR_WHITE);
+        /* The deck slot's value leaves room for its icon, drawn by draw_deck_slot_icon. */
+        add_label(value, g_font_small, is_deck_slot_row(row) ? 380 + DECK_ICON_SIZE + 4 : 380, pos_y, 226, 20,
+                  row->disabled ? COLOR_GREY : settings_row_changed(row) ? COLOR_GOLD : COLOR_WHITE);
     }
 }
 
@@ -1313,10 +1344,10 @@ static void rebuild_gallery_cards(void)
         add_card_details(character, g_gallery_cards[g_cursor].id, DECK_Y + rows * DECK_PITCH_Y + 8);
     }
     /* Nothing to play again on a face-down card, or with card sounds off. */
-    if ((g_cursor < g_gallery_count && !gallery_card_shown(g_cursor)) || !g_settings.card_sounds)
+    if ((g_cursor < g_gallery_count && !gallery_card_shown(g_cursor)) || !card_sounds_on())
         sprintf(line, tr("Arrows: inspect   %s: back"), BUTTON_B);
     else
-        sprintf(line, tr("Arrows: inspect   %s: play again   %s: back"), BUTTON_A, BUTTON_B);
+        sprintf(line, tr("Arrows: inspect   %s: play sound   %s: back"), BUTTON_CARD, BUTTON_B);
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
@@ -1677,6 +1708,52 @@ static void draw_deck_grid(void)
     }
 }
 
+/* The icon of the slot the deck setting names, on its row if it is in view. The five icons sit side by
+ * side or one above another; the image's shape says which. */
+static void draw_deck_slot_icon(void)
+{
+    static Sprite icons;
+    static int loaded = -1;
+    static int across = 1, icon_w = 0, icon_h = 0;
+    int wau, slot;
+
+    if (g_settings_menu < 0)
+        return;
+    if (loaded < 0) {
+        SokuLib::Vector2u size;
+
+        loaded = icons.texture.loadFromGame(DECK_ICONS_PATH);
+        if (!loaded) {
+            slog("could not load %s", DECK_ICONS_PATH);
+            return;
+        }
+        size = icons.texture.getSize();
+        across = size.x >= size.y;
+        icon_w = across ? (int)size.x / 5 : (int)size.x;
+        icon_h = across ? (int)size.y : (int)size.y / 5;
+        slog("deck icons: %ux%u, %s", size.x, size.y, across ? "side by side" : "one above another");
+    }
+    if (!loaded)
+        return;
+    for (wau = 0; wau < SETTINGS_VISIBLE_ROWS && g_settings_top + wau < g_settings_row_count; wau++) {
+        const settings_row *row = &g_settings_rows[g_settings_top + wau];
+
+        if (!is_deck_slot_row(row))
+            continue;
+        slot = edited_run_deck() - 1;
+        if (slot < 0 || slot > 3)
+            slot = 0;
+        icons.rect.left = across ? slot * icon_w : 0;
+        icons.rect.top = across ? 0 : slot * icon_h;
+        icons.rect.width = icon_w;
+        icons.rect.height = icon_h;
+        icons.setSize({DECK_ICON_SIZE, DECK_ICON_SIZE});
+        icons.setPosition({380, SETTINGS_LIST_Y + wau * SETTINGS_ROW_H + 1});
+        icons.tint = COLOR_WHITE;
+        icons.draw();
+    }
+}
+
 static void draw_settings_cursor(void)
 {
     int row = g_cursor - g_settings_top;
@@ -1717,6 +1794,7 @@ static void draw_screen_parts(void)
     case ST_SETTINGS:
     case ST_SETTINGS_CONFIRM:
         draw_settings_cursor();
+        draw_deck_slot_icon();
         if (g_state == ST_SETTINGS && seed_entry_open())
             draw_box(24, SEED_BOX_Y, 592, 64, 0xC0101010u, CURSOR_BORDER);
         break;

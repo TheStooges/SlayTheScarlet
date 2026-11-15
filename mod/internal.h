@@ -23,8 +23,12 @@ extern "C" {
 using SokuLib::DrawUtils::RectangleShape;
 using SokuLib::DrawUtils::Sprite;
 
-/* Run decks replace this deck slot, in memory only. A local choice, not a game rule. */
-#define RUN_DECK_SLOT 0
+/* The deck slot a run deck replaces, in memory only: [run] deck, a local choice and not a rule. 0 to 3
+ * here, for Deck 1 to 4 (green, red, blue, yellow). */
+int run_deck_slot(void);
+/* After the settings change: each player's run deck in use moves to the slot they now name, and the
+ * real deck goes back in the old one. */
+void move_run_decks_to_setting(void);
 
 /* Saves and state.txt live here, inside the DLL's folder: each profile's in a folder of its own, and
  * the gallery's state.txt at the top. */
@@ -80,7 +84,9 @@ typedef enum {
     ST_GALLERY_CHARACTERS, /* the gallery: whose skill or spell cards */
     ST_GALLERY_CARDS       /* the gallery: the cards, with their sounds */
 } screen_state;
-typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE } screen_event;
+/* What the buttons do on the mod's screens: confirm is Melee, cancel Weak Shot, alt Strong Shot,
+ * toggle Dash, and card Use Card. */
+typedef enum { EV_LEFT, EV_RIGHT, EV_UP, EV_DOWN, EV_CONFIRM, EV_CANCEL, EV_ALT, EV_TOGGLE, EV_CARD } screen_event;
 
 typedef struct {
     uint16_t id;
@@ -118,6 +124,7 @@ typedef struct {
     const char *help[SETTINGS_HELP_LINES];
     const char *help_value[SETTINGS_HELP_LINES];   /* NULL: always shown */
     int help_count;
+    int disabled;   /* needs another setting changed first: shown grey, and the cursor skips it */
 } settings_row;
 #define MAX_SETTINGS_ROWS 48
 /* The settings are split into menus, listed in this order and followed by Save changes. */
@@ -156,8 +163,15 @@ void card_sounds_start(int owner, uint16_t id, int type, int delay, int outcomes
  * there (first outcome only), and stops it on leaving them, unless card sounds are off in the
  * settings (which silence the gallery too). No other run screen plays sounds. */
 void card_sounds_follow_offers(void);
-/* One of the game's shared sounds (data/se/NNN.wav), at once, loaded as the card sounds are. */
+/* One of the game's shared sounds (data/se/NNN.wav), at once, loaded as the card sounds are; nothing
+ * with the mod's sounds off. */
 void play_common_sound(int number);
+/* Card sounds play only with the mod's sounds on as well. */
+int card_sounds_on(void);
+/* Cards also play once the cursor rests on them, not only on Use Card. */
+int card_sounds_automatic(void);
+/* Use Card on the draft, a reward, or the deck screen: the card under the cursor plays its sounds at once. */
+void card_sounds_play_under_cursor(void);
 void card_sounds_stop(void);
 void card_sounds_tick(void);
 void card_sounds_release(void);
@@ -348,6 +362,8 @@ void on_settings_event(screen_event event);
 void on_settings_confirm_event(screen_event event);
 void settings_value_text(const settings_row *row, char *out, size_t size);
 int settings_row_changed(const settings_row *row);
+/* The deck slot the settings being edited name, 1 to 4. */
+int edited_run_deck(void);
 int settings_help_shown(const settings_row *row, int line);
 const char *settings_menu_name(int menu);
 const char *settings_menu_help(int menu);

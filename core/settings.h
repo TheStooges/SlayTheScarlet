@@ -85,6 +85,7 @@ typedef struct {
     /* May a run made under other rules carry on under these? This says how to treat a
      * rule change rather than being a rule, so it is not part of the fingerprint. */
     int allow_rule_changes;
+    int run_deck;   /* the deck slot a run deck takes over while in use: 1 to 4 (green, red, blue, yellow) */
     /* How many matches a run lasts, 0 for no limit. The last one gives no offer: the run is finished. */
     int match_limit;
     /* A set seed for events, or empty for a random one. With one, every run of a character starts from
@@ -96,8 +97,16 @@ typedef struct {
     int draft_show_deck;
     /* Does a random pick spin through the offers before it lands? Only for show: not a rule. */
     int reward_roulette;
-    int card_sounds;   /* the card under the cursor plays its sounds: on the offers and in the gallery */
+    int card_sounds;      /* sts_card_sounds: when cards play the sounds they make in a match */
 } sts_settings;
+
+/* [sound] card_sounds. Off: cards make no sounds. Use card: a card plays its sounds when Use Card is
+ * pressed on it. Automatic: also once the cursor has rested on it. */
+typedef enum {
+    STS_CARD_SOUNDS_OFF,
+    STS_CARD_SOUNDS_USE_CARD,
+    STS_CARD_SOUNDS_AUTOMATIC
+} sts_card_sounds;
 
 typedef enum {
     STS_SETTINGS_OK = 0,
@@ -138,7 +147,8 @@ typedef enum {
     STS_PROBLEM_REWARD_SIZE,        /* add or remove with a fixed deck size */
     STS_PROBLEM_RANDOM_CHANCE,      /* random_chance above 100 */
     STS_PROBLEM_MATCH_LIMIT,        /* matches above STS_MATCH_LIMIT_MAX */
-    STS_PROBLEM_TIME_LIMIT          /* time_limit above STS_TIME_LIMIT_MAX */
+    STS_PROBLEM_TIME_LIMIT,         /* time_limit above STS_TIME_LIMIT_MAX */
+    STS_PROBLEM_RUN_DECK            /* deck not from 1 to 4 */
 } sts_settings_problem;
 
 typedef struct {
@@ -185,8 +195,8 @@ sts_settings_status sts_settings_set(sts_settings *settings, const char *section
 int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction);
 
 /* The rule settings one by one, for a run to save the rules it was made under: every setting except
- * the ones that say how to play rather than being rules (show_deck, roulette, card_sounds,
- * allow_rule_changes). */
+ * the ones that say how to play rather than being rules (show_deck, roulette, the [sound] settings,
+ * allow_rule_changes, run_deck). */
 int sts_settings_rule_count(void);
 
 /* Writes the index-th rule as "section.key=value". Returns 0 past the end or if it does not fit. */

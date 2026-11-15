@@ -40,9 +40,17 @@ SokuLib::Profile &player_profile(int player)
     return player == 1 ? SokuLib::profile2 : SokuLib::profile1;
 }
 
+int run_deck_slot(void)
+{
+    return g_settings.run_deck >= 1 && g_settings.run_deck <= 4 ? g_settings.run_deck - 1 : 0;
+}
+
+/* The slot the selected player's run deck is in: the setting when it was written. */
+static int g_active_slot = 0;
+
 static SokuLib::Dequeue<unsigned short> &active_slot(void)
 {
-    return player_profile(g_player).cards[g_active_character][RUN_DECK_SLOT];
+    return player_profile(g_player).cards[g_active_character][g_active_slot];
 }
 
 int deck_is_active(const unsigned short *ids, int count)
@@ -400,8 +408,10 @@ int activate_run_deck(void)
     g_active_deck = g_run.deck;
     g_active = 1;
     g_slot_differs = 0;
-    if (fresh)
+    if (fresh) {
+        g_active_slot = run_deck_slot();
         remember_real_deck();
+    }
 
     if (!write_active_deck(why, sizeof why)) {
         g_active = 0;
@@ -413,7 +423,8 @@ int activate_run_deck(void)
     }
     save_active_file();
     g_rules_changed_character = -1;
-    slog("using run deck for character %d, slot %d, %d cards", g_active_character, RUN_DECK_SLOT, g_active_deck.count);
+    slog("player %d using run deck for character %d, slot %d, %d cards", g_player + 1, g_active_character, g_active_slot,
+         g_active_deck.count);
     return 1;
 }
 
@@ -581,7 +592,7 @@ void player_runs_folder(char *out, size_t size)
 
 /* Each player's values while the other is selected. */
 typedef struct {
-    int active, active_character, slot_differs, rules_changed_character, have_real_deck, state_loaded;
+    int active, active_character, active_slot, slot_differs, rules_changed_character, have_real_deck, state_loaded;
     sts_deck active_deck, real_deck;
     sts_state state;
 } player_values;
@@ -592,6 +603,7 @@ static void put_away(player_values *values)
 {
     values->active = g_active;
     values->active_character = g_active_character;
+    values->active_slot = g_active_slot;
     values->slot_differs = g_slot_differs;
     values->rules_changed_character = g_rules_changed_character;
     values->have_real_deck = g_have_real_deck;
@@ -605,6 +617,7 @@ static void bring_back(const player_values *values)
 {
     g_active = values->active;
     g_active_character = values->active_character;
+    g_active_slot = values->active_slot;
     g_slot_differs = values->slot_differs;
     g_rules_changed_character = values->rules_changed_character;
     g_have_real_deck = values->have_real_deck;
@@ -661,7 +674,8 @@ void players_on_title_frame(void)
         if (g_profile_keys[player][0])
             forget_player(player);
         strcpy(g_profile_keys[player], key);
-        slog("player %d plays on profile '%s', runs in runs\\%s\\", player + 1, player_profile_name(player), key);
+        slog("player %d plays on profile '%s', runs in runs\\%s\\, device %d", player + 1, player_profile_name(player),
+             key, (int)player_profile(player).controllerIndex);
     }
     /* On the same profile as player 1, player 2 has no runs of their own: their deck goes back, and
      * nothing is saved, as the folder is player 1's. */
@@ -680,6 +694,31 @@ void players_on_title_frame(void)
         g_resumed[player] = 1;
         select_player(player);
         resume_active_run();
+    }
+    select_player(selected);
+}
+
+void move_run_decks_to_setting(void)
+{
+    int selected = g_player, player;
+    char why[96] = "";
+
+    for (player = 0; player < RUN_PLAYERS; player++) {
+        select_player(player);
+        if (!g_active || g_active_slot == run_deck_slot())
+            continue;
+        restore_real_deck();
+        g_active_slot = run_deck_slot();
+        remember_real_deck();
+        if (write_active_deck(why, sizeof why)) {
+            slog("player %d's run deck moved to slot %d", player + 1, g_active_slot);
+        } else {
+            /* The new slot could not take it: the run stops, and the player's decks are their own. */
+            g_active = 0;
+            g_have_real_deck = 0;
+            save_active_file();
+            slog("player %d's run deck could not move to slot %d: %s", player + 1, g_active_slot, why);
+        }
     }
     select_player(selected);
 }

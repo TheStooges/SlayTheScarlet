@@ -137,9 +137,11 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "winner", tr("Only if you win: no offer after a loss."));
         add_value_help(row, "loser", tr("Only if you lose: no offer after a win."));
         add_value_help(row, "random", tr("Random: a set chance of an offer after each match, win or lose."));
-        if (g_settings_edit.who_picks == STS_WHO_RANDOM)
-            add_row("reward", "random_chance", tr("Chance of an offer"),
-                    tr("Out of 100: how likely an offer is after each match."));
+        row = add_row("reward", "random_chance", tr("Chance of an offer"),
+                      tr("Out of 100: how likely an offer is after each match."));
+        add_help_line(row, tr("Only with \"When you get an offer\" on Random."));
+        if (row)
+            row->disabled = g_settings_edit.who_picks != STS_WHO_RANDOM;
         row = add_row("reward", "offer_pick", tr("What comes into the deck"), NULL);
         add_value_help(row, "choose", tr("Player chooses a card: pick one of the cards offered."));
         add_value_help(row, "random", tr("Random: one of the cards offered is picked for you."));
@@ -165,15 +167,17 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("run", "matches", tr("Match limit"), tr("How many matches a run lasts."));
         add_value_help(row, "0", tr("Endless: the run goes on until you start over."));
         add_help_line(row, tr("The last match gives no offer: the run ends and shows its score."));
+        row = add_row("run", "deck", tr("Deck the run takes over"), NULL);
         row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"), NULL);
         add_value_help(row, "true", tr("On: a run made under other rules carries on if its deck is legal under them."));
         add_value_help(row, "false", tr("Off: a run made under other rules can only start over."));
         break;
     case SETTINGS_MENU_SOUND:
         row = add_row("sound", "card_sounds", tr("Card sounds"), NULL);
-        add_value_help(row, "true", tr("On: the card under the cursor plays its sounds, on the offers and in the gallery."));
-        add_value_help(row, "false", tr("Off: cards make no sounds."));
-        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
+        add_value_help(row, "use_card", tr("On Use Card: a card plays its sounds when Use Card is pressed on it."));
+        add_value_help(row, "automatic", tr("Automatic: also once the cursor has rested on an offer or a gallery card."));
+        add_value_help(row, "off", tr("Off: cards make no sounds."));
+        add_help_line(row, tr("On the offers, the deck screen, and the gallery. This is not a rule, so runs carry on when it changes."));
         break;
     }
     return g_build_count;
@@ -218,6 +222,9 @@ static const char *choice_text(const char *raw)
     if (strcmp(raw, "mostly_skill") == 0) return tr("Mostly Skill");
     if (strcmp(raw, "mostly_spell") == 0) return tr("Mostly Spell");
     if (strcmp(raw, "custom") == 0) return tr("Custom");
+    if (strcmp(raw, "off") == 0) return tr("Off");
+    if (strcmp(raw, "use_card") == 0) return tr("On Use Card");
+    if (strcmp(raw, "automatic") == 0) return tr("Automatic");
     return NULL;
 }
 
@@ -239,10 +246,18 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
         words = tr("No limit");
     else if (strcmp(row->key, "seed") == 0)
         words = raw[0] ? raw : tr("Off");
+    else if (strcmp(row->section, "run") == 0 && strcmp(row->key, "deck") == 0)
+        words = strcmp(raw, "2") == 0 ? tr("Deck 2") : strcmp(raw, "3") == 0 ? tr("Deck 3")
+              : strcmp(raw, "4") == 0 ? tr("Deck 4") : tr("Deck 1");
     else
         words = choice_text(raw);
     _snprintf(out, size - 1, "%s", words ? words : raw);
     out[size - 1] = 0;
+}
+
+int edited_run_deck(void)
+{
+    return g_settings_edit.run_deck;
 }
 
 int settings_row_changed(const settings_row *row)
@@ -337,10 +352,16 @@ static void move_settings_cursor(int direction)
 {
     /* The list of menus ends with Save changes. */
     int count = g_settings_menu < 0 ? SETTINGS_MENU_COUNT + 1 : g_settings_row_count;
+    int steps;
 
     if (count <= 0)
         return;
-    g_cursor = (g_cursor + direction + count) % count;
+    /* Greyed-out settings are passed over. */
+    for (steps = 0; steps < count; steps++) {
+        g_cursor = (g_cursor + direction + count) % count;
+        if (g_settings_menu < 0 || !g_settings_rows[g_cursor].disabled)
+            break;
+    }
     scroll_to_cursor();
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
     g_dirty = 1;
@@ -360,7 +381,7 @@ static void change_setting(int direction)
 
     if (g_settings_menu < 0)
         return;
-    if (!row->key || !sts_settings_step(&g_settings_edit, row->section, row->key, direction)) {
+    if (!row->key || row->disabled || !sts_settings_step(&g_settings_edit, row->section, row->key, direction)) {
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
         return;
     }
@@ -388,7 +409,7 @@ static void reset_setting(void)
 
     if (g_settings_menu < 0)
         return;
-    if (!row->key) {
+    if (!row->key || row->disabled) {
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
         return;
     }
@@ -641,6 +662,7 @@ static void save_settings(int confirmed)
         return;
     }
     apply_rules_to_active_run();
+    move_run_decks_to_setting();
     _snprintf(g_status, sizeof g_status - 1, "%s", tr("Saved."));
     g_status[sizeof g_status - 1] = 0;
     SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);

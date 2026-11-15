@@ -23,6 +23,10 @@ static const named_value g_who[] = {
 static const named_value g_offer_picks[] = {
     {"choose", STS_OFFER_PICK_CHOOSE}, {"random", STS_OFFER_PICK_RANDOM}, {NULL, 0}
 };
+static const named_value g_sound_modes[] = {
+    {"off", STS_CARD_SOUNDS_OFF}, {"use_card", STS_CARD_SOUNDS_USE_CARD}, {"automatic", STS_CARD_SOUNDS_AUTOMATIC},
+    {NULL, 0}
+};
 static const named_value g_replace[] = {
     {"choose", STS_REPLACE_CHOOSE}, {"by_type", STS_REPLACE_BY_TYPE},
     {"random", STS_REPLACE_RANDOM}, {NULL, 0}
@@ -165,9 +169,10 @@ void sts_settings_defaults(sts_settings *settings)
     settings->opponent_deck = STS_OPPONENT_DECK_CHANGE;
     settings->items_enabled = 0;
     settings->allow_rule_changes = 0;
+    settings->run_deck = 1;
     settings->draft_show_deck = 1;
     settings->reward_roulette = 1;
-    settings->card_sounds = 1;
+    settings->card_sounds = STS_CARD_SOUNDS_USE_CARD;
     default_starter(settings);
 }
 
@@ -340,12 +345,14 @@ static int find_setting(sts_settings *settings, const char *section, const char 
     if (strcmp(section, "sound") == 0) {
         if (strcmp(key, "card_sounds") != 0)
             return 0;
-        set_ref(ref, KIND_BOOL, &settings->card_sounds, g_bool, 0, 0);
+        set_ref(ref, KIND_NAMED, &settings->card_sounds, g_sound_modes, 0, 0);
         return 1;
     }
     if (strcmp(section, "run") == 0) {
         if (strcmp(key, "allow_rule_changes") == 0)
             set_ref(ref, KIND_BOOL, &settings->allow_rule_changes, g_bool, 0, 0);
+        else if (strcmp(key, "deck") == 0)
+            set_ref(ref, KIND_INT, &settings->run_deck, NULL, 1, 4);
         else if (strcmp(key, "matches") == 0)
             set_ref(ref, KIND_INT, &settings->match_limit, NULL, 0, STS_MATCH_LIMIT_MAX);
         else if (strcmp(key, "seed") == 0)
@@ -710,6 +717,8 @@ sts_settings_problem sts_settings_check(const sts_settings *settings, sts_settin
         return STS_PROBLEM_MATCH_LIMIT;
     if (settings->time_limit > STS_TIME_LIMIT_MAX)
         return STS_PROBLEM_TIME_LIMIT;
+    if (settings->run_deck < 1 || settings->run_deck > 4)
+        return STS_PROBLEM_RUN_DECK;
 
     if (settings->reward.mode != STS_REWARD_SKIP) {
         offer = check_offer(&settings->reward, rules);
@@ -742,6 +751,7 @@ const char *sts_settings_validate(const sts_settings *settings)
     case STS_PROBLEM_RANDOM_CHANCE:     return "random_chance cannot be above 100";
     case STS_PROBLEM_MATCH_LIMIT:       return "matches cannot be above 20";
     case STS_PROBLEM_TIME_LIMIT:        return "time_limit cannot be above 90";
+    case STS_PROBLEM_RUN_DECK:          return "deck must be from 1 to 4";
     case STS_PROBLEM_STARTER_TOO_BIG:
         name = sts_character_name(info.character);
         sprintf(message, "%s's starter has more cards than size_max", name);
@@ -875,7 +885,7 @@ static const setting_key g_keys[] = {
     {"reward", "time_limit"}, {"reward", "roulette"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
     {"items", "enabled"},
-    {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"},
+    {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"}, {"run", "deck"},
     {"sound", "card_sounds"},
 };
 #define KEY_COUNT ((int)(sizeof g_keys / sizeof g_keys[0]))
@@ -1006,8 +1016,9 @@ static int is_rule_key(int index)
 {
     return !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
         && !(strcmp(g_keys[index].section, "reward") == 0 && strcmp(g_keys[index].key, "roulette") == 0)
-        && !(strcmp(g_keys[index].section, "sound") == 0 && strcmp(g_keys[index].key, "card_sounds") == 0)
-        && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "allow_rule_changes") == 0);
+        && strcmp(g_keys[index].section, "sound") != 0
+        && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "allow_rule_changes") == 0)
+        && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "deck") == 0);
 }
 
 /* The index of the index-th rule in g_keys, or -1. */

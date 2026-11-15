@@ -834,15 +834,31 @@ static void test_settings_card_sounds(void)
 
     sts_settings_defaults(&settings);
     before = settings;
-    CHECK(settings.card_sounds == 1);
-    CHECK(parse_ini("[sound]\ncard_sounds=false\n", &settings, &line) == STS_SETTINGS_OK && settings.card_sounds == 0);
+    CHECK(settings.card_sounds == STS_CARD_SOUNDS_USE_CARD);
+    CHECK(parse_ini("[sound]\ncard_sounds=automatic\n", &settings, &line) == STS_SETTINGS_OK
+          && settings.card_sounds == STS_CARD_SOUNDS_AUTOMATIC);
+    CHECK(parse_ini("[sound]\ncard_sounds=off\n", &settings, &line) == STS_SETTINGS_OK && settings.card_sounds == STS_CARD_SOUNDS_OFF);
     CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before) && !sts_settings_equal(&settings, &before));
     for (wau = 0; wau < sts_settings_rule_count(); wau++) {
         CHECK_EACH(sts_settings_rule_text(&settings, wau, text, sizeof text));
-        CHECK_EACH(strncmp(text, "sound.card_sounds=", 18) != 0);
+        CHECK_EACH(strncmp(text, "sound.", 6) != 0);
     }
     CHECK_EACH_DONE();
-    CHECK(sts_settings_set_rule(&settings, "sound.card_sounds=true") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_set_rule(&settings, "sound.card_sounds=automatic") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(parse_ini("[sound]\ncard_sounds=loud\n", &settings, &line) != STS_SETTINGS_OK);
+
+    /* So is the deck slot a run deck takes over: 1 to 4. */
+    sts_settings_defaults(&settings);
+    CHECK(settings.run_deck == 1);
+    CHECK(parse_ini("[run]\ndeck=3\n", &settings, &line) == STS_SETTINGS_OK && settings.run_deck == 3);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before));
+    CHECK(sts_settings_set_rule(&settings, "run.deck=2") == STS_SETTINGS_UNKNOWN_KEY);
+    /* Out of range is read, then refused when checked, as other numbers are. */
+    CHECK(parse_ini("[run]\ndeck=5\n", &settings, &line) == STS_SETTINGS_OK
+          && sts_settings_check(&settings, NULL) == STS_PROBLEM_RUN_DECK && sts_settings_validate(&settings) != NULL);
+    CHECK(parse_ini("[run]\ndeck=0\n", &settings, &line) == STS_SETTINGS_OK
+          && sts_settings_check(&settings, NULL) == STS_PROBLEM_RUN_DECK);
+
 }
 
 void test_settings(void)

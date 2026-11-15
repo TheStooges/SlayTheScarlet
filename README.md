@@ -40,7 +40,7 @@ To uninstall, remove the line and delete the folder. The mod never changes your 
 
 To update, delete the `SlayTheScarlet` folder and unzip the new one in its place. That also deletes
 your rules (`settings.ini`) and runs (the `runs` folder), so copy them back afterwards if you want to
-keep them.
+keep them. Runs from before v0.5 are not carried over, as runs are now kept for each profile.
 
 The mod's menus follow the game's language: Japanese on the Japanese game (`th123`), and English under
 the English translation (`th123e`).
@@ -53,12 +53,13 @@ The buttons for each screen are listed at the bottom of that screen, using your 
 2. **Draft your deck.** Each of the 20 picks is a choice of 3 cards. A finished draft goes into use
    straight away.
 3. **Play a VS match, offline or online, as that character on Deck 1 (![green Deck 1 symbol](images/deck1.svg)).**
-   Your real Deck 1 is safe: the run deck only replaces it in memory, while the run is in use.
+   Your real Deck 1 is safe: the run deck only replaces it in memory, while the run is in use. To use
+   another deck slot for runs, change "Deck the run takes over" in Settings, Runs.
 4. **Take an offer after the match.** Choose 1 of 3 cards, then choose which card in your deck it
    replaces. You cannot replace a card with another copy of itself.
 5. **Back to character select.** Your next match uses the changed deck.
 
-Only one run can be in use at a time. On the character screen, under F7, the button shown at the
+Only one run can be in use at a time for each profile. On the character screen, under F7, the button shown at the
 bottom starts using the selected character's run, or stops using it. The deck screen does the same,
 and lets you look through your deck or start over. The character screen can also delete a run, and
 opening that character later starts a new draft. Both need two presses, so one slip cannot lose a run.
@@ -69,7 +70,7 @@ Runs are endless by default. With a match limit (Settings, Runs), the last match
 its card would never be played. The run ends instead and shows its score: wins and losses, and each
 match with what its offer changed. Choosing a match shows the deck as it was after it, with the cards
 it brought in outlined in green and the ones it took out beside them in red, and opens that deck to
-look through. Deck 1 goes back to your own deck. The score can still be viewed from the
+look through. The deck slot goes back to your own deck. The score can still be viewed from the
 character screen, until you start the character's run over.
 
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
@@ -84,6 +85,27 @@ closing the game does not give you more.
 If the connection drops during an offer, the game goes back to the title, and the offer stays on screen.
 The game's network menu appears once you have taken it.
 
+### Player 2
+
+In VS Player, player 2 can play a run too. Runs belong to the profile, so each player has their own
+runs and run in use, as long as they are on different profiles. On the F7 menu, the Player 1 /
+Player 2 switch above the characters chooses whose runs it shows, and either player's buttons work
+it. After a match, each player who played their run deck gets their own offer, player 1's first.
+
+### Gallery
+
+The Gallery, at the bottom right of the F7 menu, shows every card in the game by type and character.
+A card shows once it has been offered to you in a run, whether you took it or not, or was in a
+starting deck. Until then it stays face down. "Unlock the gallery" shows every card at once (press it
+twice; it cannot be undone).
+
+### Card sounds
+
+On the draft, after a match, on the deck screen, and in the Gallery, the Use Card button plays the
+sounds the card under the cursor makes in a match. In Settings, Sounds, "Card sounds" can also play
+offers and Gallery cards on their own once the cursor rests on them (Automatic), or turn card sounds
+off (Off).
+
 ### Online
 
 Only you need the mod. Your opponent sees a normal deck, and after a match sees the usual black
@@ -93,17 +115,17 @@ the online protocol changes.
 If your opponent also has the mod, each of you plays your own run and chooses your own offers. Neither
 of you sees the other's offers yet.
 
-Offline, only player 1 uses the run deck.
+Online, only player 1's runs are used. Player 2's runs are for VS Player.
 
 ## Settings
 
 Rules are set in `settings.ini`, which lists and explains every option. You can also change them in
 game: press F7 and choose **Settings** under the characters. The settings are split into menus (Draft,
-Rewards, Runs). In a menu, up and down choose a setting, left and right change it, and the line below
+Rewards, Runs, and Sounds). In a menu, up and down choose a setting, left and right change it, and the line below
 explains it. Changes are kept across menus until you save them. Saving writes only the values you
 changed, so the file keeps its comments and can still be shared as a set of rules. If the change
-affects runs you have already started, the screen names them and asks before saving. Settings that
-do nothing yet are only in the file.
+affects runs you have already started, the screen names them and asks before saving. A setting that
+needs another one first is greyed out. Settings that do nothing yet are only in the file.
 
 The draft always adds one card per pick until the deck is full. You can change how many cards are
 offered (up to 3), which card types appear and how often, who gets an offer after a

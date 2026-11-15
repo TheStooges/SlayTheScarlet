@@ -92,6 +92,16 @@ static int sound_handle(int folder, int number)
     return handle;
 }
 
+int card_sounds_on(void)
+{
+    return g_settings.card_sounds != STS_CARD_SOUNDS_OFF;
+}
+
+int card_sounds_automatic(void)
+{
+    return g_settings.card_sounds == STS_CARD_SOUNDS_AUTOMATIC;
+}
+
 static const sts_sound_row *card_sound_row(int owner, uint16_t id)
 {
     if (!load_table())
@@ -173,9 +183,19 @@ void card_sounds_tick(void)
 /* The offer under the cursor on the draft and reward screens, so its sounds start when it changes. */
 static int g_offer_state = -1, g_offer_cursor = -1, g_offer_id = -1, g_offer_round = -1;
 
+/* One of the run character's cards plays after delay frames. Only the first of a card's outcomes:
+ * Reisen's Elixir does not explode on an offer. */
+static void start_run_card_sounds(uint16_t id, int delay)
+{
+    const sts_card *card = sts_card_db_find(&g_db, g_run.character, id);
+
+    card_sounds_start(card && card->type == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_run.character, id,
+                      card ? card->type : STS_CARD_SKILL, delay, 0);
+}
+
 void card_sounds_follow_offers(void)
 {
-    int on_offers = g_settings.card_sounds && (g_state == ST_DRAFT || g_state == ST_REWARD) && g_cursor >= 0
+    int on_offers = card_sounds_on() && (g_state == ST_DRAFT || g_state == ST_REWARD) && g_cursor >= 0
         && g_cursor < g_run.offer_count;
     /* A new set of offers (the next pick, or the next reward) counts as a change even on the same card. */
     int round = g_run.picks_done * 1000 + g_run.history_count;
@@ -195,19 +215,28 @@ void card_sounds_follow_offers(void)
     g_offer_cursor = g_cursor;
     g_offer_id = g_run.offers[g_cursor].id;
     g_offer_round = round;
-    {
-        const sts_card *card = sts_card_db_find(&g_db, g_run.character, g_run.offers[g_cursor].id);
+    /* The last card's sounds stop when the cursor leaves it; this one waits for Use Card unless automatic. */
+    if (card_sounds_automatic())
+        start_run_card_sounds(g_run.offers[g_cursor].id, CARD_SOUNDS_SETTLE_FRAMES);
+    else
+        card_sounds_stop();
+}
 
-        /* Only the first of a card's outcomes: Reisen's Elixir does not explode on an offer. */
-        card_sounds_start(card && card->type == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_run.character,
-                          g_run.offers[g_cursor].id, card ? card->type : STS_CARD_SKILL, CARD_SOUNDS_SETTLE_FRAMES, 0);
-    }
+void card_sounds_play_under_cursor(void)
+{
+    if (!card_sounds_on() || g_cursor < 0)
+        return;
+    if ((g_state == ST_DRAFT || g_state == ST_REWARD) && g_cursor < g_run.offer_count)
+        start_run_card_sounds(g_run.offers[g_cursor].id, 0);
+    else if (g_state == ST_DECK && g_cursor < g_run.deck.count)
+        start_run_card_sounds(g_run.deck.ids[g_cursor], 0);
 }
 
 void play_common_sound(int number)
 {
-    int handle = sound_handle(STS_SOUND_COMMON, number);
+    int handle;
 
+    handle = sound_handle(STS_SOUND_COMMON, number);
     if (handle)
         SOUND_MANAGER->playSound(handle);
 }

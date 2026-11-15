@@ -60,7 +60,7 @@ static void play_card_under_cursor(int delay)
 {
     const sts_card *card = card_under_cursor();
 
-    if (card && gallery_card_shown(g_cursor) && g_settings.card_sounds)
+    if (card && gallery_card_shown(g_cursor) && card_sounds_on())
         card_sounds_start(g_gallery_kind == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_gallery_character,
                           card->id, card->type, delay, 1);
     else
@@ -228,10 +228,14 @@ static void on_cards_event(screen_event event)
     case EV_UP:
     case EV_DOWN:
         move_card_grid(event, g_gallery_count);
-        play_card_under_cursor(SOUND_SETTLE_FRAMES);
+        /* The last card's sounds stop; this one waits for Use Card unless automatic. */
+        if (card_sounds_automatic())
+            play_card_under_cursor(SOUND_SETTLE_FRAMES);
+        else
+            card_sounds_stop();
         break;
-    case EV_CONFIRM:
-        /* Again, at once. A card whose sounds vary may come out another way, which the screen names. */
+    case EV_CARD:
+        /* At once, with Use Card: a card whose sounds vary comes out the next way each time. */
         play_card_under_cursor(0);
         g_dirty = 1;
         break;

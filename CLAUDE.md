@@ -578,7 +578,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    2b. Early game-side experiment, before any UI: find which memory the `GAME_MATCH` packet's deck is
    built from, and where the game reads decks from the `.pf` and trims them (see open questions).
 3. (done, offline) Draft tool in game: card-offer UI, writes run deck. Opened with F7 on the main
-   menu, a stand-in for a proper way in. One run at a time is "in use" (`runs/state.txt` next to the DLL, `active.txt` before v0.4,
+   menu, a stand-in for a proper way in. One run at a time is "in use" (in Deck 1 by default; `[run] deck`, 1 to 4, picks the slot by v0.5, a local choice and not a rule, and a run in use moves when it changes; the slot's icon is from `data/scene/select/character/kidoairaku`, five icons of which the first four are Deck 1 to 4) (`runs/state.txt` next to the DLL, `active.txt` before v0.4,
    beside the `run_XX.sav` saves, so it survives restarts), toggled with D on the deck screen and started by finishing a draft.
    Stopping restores the slot's previous contents, in memory only.
 4. Post-match reward screen (done, offline: replaces the vanilla unlock list) + **compatible mode**
@@ -629,10 +629,10 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    in a run (draft or reward, taken or not, and the offers a random pick was made from) or in a starting
    deck (recorded when the run starts, and for saved runs from the deck the draft left), recorded in `runs/state.txt` (`found` lines, after everything older builds read)
    on each save and, when the gallery opens, from the offers in every saved run. The rest are face down
-   (`data/infoEffect/cardFaceDown`) and silent. Unlock the gallery (a row under the kinds, pressed twice) shows every card from then on (`gallery_unlocked` in `state.txt`); the row then reads Gallery unlocked, greyed out, or All cards obtained once every card is found in runs. The found counts stay true. A card's first sound plays when the cursor has rested for 74 frames, wherever it falls in the move.
+   (`data/infoEffect/cardFaceDown`) and silent. Unlock the gallery (a row under the kinds, pressed twice) shows every card from then on (`gallery_unlocked` in `state.txt`); the row then reads Gallery unlocked, greyed out, or All cards obtained once every card is found in runs. The found counts stay true. With `[sound] card_sounds=automatic`, a card's first sound plays when the cursor has rested for 74 frames, wherever it falls in the move.
    The draft and reward screens play the offer under the cursor the same way, first outcome only
-   (`card_sounds_follow_offers`, once a frame from `screen_update`); no other run screen plays sounds.
-   `[sound] card_sounds` (Settings, Sounds, a menu of its own; on by default, not a rule, like the roulette) turns the sounds off, on the offers and in the gallery. Shared
+   (`card_sounds_follow_offers`, once a frame from `screen_update`). The deck screen plays a card only on Use Card.
+   `[sound] card_sounds` (Settings, Sounds, a menu of its own; not a rule, like the roulette): `use_card` (the default: Use Card, `EV_CARD` from `input.spellcard`, plays the card under the cursor on the offers, the deck screen, and in the gallery), `automatic` (offers and gallery cards also play after the settle delay), or `off` (no card sounds; the 048 warning before a reset always plays). Key prompts name buttons by action (Melee, Weak Shot, Strong Shot, Dash, Use Card) with the key of the device the profile is set to (`profile.controllerIndex`: -1 keyboard, else a pad; the `.pf` header's first byte). A settings row that needs another setting first is greyed out and skipped (`settings_row.disabled`), not hidden. Shared
    sounds named so far: 001 light hit, 006 cut, 007 heavy hit, 008 slash, 020 block, 022 wall or ground
    bounce, 023 spell card declared (the default for spells), 026 spirit crystal landing (never a
    card's), 027 light swing, 029 swing, 031 dash, 036 card generated, 053 weather activated, 054 card used (the

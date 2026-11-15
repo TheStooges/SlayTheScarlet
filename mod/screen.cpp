@@ -87,10 +87,10 @@ static void set_deck_status(void)
 {
     if (run_deck_in_use())
         _snprintf(g_status, sizeof g_status - 1, tr("In use as %s's Deck %d. Your own deck is safe in your profile."),
-                  character_label(g_run.character), RUN_DECK_SLOT + 1);
+                  character_label(g_run.character), run_deck_slot() + 1);
     else
         _snprintf(g_status, sizeof g_status - 1, tr("Not in use. %s's Deck %d is your own deck."),
-                  character_label(g_run.character), RUN_DECK_SLOT + 1);
+                  character_label(g_run.character), run_deck_slot() + 1);
     g_status[sizeof g_status - 1] = 0;
 }
 
@@ -946,12 +946,14 @@ static void go_to_chooser(void)
  * a sound, as on the rule change screen, so the first one is noticed. */
 static int alt_twice(void)
 {
-    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    /* The first press warns with a sound of its own (048), as what follows cannot be undone. */
     if (!g_alt_armed) {
+        play_common_sound(48);
         g_alt_armed = 1;
         g_dirty = 1;
         return 0;
     }
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
     g_alt_armed = 0;
     return 1;
 }
@@ -1557,7 +1559,7 @@ static void start_over_from_rules(void)
     /* A second press is needed, so one slip cannot lose the run. */
     if (!g_rules_start_over_armed) {
         g_rules_start_over_armed = 1;
-        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        play_common_sound(48);   /* the warning, as in alt_twice */
         g_dirty = 1;
         return;
     }
@@ -1651,6 +1653,14 @@ static void handle_event(screen_event event)
         g_alt_armed = 0;
         g_dirty = 1;
     }
+    /* Use Card plays the card under the cursor, the same on the offers and the deck screen. */
+    if (event == EV_CARD && (g_state == ST_DRAFT || g_state == ST_REWARD || g_state == ST_DECK)) {
+        card_sounds_play_under_cursor();
+        return;
+    }
+    /* On the deck screen a card's sounds stop when the cursor leaves it. */
+    if (g_state == ST_DECK && event != EV_CARD)
+        card_sounds_stop();
     switch (g_state) {
     case ST_CHOOSE:         on_choose_event(event); break;
     case ST_DRAFT:          on_draft_event(event); break;
@@ -1748,5 +1758,7 @@ void screen_update(const SokuLib::KeyInput &input)
         handle_event(EV_ALT);
     else if (input.d == 1)
         handle_event(EV_TOGGLE);
+    else if (input.spellcard == 1)
+        handle_event(EV_CARD);
     card_sounds_follow_offers();
 }
