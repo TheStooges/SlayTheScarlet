@@ -9,6 +9,17 @@
 #define STS_PEERS_H
 
 #include <stdint.h>
+#include "deck.h"
+
+/* A change of one player's deck since the last match, as sent between machines with the mod. It goes
+ * with the next match after it arrives. */
+typedef struct {
+    int side;              /* 0 the host's deck, 1 the client's */
+    int character;
+    int serial;            /* counts up with each change the sender makes, 0-255 */
+    int opponent_may_see;  /* the sender lets the other player see it */
+    sts_deck added, removed;
+} peer_deck_change;
 
 /* The relation of a peer to this machine, as the game's own packets show it. */
 typedef enum {
@@ -30,6 +41,14 @@ int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int le
 /* This machine's settings hash, for the hello, and whether the settings have loaded. Called by the
  * game's thread whenever they may have changed. */
 void peers_set_settings(uint32_t hash, int known);
+
+/* Delivers this machine's own deck change to every peer with the mod. A newer change of the same side
+ * replaces the one being delivered. Called by the game's thread. */
+void peers_send_change(const peer_deck_change *change);
+
+/* Each change of a deck that arrives from a peer, newer than any seen of that side, once it is being
+ * passed on. Called from the network thread with the peers' lock held: it must not call into peers. */
+void changes_on_received(const peer_deck_change *change);
 
 /* 1 if the peer with this relation has the mod and speaks the same protocol (the first such peer,
  * for children). */

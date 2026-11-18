@@ -9,8 +9,11 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 - **Deck changes for spectators.** A spectator with the mod sees, at the start of each match, the
   cards each player's deck gained and lost since the last match, under that player's side of the
-  screen: green outlines for cards that came in, red for cards that left. It is worked out from the decks the spectator already receives, so nothing is sent, and the
-  players do not need the mod.
+  screen: green outlines for cards that came in, red for cards that left. When the players have the
+  mod too, each change is sent as soon as it is made, so it shows on the spectator's loading screen
+  while the players are still choosing. Otherwise it is worked out from the decks the spectator
+  already receives, and shows at the start of the match. The mod only sends its own packets to
+  machines that answer that they have it, so players and spectators without it are not affected.
 
 ## 0.5 - 2026-11-15
 

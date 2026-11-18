@@ -42,8 +42,10 @@ static void log_select_stage(const SokuLib::Select &select)
         int result; \
         netlog_scene(name); \
         g_result_closing = 0; \
-        if (!g_observer) \
+        if (!g_observer) { \
             deck_on_net_select_frame(); \
+            spectator_player_frame(); \
+        } \
         result = (This->*g_og_##Type)(); \
         log_select_stage(This->base); \
         return result; \
@@ -61,6 +63,8 @@ static void log_select_stage(const SokuLib::Select &select)
     { \
         netlog_scene(name); \
         deck_on_battle_frame(); \
+        if (!g_observer) \
+            spectator_player_frame(); \
         if (SokuLib::menuManager.empty()) \
             g_result_closing = 0; \
         return (This->*g_og_##Type)(); \
@@ -76,13 +80,23 @@ NET_LOADING_HOOK(LoadingClient, "loading, as client")
 NET_LOADING_HOOK(LoadingWatch, "loading, as spectator")
 NET_LOADING_HOOK(BattleWatch, "battle, as spectator")
 
-/* A spectator's battle: each player's deck changes since the last match, over the game's drawing. */
+/* A spectator's loading screen and battle: each player's deck changes, over the game's drawing. While
+ * it loads, the changes the players' mods sent; at the start of the battle, the ones worked out from the
+ * decks, for a player whose change did not arrive. */
+static int (SokuLib::LoadingWatch::*g_og_LoadingWatch_render)();
+static int __fastcall on_LoadingWatch_render(SokuLib::LoadingWatch *This)
+{
+    int result = (This->*g_og_LoadingWatch_render)();
+
+    spectator_render(1);
+    return result;
+}
 static int (SokuLib::BattleWatch::*g_og_BattleWatch_render)();
 static int __fastcall on_BattleWatch_render(SokuLib::BattleWatch *This)
 {
     int result = (This->*g_og_BattleWatch_render)();
 
-    spectator_render();
+    spectator_render(0);
     return result;
 }
 NET_BATTLE_HOOK(BattleServer, "battle, as host")
@@ -386,6 +400,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     g_og_BattleClient = SokuLib::TamperDword(&SokuLib::VTable_BattleClient.onProcess, on_BattleClient);
     g_og_LoadingWatch = SokuLib::TamperDword(&SokuLib::VTable_LoadingWatch.onProcess, on_LoadingWatch);
     g_og_BattleWatch = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onProcess, on_BattleWatch);
+    g_og_LoadingWatch_render = SokuLib::TamperDword(&SokuLib::VTable_LoadingWatch.onRender, on_LoadingWatch_render);
     g_og_BattleWatch_render = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onRender, on_BattleWatch_render);
     netlog_install(observer);
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);

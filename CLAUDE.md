@@ -623,8 +623,22 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    game's packets to each parent and child, every 0.5 s until answered, giving up after 10; a hello
    that has not heard from us gets an answer at once. Received mod packets are hidden from the game by
    returning the whole buffer's length, as Giuroll does (it also drops the type). Peers are forgotten
-   on QUIT or after 15 s of silence. Only logged so far (`peers:` lines, no addresses); the log-only
-   observer (`observer.txt`) takes no part.
+   on QUIT or after 15 s of silence. The log-only observer (`observer.txt`) takes no part.
+   Deck changes (built 2026-11-19; between two copies on one PC, over two matches with a reward after
+   each on both sides, every change arrived and was acknowledged on the first send, and the second was
+   measured from the second match's deck; not yet with spectators): `spectator_player_frame`, on
+   every online player frame, compares the run deck (`g_active_deck`) with the player's own deck in the
+   last GAME_MATCH it sent (only if that was the run deck; a client's own character byte can be junk)
+   and sends the difference, with a new serial whenever the deck changes again (owed rewards). Kind 2
+   (side, character, serial, flags, cards in, cards out), acknowledged by kind 3 (side, serial);
+   `peers:` log lines. No match number: between the players GAME_MATCH's match byte does not count (the
+   host sent 229 and the client 36 in both matches, stage and music junk on the client), so a player
+   counts its own matches (a GAME_MATCH sent over 2 s after the last is a new one), delivery stops at
+   the next GAME_MATCH, and a spectator stamps a change on arrival with its own next match number
+   (its GAME_MATCH does count, and arrives before each battle). A spectator draws the changes it
+   received on `LoadingWatch` for that match, with no time limit, and at the start of the battle the
+   comparison only for a side whose change did not arrive. The two settings
+   are not built yet: the defaults stand (spectators show changes, players do not see each other's).
    By decision (2026-11-15), deck sizes other than 20 are for full mode only: the game nullifies a
    deck that is not 20 cards (seen with DeckRandomizer), so a vanilla opponent would get no deck.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first). Can be built and

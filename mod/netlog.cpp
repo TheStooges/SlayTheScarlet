@@ -203,7 +203,9 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
             else if (offset < 0)
                 slog("   did not fit the expected layout, length %d", len);
         }
-        if (!sending)
+        if (sending)
+            spectator_on_sent_match(packet, len);
+        else
             spectator_on_match(packet, len);
     }
     LeaveCriticalSection(&g_lock);

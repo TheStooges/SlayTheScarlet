@@ -2,7 +2,18 @@
  *
  * The mod's packets all start: u8 type (0x77), "STS", u8 protocol, u8 kind. A hello then has u8 flags
  * (bit 0: I have heard from you; bit 1: I am a spectator) and u32 the hash of my settings, for checking
- * later that both players have the same rules (bit 2 says it is known: the settings loaded). */
+ * later that both players have the same rules (bit 2 says it is known: the settings loaded).
+ *
+ * A deck change: u8 side (0 the host's deck, 1 the client's), u8 character, u8 serial, u8 flags (bit 0:
+ * the sender lets the opponent see it), then u8 count and u16 card IDs for the cards in, and the same
+ * for the cards out. Its acknowledgement: u8 side, u8 serial. It carries no match number: between the
+ * players, GAME_MATCH's match byte does not count up (seen as 229 and 36 in every match), so a change
+ * is for the next match after it arrives.
+ *
+ * Changes are acknowledged hop by hop, as the game does with GAME_MATCH: sent once to each peer with
+ * the mod, sent again only while that peer has not acknowledged it, at a growing gap, and no more once
+ * a GAME_MATCH goes by (the next match is starting, and its decks carry the change). A change is passed on to every peer with the mod except the one it
+ * came from, so the host's reaches the client and the client sends it on to its spectators. */
 #include <SokuLib.hpp>
 #include <windows.h>
 #include <string.h>
@@ -19,6 +30,16 @@
 #define HELLO_HEARD_YOU 1
 #define HELLO_SPECTATOR 2
 #define HELLO_SETTINGS_KNOWN 4
+#define KIND_CHANGE 2
+#define KIND_CHANGE_ACK 3
+#define CHANGE_ACK_LENGTH 8
+#define CHANGE_OPPONENT_MAY_SEE 1
+/* No reward brings more than 4 copies, but owed rewards add up, so leave room. */
+#define CHANGE_MAX_CARDS 40
+#define CHANGE_MAX_LENGTH (12 + 4 * CHANGE_MAX_CARDS)
+#define CHANGE_FIRST_GAP_MS 500
+#define CHANGE_MAX_GAP_MS 4000
+#define CHANGE_MAX_SENDS 12
 
 /* Hellos go out with the game's own packets to that peer, at most this often, and stop after this many
  * without an answer: that peer does not have the mod. Its own hello still gets an answer later. */
@@ -57,6 +78,45 @@ static int g_send_nothing = 0;
 static volatile LONG g_own_hash = 0;
 static volatile LONG g_own_hash_known = 0;
 
+/* The latest change of each side's deck still being delivered, and how far each peer has got with it. */
+typedef struct {
+    int used;
+    peer_deck_change change;
+    unsigned char packet[CHANGE_MAX_LENGTH];
+    int length;
+    int from_peer;              /* the peer it came from, or -1 for this machine's own */
+    int acknowledged[MAX_PEERS];
+    int sends[MAX_PEERS];
+    DWORD last_sent[MAX_PEERS];
+    DWORD gap[MAX_PEERS];
+} change_in_flight;
+
+static change_in_flight g_flights[2];
+/* The newest change seen of each side, kept after delivery stops, so a late copy is not taken as new. */
+static int g_seen[2];
+static int g_seen_serial[2];
+
+static void on_change(peer *from, const unsigned char *packet, int len);
+static void on_change_ack(peer *from, const unsigned char *packet, int len);
+static int is_game_match(const unsigned char *packet, int len);
+static void stop_changes(void);
+static void pump_changes(DWORD now);
+static void write_header(unsigned char *packet, int kind);
+
+/* A peer slot is starting over (a new peer, or the same one again): it has had none of the changes. */
+static void forget_peer_in_flights(int index)
+{
+    int side;
+
+    for (side = 0; side < 2; side++) {
+        g_flights[side].acknowledged[index] = 0;
+        g_flights[side].sends[index] = 0;
+        g_flights[side].gap[index] = 0;
+        if (g_flights[side].from_peer == index)
+            g_flights[side].from_peer = -2;
+    }
+}
+
 static const char *relation_name(peer_relation relation)
 {
     if (relation == PEER_PARENT)
@@ -88,6 +148,7 @@ static peer *find_peer(const void *address, int length, int create)
     if (!create || !free_slot)
         return NULL;
     memset(free_slot, 0, sizeof(*free_slot));
+    forget_peer_in_flights((int)(free_slot - g_peers));
     free_slot->used = 1;
     memcpy(free_slot->address, address, (size_t)length);
     free_slot->address_length = length;
@@ -139,12 +200,7 @@ static void send_hello(peer *to)
     unsigned char hello[HELLO_LENGTH];
     uint32_t hash = (uint32_t)g_own_hash;
 
-    hello[0] = MOD_PACKET_TYPE;
-    hello[1] = 'S';
-    hello[2] = 'T';
-    hello[3] = 'S';
-    hello[4] = MOD_PROTOCOL;
-    hello[5] = KIND_HELLO;
+    write_header(hello, KIND_HELLO);
     hello[6] = (unsigned char)((to->heard_from ? HELLO_HEARD_YOU : 0)
                                | (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH ? HELLO_SPECTATOR : 0)
                                | (g_own_hash_known ? HELLO_SETTINGS_KNOWN : 0));
@@ -207,6 +263,9 @@ void peers_on_send(UINT_PTR socket_handle, const unsigned char *packet, int len,
             maybe_send_hello(known, now);
         }
     }
+    if (is_game_match(packet, len))
+        stop_changes();
+    pump_changes(now);
     LeaveCriticalSection(&g_lock);
 }
 
@@ -255,9 +314,16 @@ int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int le
             forget_peer(known, "has left");
         else if (own && packet[5] == KIND_HELLO)
             on_hello(socket_handle, known, packet, len);
+        else if (own && packet[5] == KIND_CHANGE)
+            on_change(known, packet, len);
+        else if (own && packet[5] == KIND_CHANGE_ACK)
+            on_change_ack(known, packet, len);
         else
             maybe_announce(known);
     }
+    if (is_game_match(packet, len))
+        stop_changes();
+    pump_changes(now);
     LeaveCriticalSection(&g_lock);
     return own;
 }
@@ -278,4 +344,172 @@ int peers_has_mod(peer_relation relation)
             && g_peers[wau].same_protocol;
     LeaveCriticalSection(&g_lock);
     return found;
+}
+
+static void write_header(unsigned char *packet, int kind)
+{
+    packet[0] = MOD_PACKET_TYPE;
+    packet[1] = 'S';
+    packet[2] = 'T';
+    packet[3] = 'S';
+    packet[4] = MOD_PROTOCOL;
+    packet[5] = (unsigned char)kind;
+}
+
+static int write_cards(unsigned char *packet, int offset, const sts_deck *cards)
+{
+    int count = cards->count < CHANGE_MAX_CARDS ? cards->count : CHANGE_MAX_CARDS, wau;
+
+    packet[offset++] = (unsigned char)count;
+    for (wau = 0; wau < count; wau++) {
+        packet[offset++] = (unsigned char)cards->ids[wau];
+        packet[offset++] = (unsigned char)(cards->ids[wau] >> 8);
+    }
+    return offset;
+}
+
+/* Returns the offset after the cards, or -1 if they do not fit. */
+static int read_cards(const unsigned char *packet, int len, int offset, sts_deck *cards)
+{
+    int count, wau;
+
+    if (offset >= len)
+        return -1;
+    count = packet[offset++];
+    if (count > CHANGE_MAX_CARDS || offset + count * 2 > len)
+        return -1;
+    sts_deck_clear(cards);
+    for (wau = 0; wau < count; wau++)
+        sts_deck_add(cards, (uint16_t)(packet[offset + wau * 2] | packet[offset + wau * 2 + 1] << 8));
+    return offset + count * 2;
+}
+
+static int may_hear_changes(const peer *known)
+{
+    return known->used && known->heard_from && known->same_protocol && !g_send_nothing;
+}
+
+/* Sends each change to each peer that still needs it, once its gap has passed. */
+static void pump_changes(DWORD now)
+{
+    int side, wau;
+
+    for (side = 0; side < 2; side++) {
+        change_in_flight *flight = &g_flights[side];
+
+        if (!flight->used)
+            continue;
+        for (wau = 0; wau < MAX_PEERS; wau++) {
+            peer *to = &g_peers[wau];
+
+            if (!may_hear_changes(to) || wau == flight->from_peer || flight->acknowledged[wau]
+                || flight->sends[wau] >= CHANGE_MAX_SENDS)
+                continue;
+            if (flight->sends[wau] && now - flight->last_sent[wau] < flight->gap[wau])
+                continue;
+            flight->gap[wau] = flight->sends[wau] ? flight->gap[wau] * 2 : CHANGE_FIRST_GAP_MS;
+            if (flight->gap[wau] > CHANGE_MAX_GAP_MS)
+                flight->gap[wau] = CHANGE_MAX_GAP_MS;
+            flight->sends[wau]++;
+            flight->last_sent[wau] = now;
+            g_send(to->socket_handle, (const char *)flight->packet, flight->length, 0, to->address,
+                   to->address_length);
+            if (flight->sends[wau] == CHANGE_MAX_SENDS)
+                slog("peers: the %s never acknowledged the change of the %s's deck", relation_name(to->relation),
+                     side ? "client" : "host");
+        }
+    }
+}
+
+/* Starts delivering a change, from this machine (from_peer -1) or from that peer. */
+static void start_flight(const peer_deck_change *change, int from_peer)
+{
+    change_in_flight *flight = &g_flights[change->side];
+    int offset;
+
+    memset(flight, 0, sizeof(*flight));
+    flight->used = 1;
+    flight->change = *change;
+    flight->from_peer = from_peer;
+    write_header(flight->packet, KIND_CHANGE);
+    flight->packet[6] = (unsigned char)change->side;
+    flight->packet[7] = (unsigned char)change->character;
+    flight->packet[8] = (unsigned char)change->serial;
+    flight->packet[9] = (unsigned char)(change->opponent_may_see ? CHANGE_OPPONENT_MAY_SEE : 0);
+    offset = write_cards(flight->packet, 10, &change->added);
+    flight->length = write_cards(flight->packet, offset, &change->removed);
+    g_seen[change->side] = 1;
+    g_seen_serial[change->side] = change->serial;
+    pump_changes(GetTickCount());
+}
+
+void peers_send_change(const peer_deck_change *change)
+{
+    if (!g_send || g_send_nothing || change->side < 0 || change->side > 1)
+        return;
+    EnterCriticalSection(&g_lock);
+    start_flight(change, -1);
+    LeaveCriticalSection(&g_lock);
+}
+
+static void on_change(peer *from, const unsigned char *packet, int len)
+{
+    unsigned char ack[CHANGE_ACK_LENGTH];
+    peer_deck_change change;
+    int offset, side;
+
+    if (len < 12 || !from->same_protocol)
+        return;
+    memset(&change, 0, sizeof change);
+    change.side = side = packet[6] & 1;
+    change.character = packet[7];
+    change.serial = packet[8];
+    change.opponent_may_see = (packet[9] & CHANGE_OPPONENT_MAY_SEE) != 0;
+    offset = read_cards(packet, len, 10, &change.added);
+    if (offset < 0 || read_cards(packet, len, offset, &change.removed) < 0)
+        return;
+
+    /* Every copy is acknowledged, so a lost acknowledgement is answered by the next one. */
+    write_header(ack, KIND_CHANGE_ACK);
+    ack[6] = (unsigned char)side;
+    ack[7] = (unsigned char)change.serial;
+    if (!g_send_nothing)
+        g_send(from->socket_handle, (const char *)ack, CHANGE_ACK_LENGTH, 0, from->address, from->address_length);
+
+    /* A sender only resends its newest change, so any other serial is a new one. */
+    if (g_seen[side] && change.serial == g_seen_serial[side])
+        return;
+    slog("peers: the %s sent change %d of the %s's deck (%d in, %d out)", relation_name(from->relation),
+         change.serial, side ? "client" : "host", change.added.count, change.removed.count);
+    start_flight(&change, (int)(from - g_peers));
+    changes_on_received(&change);
+}
+
+static void on_change_ack(peer *from, const unsigned char *packet, int len)
+{
+    change_in_flight *flight;
+
+    if (len < CHANGE_ACK_LENGTH)
+        return;
+    flight = &g_flights[packet[6] & 1];
+    if (flight->used && flight->change.serial == packet[7]
+        && !flight->acknowledged[from - g_peers]) {
+        flight->acknowledged[from - g_peers] = 1;
+        slog("peers: the %s acknowledged the change of the %s's deck (sent %d times)", relation_name(from->relation),
+             (packet[6] & 1) ? "client" : "host", flight->sends[from - g_peers]);
+    }
+}
+
+static int is_game_match(const unsigned char *packet, int len)
+{
+    return len >= 2 && (packet[0] == SokuLib::HOST_GAME || packet[0] == SokuLib::CLIENT_GAME)
+        && packet[1] == SokuLib::GAME_MATCH;
+}
+
+/* A change is made after a match ends, so the next GAME_MATCH is the next match starting: its decks
+ * carry the change, and delivery stops. */
+static void stop_changes(void)
+{
+    g_flights[0].used = 0;
+    g_flights[1].used = 0;
 }
