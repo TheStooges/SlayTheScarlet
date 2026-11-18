@@ -20,6 +20,7 @@ add_library(SlayTheScarlet MODULE
   log.cpp
   match.cpp
   netlog.cpp
+  peers.cpp
   run_data.cpp
   run_deck.cpp
   screen.cpp

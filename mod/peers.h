@@ -1,0 +1,38 @@
+/* Which of the machines this one talks to online have the mod: the handshake that starts full mode.
+ *
+ * Each machine sends a short hello to the peers it exchanges game packets with: its parent (the host,
+ * for the client; the client or another spectator, for a spectator) and its children (the client, for
+ * the host; spectators). A peer with the mod answers, and only such peers are ever sent anything else.
+ * The hello's packet type is in the range Giuroll drops (0x6F-0x80), so a peer without the mod never
+ * sees it, and a peer gives up on hellos after a few seconds without an answer. */
+#ifndef STS_PEERS_H
+#define STS_PEERS_H
+
+#include <stdint.h>
+
+/* The relation of a peer to this machine, as the game's own packets show it. */
+typedef enum {
+    PEER_UNKNOWN,
+    PEER_PARENT,  /* sends us HOST_GAME packets */
+    PEER_CHILD    /* sends us CLIENT_GAME packets */
+} peer_relation;
+
+/* Call once, before the network hooks go in, with the game's own sendto. With send_nothing set (the
+ * log-only observer), the handshake is left out and this machine behaves as one without the mod. */
+void peers_install(int send_nothing, void *original_sendto);
+
+/* Every packet the game sends, before it is sent. to is the game's address structure. */
+void peers_on_send(UINT_PTR socket_handle, const unsigned char *packet, int len, const void *to, int tolen);
+
+/* Every packet received. Returns 1 if it was the mod's own, so the caller hides it from the game. */
+int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int len, const void *from, int fromlen);
+
+/* This machine's settings hash, for the hello, and whether the settings have loaded. Called by the
+ * game's thread whenever they may have changed. */
+void peers_set_settings(uint32_t hash, int known);
+
+/* 1 if the peer with this relation has the mod and speaks the same protocol (the first such peer,
+ * for children). */
+int peers_has_mod(peer_relation relation);
+
+#endif

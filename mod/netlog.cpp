@@ -8,6 +8,7 @@
 #include "log.h"
 #include "run_deck.h"
 #include "spectator.h"
+#include "peers.h"
 
 /* The game's import table entries (v1.10a), found by the OnlinePractice mod's log. */
 #define IAT_SENDTO   0x00857290u
@@ -211,8 +212,10 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
 static int __stdcall hook_sendto(UINT_PTR socket_handle, const char *buf, int len, int flags, const void *to, int tolen)
 {
     __try {
-        if (buf && len > 0)
+        if (buf && len > 0) {
             analyze("SEND", (const unsigned char *)buf, len);
+            peers_on_send(socket_handle, (const unsigned char *)buf, len, to, tolen);
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
     }
@@ -222,22 +225,38 @@ static int __stdcall hook_sendto(UINT_PTR socket_handle, const char *buf, int le
 static int __stdcall hook_recvfrom(UINT_PTR socket_handle, char *buf, int len, int flags, void *from, int *fromlen)
 {
     int received = g_og_recvfrom(socket_handle, buf, len, flags, from, fromlen);
+    int own = 0;
 
     __try {
-        if (received > 0 && buf)
-            analyze("RECV", (const unsigned char *)buf, received);
+        if (received > 0 && buf) {
+            own = peers_on_receive(socket_handle, (const unsigned char *)buf, received, from, fromlen ? *fromlen : 0);
+            if (!own)
+                analyze("RECV", (const unsigned char *)buf, received);
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    /* The mod's own packets are hidden from the game the way Giuroll hides the packet types it drops: a
+     * packet that fills the whole buffer is thrown away. Giuroll would also drop it by its type. */
+    if (own) {
+        static int logged = 0;
+
+        if (!logged) {
+            logged = 1;
+            slog("peers: hid the mod's packet from the game as one of %d bytes", len);
+        }
+        return len;
     }
     return received;
 }
 
-void netlog_install(void)
+void netlog_install(int observer)
 {
     InitializeCriticalSection(&g_lock);
     spectator_install();
     g_og_sendto = *(sendto_fn *)IAT_SENDTO;
     g_og_recvfrom = *(recvfrom_fn *)IAT_RECVFROM;
+    peers_install(observer, (void *)g_og_sendto);
     *(sendto_fn *)IAT_SENDTO = hook_sendto;
     *(recvfrom_fn *)IAT_RECVFROM = hook_recvfrom;
 }

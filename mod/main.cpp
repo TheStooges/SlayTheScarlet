@@ -5,6 +5,8 @@
 #include <string.h>
 #include "netlog.h"
 #include "spectator.h"
+#include "peers.h"
+#include "internal.h"
 #include "log.h"
 #include "match.h"
 #include "run_deck.h"
@@ -125,6 +127,17 @@ static int __fastcall on_title_process(SokuLib::Title *This)
 
     g_f7_prev = f7;
     install_connect_hooks();
+    /* The settings load on the first title frame, so the handshake can compare them before any run or
+     * the F7 menu has needed them. They only change on the Settings screen, over the title. */
+    {
+        static int loaded = 0;
+
+        if (!loaded) {
+            loaded = 1;
+            load_data();
+        }
+        peers_set_settings(g_data_ok ? sts_settings_hash(&g_settings) : 0, g_data_ok);
+    }
     g_result_closing = 0;
     deck_on_title_frame();
     /* Only from the bare main menu, not with a submenu such as Options on top. */
@@ -374,7 +387,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     g_og_LoadingWatch = SokuLib::TamperDword(&SokuLib::VTable_LoadingWatch.onProcess, on_LoadingWatch);
     g_og_BattleWatch = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onProcess, on_BattleWatch);
     g_og_BattleWatch_render = SokuLib::TamperDword(&SokuLib::VTable_BattleWatch.onRender, on_BattleWatch_render);
-    netlog_install();
+    netlog_install(observer);
     VirtualProtect((PVOID)RDATA_SECTION_OFFSET, RDATA_SECTION_SIZE, old, &old);
     FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
     return true;

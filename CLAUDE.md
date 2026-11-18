@@ -602,6 +602,29 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    `GAME_MATCH`'s, seen in the v0.3.2 spectator log), so a catch-up replay of the previous match does
    not show it. Then live picks over a Giuroll-dropped packet type (0x6F-0x80), relayed
    by the client down the spectator tree.
+   Decided (2026-11-18): packets only after a handshake, so compatible mode's rule (nothing custom to
+   a peer without the mod) holds. Once the opponent is known to have the mod, the players can also
+   compare settings, for tournaments (casual play can ignore a mismatch). Deck changes are sent on
+   confirm and shown on the spectator's loading screen; the comparison above shows only when that
+   packet was missed. Two settings, not rules: players see each other's changes only when BOTH
+   players have theirs on (off by default); a spectator has its own on/off for showing changes (on
+   by default). Delivery (decided 2026-11-19, to avoid needless traffic): each change has a serial
+   and is acknowledged hop by hop, as the game does with GAME_MATCH and MATCH_ACK. The sender sends
+   once and resends only while unacknowledged, with a growing gap, stopping at the next GAME_MATCH.
+   A receiver acknowledges every copy (so a lost acknowledgement is answered by the next resend) and
+   ignores serials it has seen. The client acknowledges the host, then sends on to its modded
+   spectators and waits for theirs, and each spectator does the same for its own.
+   Handshake (built 2026-11-18, `mod/peers.cpp`; seen working between two copies on one PC on
+   2026-11-19: each side found the other, same and different rules told apart, the hidden packet was
+   1024 bytes as with Giuroll, a match played normally; not yet with spectators). The settings load
+   on the first title frame so the hello carries their hash (a flag says whether they loaded). A peer's relation comes from
+   the game's packets (HOST_GAME from the parent, CLIENT_GAME from a child). Each machine sends a hello
+   (type 0x77, "STS", protocol 1, kind 1, flags heard-you and spectator, u32 settings hash) with the
+   game's packets to each parent and child, every 0.5 s until answered, giving up after 10; a hello
+   that has not heard from us gets an answer at once. Received mod packets are hidden from the game by
+   returning the whole buffer's length, as Giuroll does (it also drops the type). Peers are forgotten
+   on QUIT or after 15 s of silence. Only logged so far (`peers:` lines, no addresses); the log-only
+   observer (`observer.txt`) takes no part.
    By decision (2026-11-15), deck sizes other than 20 are for full mode only: the game nullifies a
    deck that is not 20 cards (seen with DeckRandomizer), so a vanilla opponent would get no deck.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first). Can be built and
