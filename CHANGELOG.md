@@ -14,6 +14,15 @@ What changed in each release of Slay the Scarlet. Releases are on the
   while the players are still choosing. Otherwise it is worked out from the decks the spectator
   already receives, and shows at the start of the match. The mod only sends its own packets to
   machines that answer that they have it, so players and spectators without it are not affected.
+  "Show deck changes when spectating" (Settings, Netplay) turns it off.
+- **Share deck changes with your opponent** (Settings, Netplay; off by default). When both players
+  have the mod and this on, after a match both see the cards each deck gained and lost. The first to
+  finish their reward waits until the other is done.
+
+### Fixed
+
+- Online, Esc on the win quote no longer skips a run match's reward: it goes on to the offer instead.
+  The reward is also saved as the win quote begins, so closing the game there keeps it for next time.
 
 ## 0.5 - 2026-11-15
 

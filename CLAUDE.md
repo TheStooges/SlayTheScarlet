@@ -359,6 +359,15 @@ Netplay is a primary requirement. Each machine simulates both players from share
   characters) in the Japanese game, matching its deck editor. `createFromText` does not wrap, so
   `mod/` draws each row separately at the width for the game's language.
 - **Battle manager:** pointer at 0x8985E4; player pointers at +0x0C (left) and +0x10 (right).
+- **Keyboard keys (read from th123.exe with dumpbin, 2026-11-24):** the raw DirectInput buffer is at
+  0x8A01B8 (a byte per scan code). Before the scene runs, 0x40A950 counts how many frames each watched
+  key has been held, an int per scan code at 0x8998D8 (Esc, scan code 1, at 0x8998DC; watched keys are
+  registered at 0x442A6A: Esc, then F1 and on). The game's key check, 0x43DE30(key, ...) through
+  0x40AA60, takes a key as pressed when its count is exactly 1. So hiding a press from the game means
+  changing that count (1 to 2: held, not pressed), not the raw buffer, which is read too early.
+- **Online battle scene** (`onProcess` 0x4282F0 host, 0x4285C0 client): on the win quote (battle
+  manager +0x88 == 6) it runs the battle manager's step (vtable +0x0C) and returns 8, character select,
+  when that returns 1 (Esc), through 0x428394, where Giuroll sends its 0x6E.
 
 ### Player 2, in local VS (built for v0.5, not yet played in game)
 
@@ -637,8 +646,44 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    the next GAME_MATCH, and a spectator stamps a change on arrival with its own next match number
    (its GAME_MATCH does count, and arrives before each battle). A spectator draws the changes it
    received on `LoadingWatch` for that match, with no time limit, and at the start of the battle the
-   comparison only for a side whose change did not arrive. The two settings
-   are not built yet: the defaults stand (spectators show changes, players do not see each other's).
+   comparison only for a side whose change did not arrive. Settings (built 2026-11-19, not yet
+   tried): `[netplay] share_changes` (false) and `spectator_changes` (true), not rules, in a Netplay
+   menu between Runs and Sounds. The hello's bit 3 says a player shares; `peers_opponent_shares` is the
+   opponent (the client for the host, the host for the client) having the mod and sharing. Sharing
+   between players, by decision on the post-match screen (it keeps the players in step): when the
+   mod is done with that screen (`done_with_result` in `mod/main.cpp`), the player sends a change with
+   the finished flag (bit 1, the whole change since the match, empty without a run deck) and the
+   screen opens `ST_OPPONENT`: "Girls are now praying..." (as Touhou games show a wait) until the opponent's finished change arrives
+   (cancel stops waiting; the opponent leaving ends it), then, as soon as it arrives, both players'
+   changes, player 1's (the host, `profile1name`) above player 2's, each headed by the profile name
+   and character, cards in on the left and out on the right (confirm
+   goes on; with a time limit it closes after 15 s), or nothing if neither deck changed. A player who saw
+   the game's own list instead (not a run match) sends theirs from character select. What the
+   opponent sent, and whether this player's finished change has gone, are cleared when a battle starts
+   (the first battle frame after character select), not at GAME_MATCH: the first GAME_MATCH goes out at
+   character select before any match, and a finished change sent from there counted as the match's
+   (seen 2026-11-20: one side showed the changes at once with the other's empty, the other waited for
+   ever). Character select only sends the finished change once a battle has been played. Whether the
+   screen has been shown this match (`g_share_shown`) clears at online character select: a battle frame
+   with `menuManager` empty never came in an online match (seen 2026-11-20, the second match showed
+   nothing on either side). Esc on the win quote (battle match state 6) skips the screen after the match:
+   the game sends Giuroll's 0x6E at once and the battle scene returns 8 (character select), as it does
+   when that screen closes normally (state 7); the other side then shows a black screen until its own
+   screen after the match closes (found with a probe, 2026-11-24). So an online battle returning
+   character select sends the finished change if it has not gone, and a praying player also stops 1 s
+   after the opponent's 0x6E with no finished change. Skipping that screen used to skip the match's
+   reward too (it was only counted at the next title, and lost if another match ended first), so
+   `deck_on_skipped_result` now counts it there and starts its reward without a screen
+   (`record_skipped_reward`): offers are saved with the run and come up after the next match, as an
+   owed reward's do; a reward with nothing to choose changes the deck at once.
+   Win quote (decided 2026-11-24, seen working on one PC): an online run match's reward starts as the
+   win quote begins (`deck_on_win_quote_frame` in `mod/match.cpp`, `begin_reward_early`), saved, so
+   closing the game there keeps it, and the screen after the match only shows it. With a reward
+   waiting, Esc on the win quote goes to that screen instead of skipping it: the mod turns Esc's held
+   count from 1 to 2 (see the keyboard finding) and presses confirm every other frame until the screen
+   opens (15 ms in the test). It reads only that count, only then, and keeps nothing. By decision Esc on
+   the win quote counts as bad manners anyway, and a player who wants out can close the game; the
+   skipped-screen fallback above stays for anything that gets past it.
    By decision (2026-11-15), deck sizes other than 20 are for full mode only: the game nullifies a
    deck that is not 20 cards (seen with DeckRandomizer), so a vanilla opponent would get no deck.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first). Can be built and

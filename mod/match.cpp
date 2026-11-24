@@ -42,6 +42,73 @@ static void finish_match(void)
     }
 }
 
+/* An online battle went straight on to character select. If the screen after the match was skipped
+ * (Esc on the win quote), the match has not been counted yet: it is now, and player 1's reward is
+ * started without a screen, so it waits with the run for the next one. After a screen that ran
+ * normally this finds nothing to do. */
+void deck_on_skipped_result(void)
+{
+    int selected = g_player;
+
+    /* A no-offer match whose screen was skipped must not close the next match's screen. */
+    g_match_no_offer = 0;
+    finish_match();
+    if (!g_match_reward_due[0])
+        return;
+    select_player(0);
+    record_skipped_reward();
+    select_player(selected);
+}
+
+/* The battle manager's match state during the win quote, after the last round. */
+#define MATCH_STATE_WIN_QUOTE 6
+/* How many frames the game has seen each watched key held, one int per DirectInput scan code, updated
+ * from the raw keyboard buffer (0x8A01B8) before the scene runs (0x40A950 on the object at 0x8998D8).
+ * The game's key check (0x43DE30, through 0x40AA60) takes a key as pressed when its count is exactly 1;
+ * the win quote's Esc is checked that way (scan code 1). Clearing the raw buffer comes too late. */
+#define KEY_HELD_FRAMES 0x8998D8u
+#define SCAN_ESCAPE 1
+
+int deck_on_win_quote_frame(void)
+{
+    static int in_quote = 0, moving_on = 0;
+    int state, selected = g_player;
+    int *held_frames = (int *)KEY_HELD_FRAMES;
+
+    __try {
+        state = SokuLib::getBattleMgr().matchState;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        state = -1;
+    }
+    if (state != MATCH_STATE_WIN_QUOTE) {
+        in_quote = 0;
+        moving_on = 0;
+        return 0;
+    }
+    if (SokuLib::mainMode != SokuLib::BATTLE_MODE_VSCLIENT && SokuLib::mainMode != SokuLib::BATTLE_MODE_VSSERVER)
+        return 0;
+    if (!in_quote) {
+        in_quote = 1;
+        /* The match is decided: its reward starts now, so closing the game here keeps it. */
+        finish_match();
+        if (g_match_reward_due[0]) {
+            select_player(0);
+            begin_reward_early();
+            select_player(selected);
+        }
+    }
+    /* With a reward to show, Esc would skip the screen it is on: the game goes there instead. */
+    if (reward_waits_for_screen() && held_frames[SCAN_ESCAPE] == 1) {
+        /* Held, not pressed: the game counts on from 2 while it stays down, so it never sees a press. */
+        held_frames[SCAN_ESCAPE] = 2;
+        if (!moving_on)
+            slog("win quote: Esc caught, going on to the screen after the match");
+        moving_on = 1;
+    }
+    return moving_on;
+}
+
 void deck_on_result_frame(void)
 {
     finish_match();

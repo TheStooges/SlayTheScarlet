@@ -14,6 +14,9 @@
 
 /* The reward is done and the Result menu is being told to close. */
 static int g_result_closing = 0;
+/* The players' deck changes have been shown on this screen after a match (see done_with_result). Cleared
+ * at character select: an online battle always has a menu open, so the battle frame cannot clear it. */
+static int g_share_shown = 0;
 
 /* Set when only logging: see Initialize. */
 static int g_observer = 0;
@@ -42,9 +45,10 @@ static void log_select_stage(const SokuLib::Select &select)
         int result; \
         netlog_scene(name); \
         g_result_closing = 0; \
+        g_share_shown = 0; \
         if (!g_observer) { \
             deck_on_net_select_frame(); \
-            spectator_player_frame(); \
+            spectator_player_frame(1); \
         } \
         result = (This->*g_og_##Type)(); \
         log_select_stage(This->base); \
@@ -64,10 +68,28 @@ static void log_select_stage(const SokuLib::Select &select)
         netlog_scene(name); \
         deck_on_battle_frame(); \
         if (!g_observer) \
-            spectator_player_frame(); \
+            spectator_player_frame(0); \
         if (SokuLib::menuManager.empty()) \
             g_result_closing = 0; \
-        return (This->*g_og_##Type)(); \
+        { \
+            static int press_toggle = 0; \
+            int moving_on = !g_observer && deck_on_win_quote_frame(); \
+            SokuLib::KeyInput saved_input = SokuLib::inputMgrs.input; \
+            int next; \
+            /* A fresh press every other frame moves the win quote on, a line at a time. */ \
+            if (moving_on) \
+                SokuLib::inputMgrs.input.a = (press_toggle ^= 1); \
+            next = (This->*g_og_##Type)(); \
+            if (moving_on) \
+                SokuLib::inputMgrs.input = saved_input; \
+            /* On to character select: done with this match, even if the screen after it was skipped \
+             * (Esc on the win quote), so the opponent is not left waiting. */ \
+            if (!g_observer && (next == SokuLib::SCENE_SELECTSV || next == SokuLib::SCENE_SELECTCL)) { \
+                deck_on_skipped_result(); \
+                share_send_finished(); \
+            } \
+            return next; \
+        } \
     }
 
 NET_SELECT_HOOK(SelectServer, "character select, as host")
@@ -150,7 +172,8 @@ static int __fastcall on_title_process(SokuLib::Title *This)
             loaded = 1;
             load_data();
         }
-        peers_set_settings(g_data_ok ? sts_settings_hash(&g_settings) : 0, g_data_ok);
+        peers_set_settings(g_data_ok ? sts_settings_hash(&g_settings) : 0, g_data_ok,
+                           g_data_ok && g_settings.share_changes);
     }
     g_result_closing = 0;
     deck_on_title_frame();
@@ -238,13 +261,26 @@ static int __fastcall on_battle_process(SokuLib::Battle *This)
 
 /* The Result menu lists the game's own card unlocks. When a card offer is due, the offer
  * takes its place. */
+/* The mod is done with the screen after a match: it closes, unless the players share their deck
+ * changes. Then this player says so to the opponent and waits for theirs, once a match. */
+static void done_with_result(void)
+{
+    if (!g_share_shown && share_active()) {
+        g_share_shown = 1;
+        share_send_finished();
+        screen_open_opponent();
+        return;
+    }
+    g_result_closing = 1;
+}
+
 static int __fastcall on_result_process(SokuLib::MenuResult *This)
 {
     netlog_scene("the screen after a match");
     if (!g_result_closing) {
         deck_on_result_frame();
         if (deck_take_result_skip())
-            g_result_closing = 1;
+            done_with_result();
     }
 
     if (screen_is_open()) {
@@ -253,7 +289,7 @@ static int __fastcall on_result_process(SokuLib::MenuResult *This)
         if (!screen_is_open())
             deck_on_result_frame();
         if (!screen_is_open())
-            g_result_closing = 1;
+            done_with_result();
         return 1;   /* the menu stays */
     }
     if (g_result_closing) {

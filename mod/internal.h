@@ -82,7 +82,8 @@ typedef enum {
     ST_SCORE,           /* a finished run: its results and each match */
     ST_GALLERY_KINDS,      /* the gallery: system, skill, or spell cards */
     ST_GALLERY_CHARACTERS, /* the gallery: whose skill or spell cards */
-    ST_GALLERY_CARDS       /* the gallery: the cards, with their sounds */
+    ST_GALLERY_CARDS,      /* the gallery: the cards, with their sounds */
+    ST_OPPONENT            /* after a match online: waiting for the opponent, then their deck change */
 } screen_state;
 /* What the buttons do on the mod's screens: confirm is Melee, cancel Weak Shot, alt Strong Shot,
  * toggle Dash, and card Use Card. */
@@ -128,7 +129,8 @@ typedef struct {
 } settings_row;
 #define MAX_SETTINGS_ROWS 48
 /* The settings are split into menus, listed in this order and followed by Save changes. */
-enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_SOUND, SETTINGS_MENU_COUNT };
+enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_NETPLAY, SETTINGS_MENU_SOUND,
+       SETTINGS_MENU_COUNT };
 #define SETTINGS_LIST_Y 56
 #define SETTINGS_ROW_H 19
 #define SETTINGS_VISIBLE_ROWS 14
@@ -278,6 +280,17 @@ typedef enum { TOGGLE_NONE, TOGGLE_USE, TOGGLE_STOP } choose_toggle;
 choose_toggle choose_toggle_for(int character);
 void set_error(const char *what, const char *detail);
 void maybe_start_reward(void);
+/* A match whose screen after it was skipped: its reward starts without a screen and is saved, so its
+ * offers come up after the next match, as an owed reward's do. Player 1 only (online). */
+void record_skipped_reward(void);
+void deck_on_skipped_result(void);
+/* Online, on each battle frame before the game's: when the win quote begins, a run match's reward starts
+ * at once (saved, so closing the game there keeps it). Esc on the win quote would skip the screen it is
+ * shown on, so with a reward waiting it is hidden from the game and 1 is returned: the caller presses
+ * confirm for the player until that screen opens. */
+int deck_on_win_quote_frame(void);
+void begin_reward_early(void);
+int reward_waits_for_screen(void);
 /* Reads what each of the selected player's saved runs is doing, for the character menu. */
 void scan_saves(void);
 void go_to_chooser_at(int cursor);
@@ -290,6 +303,10 @@ void move_card_grid(screen_event event, int count);
 int reward_seconds_left(void);
 /* Seconds before the deck screen after a reward moves on by itself, or -1. */
 int deck_seconds_left(void);
+/* Seconds before the opponent's deck change closes by itself (only with a time limit), or -1. */
+int opponent_seconds_left(void);
+/* On the opponent screen: 0 while waiting for them, 1 once their change shows. */
+extern int g_opponent_shown;
 /* The offers the roulette runs through, which may be ones no longer on offer. */
 extern sts_offer g_roulette_offers[STS_OFFER_MAX];
 extern int g_roulette_count;

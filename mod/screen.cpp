@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "internal.h"
+#include "spectator.h"
 
 screen_state g_state = ST_CLOSED;
 int g_cursor = 0;
@@ -424,6 +425,51 @@ static void owe_reward_behind_open_screen(int new_match)
     g_dirty = 1;
 }
 
+static int load_active_run(void);
+
+/* The reward was started on the win quote and waits for the screen after the match to show it. */
+static int g_reward_begun = 0;
+
+int reward_waits_for_screen(void)
+{
+    return g_reward_begun;
+}
+
+void record_skipped_reward(void)
+{
+    sts_reward_outcome outcome = STS_REWARD_NONE;
+    sts_run_status status;
+    int new_match = g_match_new[g_player];
+
+    g_match_reward_due[g_player] = 0;
+    g_match_new[g_player] = 0;
+    /* Started on the win quote but never shown: its offers wait with the run for the next screen. */
+    if (g_reward_begun) {
+        g_reward_begun = 0;
+        slog("the reward started on the win quote was not shown, so it waits for the next match");
+        activate_run_deck();
+        return;
+    }
+    if (!g_active || !new_match)
+        return;
+    if (g_state != ST_CLOSED) {
+        owe_reward_behind_open_screen(new_match);
+        return;
+    }
+    if (!load_active_run())
+        return;
+    status = sts_run_begin_reward(&g_run, &g_db, &g_settings, &g_match_result[g_player], &outcome);
+    slog("reward for player %d after a skipped screen: won %d, status %s, outcome %d, owed %d", g_player + 1,
+         g_match_result[g_player].won, sts_run_status_str(status), (int)outcome, g_run.owed_count);
+    if (status != STS_RUN_OK)
+        return;
+    save_run();
+    if (outcome == STS_REWARD_FINISHED)
+        on_run_finished();
+    else if (outcome == STS_REWARD_AUTO)
+        activate_run_deck();   /* nothing to choose: the deck changed, and the next match plays it */
+}
+
 /* Loads the run in use into g_run, which may hold another character if the screen was used since
  * this deck became active. Returns 0 if it cannot be loaded. */
 static int load_active_run(void)
@@ -471,6 +517,21 @@ static int begin_match_reward(void)
     return 1;
 }
 
+void begin_reward_early(void)
+{
+    if (!g_match_reward_due[g_player] || !g_match_new[g_player] || !g_active || g_state != ST_CLOSED)
+        return;
+    if (!load_active_run())
+        return;
+    g_match_new[g_player] = 0;
+    if (!begin_match_reward()) {
+        g_match_reward_due[g_player] = 0;
+        return;
+    }
+    g_reward_begun = 1;
+    slog("reward started on the win quote, so it is kept if the game closes there");
+}
+
 /* Opens the screen on the reward: a random pick or removal shown first, else the run's phase. */
 static void show_reward(int new_match)
 {
@@ -496,6 +557,12 @@ static void start_player_reward(void)
 
     g_match_reward_due[g_player] = 0;
     g_match_new[g_player] = 0;
+    if (g_reward_begun) {
+        g_reward_begun = 0;
+        if (g_state == ST_CLOSED)
+            show_reward(1);
+        return;
+    }
     if (!g_active)
         return;
     if (g_state != ST_CLOSED) {
@@ -675,12 +742,92 @@ int deck_seconds_left(void)
 
 static void on_deck_event(screen_event event);
 
+/* The opponent screen. With a time limit their change closes by itself, as the deck screen does. */
+#define OPPONENT_SECONDS 15
+int g_opponent_shown = 0;
+static int g_opponent_frames_left = 0;
+static DWORD g_opponent_waiting_since = 0;
+/* How long after the opponent leaves the screen after the match their finished change may still be on
+ * its way. Both go out on the same frame. */
+#define OPPONENT_LEFT_GRACE_MS 1000
+
+void screen_open_opponent(void)
+{
+    g_state = ST_OPPONENT;
+    g_opponent_shown = 0;
+    g_opponent_frames_left = 0;
+    g_opponent_waiting_since = GetTickCount();
+    g_error[0] = 0;
+    g_dirty = 1;
+}
+
+int opponent_seconds_left(void)
+{
+    return g_state == ST_OPPONENT && g_opponent_frames_left > 0 ? (g_opponent_frames_left + 59) / 60 : -1;
+}
+
+static void tick_opponent(void)
+{
+    sts_deck added, removed;
+    int character;
+
+    if (g_state != ST_OPPONENT)
+        return;
+    if (!g_opponent_shown) {
+        if (!share_active()) {
+            slog("changes: the opponent is no longer there, so no more waiting");
+            g_state = ST_CLOSED;
+            return;
+        }
+        if (!share_opponent_finished()) {
+            /* Their finished change should come with it, but a lost one must not leave this player
+             * waiting with nothing to wait for. */
+            if (!share_opponent_left_since(g_opponent_waiting_since, OPPONENT_LEFT_GRACE_MS))
+                return;
+            slog("changes: the opponent left the screen after the match without a finished change");
+        }
+        if (!share_opponent_change(&character, &added, &removed) && !share_own_change(&character, &added, &removed)) {
+            slog("changes: neither player's deck changed");
+            g_state = ST_CLOSED;
+            return;
+        }
+        g_opponent_shown = 1;
+        g_dirty = 1;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        if (g_settings.time_limit > 0)
+            g_opponent_frames_left = OPPONENT_SECONDS * 60;
+        return;
+    }
+    if (g_opponent_frames_left > 0) {
+        g_opponent_frames_left--;
+        if (g_opponent_frames_left == 0)
+            g_state = ST_CLOSED;
+        else if (g_opponent_frames_left % 60 == 0)
+            g_dirty = 1;
+    }
+}
+
+/* Confirm moves on from the deck changes. While waiting, cancel stops waiting: the change is then
+ * not seen. */
+static void on_opponent_event(screen_event event)
+{
+    if (g_opponent_shown && event == EV_CONFIRM) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_state = ST_CLOSED;
+    } else if (!g_opponent_shown && event == EV_CANCEL) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        slog("changes: stopped waiting for the opponent");
+        g_state = ST_CLOSED;
+    }
+}
+
 /* Once a frame while the mod's screen is open: the reward's clock, kept in the run so a restart
  * goes on from where it was, and the deck screen's. */
 static void tick_timers(void)
 {
     tick_roulette();
     tick_sweep();
+    tick_opponent();
     if (reward_seconds_left() >= 0) {
         g_run.offer_frames++;
         if (g_run.offer_frames % 60 == 0) {
@@ -1681,6 +1828,7 @@ static void handle_event(screen_event event)
     case ST_GALLERY_CARDS:
         on_gallery_event(event);
         break;
+    case ST_OPPONENT:       on_opponent_event(event); break;
     case ST_CLOSED:         break;
     }
 }
