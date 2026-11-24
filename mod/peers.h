@@ -44,6 +44,10 @@ int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int le
  * changed. */
 void peers_set_settings(uint32_t hash, int known, int shares);
 
+/* 1 if this machine is a player, its opponent has the mod, and their rules (the settings hash, both
+ * loaded) differ from this machine's. */
+int peers_opponent_rules_differ(void);
+
 /* 1 if this machine is a player and its opponent has the mod and shares deck changes. Stops being 1
  * when the opponent leaves. */
 int peers_opponent_shares(void);

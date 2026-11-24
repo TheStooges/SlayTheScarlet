@@ -707,3 +707,5 @@ en=And %d more.
 ja=ほか%d枚。
 en=%s: continue
 ja=%s: 続ける
+en=StS: Opponent's rules differ.
+ja=StS: 相手とルールが異なります。

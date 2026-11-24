@@ -92,8 +92,21 @@ static void log_select_stage(const SokuLib::Select &select)
         } \
     }
 
+/* Online character select's drawing: the warning when the opponent's rules differ. */
+#define NET_SELECT_RENDER_HOOK(Type) \
+    static int (SokuLib::Type::*g_og_##Type##_render)(); \
+    static int __fastcall on_##Type##_render(SokuLib::Type *This) \
+    { \
+        int result = (This->*g_og_##Type##_render)(); \
+        if (!g_observer) \
+            screen_render_rules_warning(); \
+        return result; \
+    }
+
 NET_SELECT_HOOK(SelectServer, "character select, as host")
 NET_SELECT_HOOK(SelectClient, "character select, as client")
+NET_SELECT_RENDER_HOOK(SelectServer)
+NET_SELECT_RENDER_HOOK(SelectClient)
 NET_LOADING_HOOK(LoadingServer, "loading, as host")
 NET_LOADING_HOOK(LoadingClient, "loading, as client")
 /* A spectator's scenes: only logged for now, to learn when it waits and when it watches. A spectator
@@ -430,6 +443,8 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
     }
     g_og_SelectServer = SokuLib::TamperDword(&SokuLib::VTable_SelectServer.onProcess, on_SelectServer);
     g_og_SelectClient = SokuLib::TamperDword(&SokuLib::VTable_SelectClient.onProcess, on_SelectClient);
+    g_og_SelectServer_render = SokuLib::TamperDword(&SokuLib::VTable_SelectServer.onRender, on_SelectServer_render);
+    g_og_SelectClient_render = SokuLib::TamperDword(&SokuLib::VTable_SelectClient.onRender, on_SelectClient_render);
     g_og_LoadingServer = SokuLib::TamperDword(&SokuLib::VTable_LoadingServer.onProcess, on_LoadingServer);
     g_og_LoadingClient = SokuLib::TamperDword(&SokuLib::VTable_LoadingClient.onProcess, on_LoadingClient);
     g_og_BattleServer = SokuLib::TamperDword(&SokuLib::VTable_BattleServer.onProcess, on_BattleServer);

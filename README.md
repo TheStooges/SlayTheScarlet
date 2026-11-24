@@ -118,6 +118,9 @@ match you both see the cards each deck gained and lost. Whoever finishes their r
 waits, with "Girls are now praying...", until the other is done. The mod only sends its own messages to a
 machine that answers that it has the mod too, so players and spectators without it are not affected.
 
+If your opponent's rules differ from yours, character select says so at the bottom left. Only rules count,
+not settings such as the deck slot, sounds, or sharing. It does not stop you playing.
+
 A spectator with the mod sees each player's deck changes under that player's side of the screen:
 green outlines for cards that came in, red for cards that left. When the players have the mod, the
 changes show on the loading screen as soon as they are made; otherwise at the start of the match. Turn

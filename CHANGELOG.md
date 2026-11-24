@@ -15,6 +15,9 @@ What changed in each release of Slay the Scarlet. Releases are on the
   already receives, and shows at the start of the match. The mod only sends its own packets to
   machines that answer that they have it, so players and spectators without it are not affected.
   "Show deck changes when spectating" (Settings, Netplay) turns it off.
+- **Rules check online.** When your opponent also has the mod and their rules differ from yours,
+  character select says so at the bottom left, for tournaments where everyone should play the same rules.
+  Only rules count, not settings such as sounds.
 - **Share deck changes with your opponent** (Settings, Netplay; off by default). When both players
   have the mod and this on, after a match both see the cards each deck gained and lost. The first to
   finish their reward waits until the other is done.

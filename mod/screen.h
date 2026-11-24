@@ -23,6 +23,10 @@ void screen_update(const SokuLib::KeyInput &input);
  * frame; otherwise the game's scene shows faintly behind it. */
 void screen_render(int opaque);
 
+/* Online character select: a warning, at the bottom left, while the opponent's rules differ from this player's
+ * (found in the mod's handshake). Nothing when they match, or the opponent has no mod. */
+void screen_render_rules_warning(void);
+
 /* The main menu's reminder of the hotkey and which run is in use. */
 void screen_render_title_hint(void);
 

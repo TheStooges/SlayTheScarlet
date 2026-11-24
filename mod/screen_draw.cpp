@@ -4,6 +4,7 @@
 #include <string.h>
 #include "internal.h"
 #include "spectator.h"
+#include "peers.h"
 
 /* The box under the cursor, and the bar beside a list that scrolls. */
 #define CURSOR_FILL     0x60FFE080u
@@ -1973,4 +1974,38 @@ void screen_render(int opaque)
         sprite->setPosition({g_input_draws[wau].pos_x, g_input_draws[wau].pos_y});
         sprite->draw();
     }
+}
+
+void screen_render_rules_warning(void)
+{
+    static Sprite line;
+    static int made = 0;
+    static SokuLib::Vector2i size;
+    int pos_x, pos_y;
+
+    if (!peers_opponent_rules_differ())
+        return;
+    if (!made) {
+        made = 1;
+        if (!line.texture.createFromText(tr("StS: Opponent's rules differ."), g_font_small, {600, 20},
+                                         &size)) {
+            size.x = 0;
+            return;
+        }
+        line.setSize(size.to<unsigned>());
+        line.rect.left = 0;
+        line.rect.top = 0;
+        line.rect.width = size.x;
+        line.rect.height = size.y;
+        line.tint = COLOR_RED;
+    }
+    if (size.x <= 0)
+        return;
+    /* Bottom left, just above the game's key prompts (which start at about y 460): the top of the
+     * screen holds the scene's title. Kept short to end before OnlinePractice's label (from x 258). */
+    pos_x = 16;
+    pos_y = 456 - (size.y + 6) + 3;
+    draw_box(pos_x - 8, pos_y - 3, size.x + 16, size.y + 6, 0xC0000000u, COLOR_RED);
+    line.setPosition({pos_x, pos_y});
+    line.draw();
 }

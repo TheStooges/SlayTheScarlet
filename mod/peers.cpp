@@ -361,23 +361,47 @@ void peers_set_settings(uint32_t hash, int known, int shares)
     InterlockedExchange(&g_own_shares, shares);
 }
 
-int peers_opponent_shares(void)
+/* The opponent: the client for the host (its child that is not a spectator), the host for the client.
+ * Returns the peer, or NULL. Call with the lock held. */
+static peer *opponent_peer(void)
 {
     peer_relation relation;
-    int wau, found = 0;
+    int wau;
 
-    /* mainMode 4 (VSCLIENT in SokuLib's names) is the host: its opponent is its child that is not a
-     * spectator. The client's opponent is its parent. */
     if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT)
         relation = PEER_CHILD;
     else if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER)
         relation = PEER_PARENT;
     else
-        return 0;
+        return NULL;
+    for (wau = 0; wau < MAX_PEERS; wau++)
+        if (g_peers[wau].used && g_peers[wau].relation == relation && g_peers[wau].heard_from
+            && g_peers[wau].same_protocol && !g_peers[wau].spectator)
+            return &g_peers[wau];
+    return NULL;
+}
+
+int peers_opponent_rules_differ(void)
+{
+    peer *opponent;
+    int differ;
+
     EnterCriticalSection(&g_lock);
-    for (wau = 0; wau < MAX_PEERS && !found; wau++)
-        found = g_peers[wau].used && g_peers[wau].relation == relation && g_peers[wau].heard_from
-            && g_peers[wau].same_protocol && !g_peers[wau].spectator && g_peers[wau].shares;
+    opponent = opponent_peer();
+    differ = opponent && opponent->settings_known && g_own_hash_known
+        && opponent->settings_hash != (uint32_t)g_own_hash;
+    LeaveCriticalSection(&g_lock);
+    return differ;
+}
+
+int peers_opponent_shares(void)
+{
+    peer *opponent;
+    int found;
+
+    EnterCriticalSection(&g_lock);
+    opponent = opponent_peer();
+    found = opponent && opponent->shares;
     LeaveCriticalSection(&g_lock);
     return found;
 }

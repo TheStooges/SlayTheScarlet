@@ -684,6 +684,10 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    opens (15 ms in the test). It reads only that count, only then, and keeps nothing. By decision Esc on
    the win quote counts as bad manners anyway, and a player who wants out can close the game; the
    skipped-screen fallback above stays for anything that gets past it.
+   Rules warning (built 2026-11-24, not yet seen): online character select draws "StS: Opponent's
+   rules differ." (the StS label says which mod it is from) in red at the bottom left, above the game's key prompts, while the opponent (`opponent_peer`) has the mod, both
+   settings hashes are known, and they differ (`peers_opponent_rules_differ`), from onRender hooks on
+   `VTable_SelectServer`/`SelectClient`. It only warns; nothing is blocked.
    Reconnecting without restarting the game (tested 2026-11-24) carried state over: a change still
    being delivered went to the next opponent, and the next connection measured a new run deck (drafted
    in between) against the last connection's deck. So when the last peer is forgotten (QUIT or 15 s of
