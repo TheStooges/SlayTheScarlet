@@ -1,5 +1,10 @@
 # The in-game DLL. Windows, MSVC, 32-bit only: game functions need __thiscall.
 add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
+# C4819 ("character that cannot be represented in the current code page") comes only from comments in
+# SokuLib, whose Japanese text was already lost to U+FFFD replacement characters upstream. Nothing
+# compiled is affected, and on a Japanese-locale Windows (code page 932) it fills the build output.
+# Set before SokuLib is added, so it covers SokuLib's own sources and the headers the mod includes.
+add_compile_options(/wd4819)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/SokuLib ${CMAKE_BINARY_DIR}/SokuLib)
 
