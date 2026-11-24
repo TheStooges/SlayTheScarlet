@@ -1020,12 +1020,13 @@ static void enter_rules_screen(void)
     status = sts_run_adopt_rules(&trial, &g_db, &g_settings);
     can_continue = g_settings.allow_rule_changes && status == STS_RUN_OK;
     can_restore = sts_run_rules_restorable(&g_run);
+    /* Back first, where the cursor starts, so an accidental press changes nothing. */
     g_rules_option_count = 0;
+    g_rules_options[g_rules_option_count++] = RULES_BACK;
     if (can_continue)
         g_rules_options[g_rules_option_count++] = RULES_CARRY_ON;
     if (can_restore)
         g_rules_options[g_rules_option_count++] = RULES_RESTORE;
-    g_rules_options[g_rules_option_count++] = RULES_BACK;
     g_rules_options[g_rules_option_count++] = RULES_START_OVER;
     if (!g_settings.allow_rule_changes) {
         sprintf(g_rules_problem, tr("The current settings do not allow a run to carry on under new rules."));

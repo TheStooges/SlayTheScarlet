@@ -19,6 +19,11 @@ What changed in each release of Slay the Scarlet. Releases are on the
   have the mod and this on, after a match both see the cards each deck gained and lost. The first to
   finish their reward waits until the other is done.
 
+### Changed
+
+- On the screen for a run whose rules have changed, Back is now the first option, where the cursor
+  starts.
+
 ### Fixed
 
 - Online, Esc on the win quote no longer skips a run match's reward: it goes on to the offer instead.
