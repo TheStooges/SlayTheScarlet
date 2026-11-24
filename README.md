@@ -40,7 +40,8 @@ To uninstall, remove the line and delete the folder. The mod never changes your 
 
 To update, delete the `SlayTheScarlet` folder and unzip the new one in its place. That also deletes
 your rules (`settings.ini`) and runs (the `runs` folder), so copy them back afterwards if you want to
-keep them. Runs from before v0.5 are not carried over, as runs are now kept for each profile.
+keep them. Runs from v0.5 on carry on after an update; runs from before v0.5 are not carried over, as
+runs are now kept for each profile.
 
 The mod's menus follow the game's language: Japanese on the Japanese game (`th123`), and English under
 the English translation (`th123e`).

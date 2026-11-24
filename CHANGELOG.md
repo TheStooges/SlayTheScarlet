@@ -3,7 +3,7 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
-## Unreleased
+## 0.6 - 2026-11-25
 
 ### New
 
@@ -31,6 +31,15 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 - Online, Esc on the win quote no longer skips a run match's reward: it goes on to the offer instead.
   The reward is also saved as the win quote begins, so closing the game there keeps it for next time.
+
+### Upgrading
+
+- Delete the old `SlayTheScarlet` folder and unzip the new one in its place, then copy back your
+  `runs` folder and `settings.ini` if you want to keep them. Runs from 0.5 carry on. The new settings
+  (`[netplay] share_changes` and `spectator_changes`) take their defaults until changed, and saving
+  from the Settings screen adds them to the file.
+- Sharing deck changes, the rules check, and sending deck changes to spectators need 0.6 on the other
+  machine too. Against an older version they stay off, as against a player without the mod.
 
 ## 0.5 - 2026-11-15
 
