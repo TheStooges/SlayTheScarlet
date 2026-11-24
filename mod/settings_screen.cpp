@@ -92,6 +92,7 @@ const char *settings_menu_name(int menu)
     case SETTINGS_MENU_DRAFT:  return tr("Draft");
     case SETTINGS_MENU_REWARD: return tr("Rewards");
     case SETTINGS_MENU_RUN:    return tr("Runs");
+    case SETTINGS_MENU_NETPLAY: return tr("Netplay");
     case SETTINGS_MENU_SOUND:  return tr("Sounds");
     }
     return tr("Save changes");
@@ -103,6 +104,7 @@ const char *settings_menu_help(int menu)
     case SETTINGS_MENU_DRAFT:  return tr("Building a run's deck, one card per pick until it is full: the starting deck, and what each pick offers.");
     case SETTINGS_MENU_REWARD: return tr("The card offer after each match, and what it changes in the deck.");
     case SETTINGS_MENU_RUN:    return tr("How long a run lasts, and what happens to it when the rules change.");
+    case SETTINGS_MENU_NETPLAY: return tr("Playing and watching online, when the others have the mod too.");
     case SETTINGS_MENU_SOUND:  return tr("The sounds cards make on the mod's screens.");
     }
     return tr("Writes the changes from every menu to settings.ini.");
@@ -171,6 +173,17 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"), NULL);
         add_value_help(row, "true", tr("On: a run made under other rules carries on if its deck is legal under them."));
         add_value_help(row, "false", tr("Off: a run made under other rules can only start over."));
+        break;
+    case SETTINGS_MENU_NETPLAY:
+        row = add_row("netplay", "share_changes", tr("Share deck changes with your opponent"), NULL);
+        add_value_help(row, "true", tr("On: after a match, you and your opponent see each other's deck changes."));
+        add_value_help(row, "false", tr("Off: neither of you sees the other's deck changes."));
+        add_help_line(row, tr("Only when both players have it on. The first to finish waits for the other."));
+        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
+        row = add_row("netplay", "spectator_changes", tr("Show deck changes when spectating"), NULL);
+        add_value_help(row, "true", tr("On: the cards each player's deck gained and lost show while you watch."));
+        add_value_help(row, "false", tr("Off: deck changes are not shown."));
+        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
         break;
     case SETTINGS_MENU_SOUND:
         row = add_row("sound", "card_sounds", tr("Card sounds"), NULL);

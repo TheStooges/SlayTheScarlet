@@ -11,6 +11,11 @@ void screen_set_dir(const char *dir);
 int screen_is_open(void);
 void screen_open(void);
 
+/* After a match online, with both players sharing deck changes: waits for the opponent to finish with
+ * their reward, then shows what both players' decks gained and lost. Closes once seen, or at once if
+ * neither deck changed, or if they leave. */
+void screen_open_opponent(void);
+
 /* Handles one frame of input. */
 void screen_update(const SokuLib::KeyInput &input);
 

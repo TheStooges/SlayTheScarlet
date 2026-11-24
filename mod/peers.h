@@ -18,6 +18,7 @@ typedef struct {
     int character;
     int serial;            /* counts up with each change the sender makes, 0-255 */
     int opponent_may_see;  /* the sender lets the other player see it */
+    int finished;          /* the sender is done with the screen after the match: this is the whole change */
     sts_deck added, removed;
 } peer_deck_change;
 
@@ -38,9 +39,14 @@ void peers_on_send(UINT_PTR socket_handle, const unsigned char *packet, int len,
 /* Every packet received. Returns 1 if it was the mod's own, so the caller hides it from the game. */
 int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int len, const void *from, int fromlen);
 
-/* This machine's settings hash, for the hello, and whether the settings have loaded. Called by the
- * game's thread whenever they may have changed. */
-void peers_set_settings(uint32_t hash, int known);
+/* This machine's settings hash, for the hello, whether the settings have loaded, and whether this
+ * player shares deck changes with the opponent. Called by the game's thread whenever they may have
+ * changed. */
+void peers_set_settings(uint32_t hash, int known, int shares);
+
+/* 1 if this machine is a player and its opponent has the mod and shares deck changes. Stops being 1
+ * when the opponent leaves. */
+int peers_opponent_shares(void);
 
 /* Delivers this machine's own deck change to every peer with the mod. A newer change of the same side
  * replaces the one being delivered. Called by the game's thread. */

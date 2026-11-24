@@ -98,6 +98,11 @@ typedef struct {
     /* Does a random pick spin through the offers before it lands? Only for show: not a rule. */
     int reward_roulette;
     int card_sounds;      /* sts_card_sounds: when cards play the sounds they make in a match */
+    /* Online, with both players' mods: does each see the other's deck changes after a match? Only when
+     * both players have it on. Not a rule. */
+    int share_changes;
+    /* Does a spectator show each player's deck changes? Not a rule. */
+    int spectator_changes;
 } sts_settings;
 
 /* [sound] card_sounds. Off: cards make no sounds. Use card: a card plays its sounds when Use Card is

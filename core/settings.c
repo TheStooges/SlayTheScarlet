@@ -173,6 +173,8 @@ void sts_settings_defaults(sts_settings *settings)
     settings->draft_show_deck = 1;
     settings->reward_roulette = 1;
     settings->card_sounds = STS_CARD_SOUNDS_USE_CARD;
+    settings->share_changes = 0;
+    settings->spectator_changes = 1;
     default_starter(settings);
 }
 
@@ -326,6 +328,10 @@ static int find_setting(sts_settings *settings, const char *section, const char 
             set_ref(ref, KIND_NAMED, &settings->pick_visibility, g_visibility, 0, 0);
         else if (strcmp(key, "opponent_deck") == 0)
             set_ref(ref, KIND_NAMED, &settings->opponent_deck, g_opponent, 0, 0);
+        else if (strcmp(key, "share_changes") == 0)
+            set_ref(ref, KIND_BOOL, &settings->share_changes, g_bool, 0, 0);
+        else if (strcmp(key, "spectator_changes") == 0)
+            set_ref(ref, KIND_BOOL, &settings->spectator_changes, g_bool, 0, 0);
         else
             return 0;
         return 1;
@@ -883,7 +889,8 @@ static const setting_key g_keys[] = {
     {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "random_chance"}, {"reward", "offers"}, {"reward", "copies_min"},
     {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
     {"reward", "time_limit"}, {"reward", "roulette"},
-    {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"},
+    {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"}, {"netplay", "share_changes"},
+    {"netplay", "spectator_changes"},
     {"items", "enabled"},
     {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"}, {"run", "deck"},
     {"sound", "card_sounds"},
@@ -1017,6 +1024,8 @@ static int is_rule_key(int index)
     return !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
         && !(strcmp(g_keys[index].section, "reward") == 0 && strcmp(g_keys[index].key, "roulette") == 0)
         && strcmp(g_keys[index].section, "sound") != 0
+        && !(strcmp(g_keys[index].section, "netplay") == 0 && strcmp(g_keys[index].key, "share_changes") == 0)
+        && !(strcmp(g_keys[index].section, "netplay") == 0 && strcmp(g_keys[index].key, "spectator_changes") == 0)
         && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "allow_rule_changes") == 0)
         && !(strcmp(g_keys[index].section, "run") == 0 && strcmp(g_keys[index].key, "deck") == 0);
 }

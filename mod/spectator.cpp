@@ -71,6 +71,19 @@ static int g_own_side = 0;
 static int g_own_match = 0;
 static DWORD g_own_sent_at = 0;
 static sts_deck g_own_deck;
+/* The opponent's change since the last match, for a player sharing with them, and whether they have
+ * finished with the screen after it. Cleared when the next battle starts: the first GAME_MATCH goes
+ * out at character select, before any match has been played, so it cannot mark the start. */
+static side_change g_opponent;
+static int g_opponent_finished = 0;
+/* This player's own change: the serial of the newest sent, and whether the finished one has gone. */
+static int g_serial = 0;
+static int g_finished_sent = 0;
+/* A battle has started since that was cleared, so there is a match to be finished with. */
+static int g_match_played = 0;
+/* When the opponent last left the screen after a match (Giuroll's 0x6E, which the game sends on
+ * leaving it, also by Esc on the win quote), or 0. */
+static volatile LONG g_opponent_left_at = 0;
 
 void spectator_install(void)
 {
@@ -198,6 +211,16 @@ void changes_on_received(const peer_deck_change *change)
     side_change *received = &g_received[change->side];
 
     EnterCriticalSection(&g_lock);
+    /* A player's opponent: kept for the screen after the match, if both share. */
+    if ((SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER)
+        && g_own_known && change->side != g_own_side) {
+        g_opponent.has = change->added.count > 0 || change->removed.count > 0;
+        g_opponent.character = change->character;
+        g_opponent.added = change->added;
+        g_opponent.removed = change->removed;
+        if (change->finished)
+            g_opponent_finished = 1;
+    }
     received->has = change->added.count > 0 || change->removed.count > 0;
     received->character = change->character;
     /* It goes with the next match. A spectator numbers matches by its own GAME_MATCH, which counts (and
@@ -211,19 +234,147 @@ void changes_on_received(const peer_deck_change *change)
     log_ids("out", &change->removed);
 }
 
+static int online_player(void)
+{
+    return SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER;
+}
+
+int share_active(void)
+{
+    return online_player() && g_settings.share_changes && peers_opponent_shares();
+}
+
+int share_opponent_finished(void)
+{
+    int finished;
+
+    EnterCriticalSection(&g_lock);
+    finished = g_opponent_finished;
+    LeaveCriticalSection(&g_lock);
+    return finished;
+}
+
+int share_opponent_change(int *character, sts_deck *added, sts_deck *removed)
+{
+    int has;
+
+    EnterCriticalSection(&g_lock);
+    has = g_opponent.has;
+    *character = g_opponent.character;
+    *added = g_opponent.added;
+    *removed = g_opponent.removed;
+    LeaveCriticalSection(&g_lock);
+    return has;
+}
+
+/* This player's whole change since the last match: none if it was not played with the run deck. */
+static void own_change(sts_deck *added, sts_deck *removed, int *side, int *match)
+{
+    sts_deck own_deck;
+    int was_run_deck;
+
+    EnterCriticalSection(&g_lock);
+    own_deck = g_own_deck;
+    was_run_deck = g_own_known && g_own_was_run_deck;
+    *side = g_own_side;
+    *match = g_own_match;
+    LeaveCriticalSection(&g_lock);
+    sts_deck_clear(added);
+    sts_deck_clear(removed);
+    if (was_run_deck && g_active && g_player == 0)
+        sts_deck_changes(&own_deck, &g_active_deck, added, removed);
+}
+
+void share_note_opponent_left(void)
+{
+    DWORD now = GetTickCount();
+
+    InterlockedExchange(&g_opponent_left_at, (LONG)(now ? now : 1));
+}
+
+int share_opponent_left_since(DWORD since, DWORD grace)
+{
+    DWORD left_at = (DWORD)g_opponent_left_at;
+
+    return left_at && (LONG)(left_at - since) >= 0 && GetTickCount() - left_at >= grace;
+}
+
+int share_own_side(void)
+{
+    return SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT ? 0 : 1;
+}
+
+void share_profile_name(int side, char *name, size_t size)
+{
+    name[0] = 0;
+    if (size == 0)
+        return;
+    __try {
+        SokuLib::NetObject &net = SokuLib::getNetObject();
+
+        strncpy(name, side ? net.profile2name : net.profile1name, size - 1);
+        name[size - 1] = 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        name[0] = 0;
+    }
+}
+
+int share_own_change(int *character, sts_deck *added, sts_deck *removed)
+{
+    int side, match;
+
+    own_change(added, removed, &side, &match);
+    *character = g_active ? g_active_character : 0;
+    return added->count > 0 || removed->count > 0;
+}
+
+void share_send_finished(void)
+{
+    peer_deck_change change;
+    int match;
+
+    if (!share_active() || g_finished_sent || !g_own_known || !g_match_played)
+        return;
+    g_finished_sent = 1;
+    memset(&change, 0, sizeof change);
+    own_change(&change.added, &change.removed, &change.side, &match);
+    change.character = g_active ? g_active_character : 0;
+    g_serial = (g_serial + 1) & 0xFF;
+    change.serial = g_serial;
+    change.opponent_may_see = 1;
+    change.finished = 1;
+    slog("changes: finished with the screen after match %d, sending change %d (%d in, %d out)", match, change.serial,
+         change.added.count, change.removed.count);
+    peers_send_change(&change);
+}
+
 /* Every frame online: once a reward has changed the run deck, the change since the last match goes to
  * the other machines with the mod. Taking an owed reward as well sends a newer change covering both. */
-void spectator_player_frame(void)
+void spectator_player_frame(int at_select)
 {
     static sts_deck announced;
     static int announced_match = -1;
-    static int serial = 0;
+    static int last_at_select = 1;
     sts_deck own_deck, added, removed, since;
     peer_deck_change change;
     int own_match, own_side, was_run_deck;
 
-    if (SokuLib::mainMode != SokuLib::BATTLE_MODE_VSCLIENT && SokuLib::mainMode != SokuLib::BATTLE_MODE_VSSERVER)
+    if (!online_player())
         return;
+    /* A battle starting is a new match: what the opponent sent about the last one is done with. */
+    if (!at_select && last_at_select) {
+        EnterCriticalSection(&g_lock);
+        memset(&g_opponent, 0, sizeof g_opponent);
+        g_opponent_finished = 0;
+        g_finished_sent = 0;
+        g_match_played = 1;
+        LeaveCriticalSection(&g_lock);
+    }
+    last_at_select = at_select;
+    /* A player who saw the game's own list after the match (not a run match) is done by now. */
+    if (at_select)
+        share_send_finished();
     if (!g_active || g_player != 0)
         return;
     EnterCriticalSection(&g_lock);
@@ -254,9 +405,9 @@ void spectator_player_frame(void)
     memset(&change, 0, sizeof change);
     change.side = own_side;
     change.character = g_active_character;
-    serial = (serial + 1) & 0xFF;
-    change.serial = serial;
-    change.opponent_may_see = 0;
+    g_serial = (g_serial + 1) & 0xFF;
+    change.serial = g_serial;
+    change.opponent_may_see = g_settings.share_changes;
     change.added = added;
     change.removed = removed;
     slog("changes: sending change %d of this player's deck, made after match %d of this connection", change.serial,
@@ -377,6 +528,8 @@ void spectator_render(int loading)
     DWORD now = GetTickCount(), elapsed;
     int strength;
 
+    if (!g_settings.spectator_changes)
+        return;
     EnterCriticalSection(&g_lock);
     if (g_built_serial != g_content_serial || g_built_loading != loading) {
         int match_before = g_built_match;

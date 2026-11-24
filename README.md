@@ -112,8 +112,16 @@ Only you need the mod. Your opponent sees a normal deck, and after a match sees 
 screen while you choose. Each machine sends its own deck when the next match starts, so nothing about
 the online protocol changes.
 
-If your opponent also has the mod, each of you plays your own run and chooses your own offers. Neither
-of you sees the other's offers yet.
+If your opponent also has the mod, each of you plays your own run and chooses your own offers. With
+"Share deck changes with your opponent" on for both of you (Settings, Netplay; off by default), after a
+match you both see the cards each deck gained and lost. Whoever finishes their reward first
+waits, with "Girls are now praying...", until the other is done. The mod only sends its own messages to a
+machine that answers that it has the mod too, so players and spectators without it are not affected.
+
+A spectator with the mod sees each player's deck changes under that player's side of the screen:
+green outlines for cards that came in, red for cards that left. When the players have the mod, the
+changes show on the loading screen as soon as they are made; otherwise at the start of the match. Turn
+this off with "Show deck changes when spectating".
 
 Online, only player 1's runs are used. Player 2's runs are for VS Player.
 
@@ -121,7 +129,7 @@ Online, only player 1's runs are used. Player 2's runs are for VS Player.
 
 Rules are set in `settings.ini`, which lists and explains every option. You can also change them in
 game: press F7 and choose **Settings** under the characters. The settings are split into menus (Draft,
-Rewards, Runs, and Sounds). In a menu, up and down choose a setting, left and right change it, and the line below
+Rewards, Runs, Netplay, and Sounds). In a menu, up and down choose a setting, left and right change it, and the line below
 explains it. Changes are kept across menus until you save them. Saving writes only the values you
 changed, so the file keeps its comments and can still be shared as a set of rules. If the change
 affects runs you have already started, the screen names them and asks before saving. A setting that
@@ -160,8 +168,8 @@ is still legal, set `allow_rule_changes=true`.
   The size_min, size_max and copy_limit settings have no effect for now.
 - The `add` and `remove` reward modes act as `replace`, because the game rejects decks of other sizes.
 - Pick visibility, opponent deck display and items are planned, and have no effect yet.
-- Spectating has not been tested. A spectator with the mod should see the matches as normal, without
-  offers.
+- Spectating with the mod has only been tested with unmodded players, and the deck changes shown to
+  spectators not at all yet.
 
 ## Reporting problems
 

@@ -234,6 +234,9 @@ static int __stdcall hook_recvfrom(UINT_PTR socket_handle, char *buf, int len, i
             own = peers_on_receive(socket_handle, (const unsigned char *)buf, received, from, fromlen ? *fromlen : 0);
             if (!own)
                 analyze("RECV", (const unsigned char *)buf, received);
+            /* Giuroll's 0x6E: the opponent left the screen after the match. */
+            if (!own && (unsigned char)buf[0] == 0x6E)
+                share_note_opponent_left();
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {

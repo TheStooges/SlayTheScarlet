@@ -861,6 +861,28 @@ static void test_settings_card_sounds(void)
 
 }
 
+/* The two netplay switches only say what is shown, so neither is a rule. */
+static void test_settings_share_changes(void)
+{
+    sts_settings settings, before;
+    char text[64];
+    int line = 0, wau;
+
+    sts_settings_defaults(&settings);
+    before = settings;
+    CHECK(settings.share_changes == 0 && settings.spectator_changes == 1);
+    CHECK(parse_ini("[netplay]\nshare_changes=true\nspectator_changes=false\n", &settings, &line) == STS_SETTINGS_OK
+          && settings.share_changes == 1 && settings.spectator_changes == 0);
+    CHECK(sts_settings_hash(&settings) == sts_settings_hash(&before) && !sts_settings_equal(&settings, &before));
+    for (wau = 0; wau < sts_settings_rule_count(); wau++) {
+        CHECK_EACH(sts_settings_rule_text(&settings, wau, text, sizeof text));
+        CHECK_EACH(strstr(text, "share_changes") == NULL && strstr(text, "spectator_changes") == NULL);
+    }
+    CHECK_EACH_DONE();
+    CHECK(sts_settings_set_rule(&settings, "netplay.share_changes=true") == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(parse_ini("[netplay]\nshare_changes=maybe\n", &settings, &line) != STS_SETTINGS_OK);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -881,4 +903,5 @@ void test_settings(void)
     test_settings_time_limit();
     test_settings_roulette();
     test_settings_card_sounds();
+    test_settings_share_changes();
 }

@@ -1,11 +1,13 @@
 /* See peers.h. Addresses are kept only in memory and never logged: peers are named by their relation.
  *
  * The mod's packets all start: u8 type (0x77), "STS", u8 protocol, u8 kind. A hello then has u8 flags
- * (bit 0: I have heard from you; bit 1: I am a spectator) and u32 the hash of my settings, for checking
- * later that both players have the same rules (bit 2 says it is known: the settings loaded).
+ * (bit 0: I have heard from you; bit 1: I am a spectator; bit 3: I share deck changes with my opponent)
+ * and u32 the hash of my settings, for checking later that both players have the same rules (bit 2 says
+ * it is known: the settings loaded).
  *
  * A deck change: u8 side (0 the host's deck, 1 the client's), u8 character, u8 serial, u8 flags (bit 0:
- * the sender lets the opponent see it), then u8 count and u16 card IDs for the cards in, and the same
+ * the sender lets the opponent see it; bit 1: the sender has finished with the screen after the match,
+ * so this is all the change there will be), then u8 count and u16 card IDs for the cards in, and the same
  * for the cards out. Its acknowledgement: u8 side, u8 serial. It carries no match number: between the
  * players, GAME_MATCH's match byte does not count up (seen as 229 and 36 in every match), so a change
  * is for the next match after it arrives.
@@ -30,10 +32,12 @@
 #define HELLO_HEARD_YOU 1
 #define HELLO_SPECTATOR 2
 #define HELLO_SETTINGS_KNOWN 4
+#define HELLO_SHARES 8
 #define KIND_CHANGE 2
 #define KIND_CHANGE_ACK 3
 #define CHANGE_ACK_LENGTH 8
 #define CHANGE_OPPONENT_MAY_SEE 1
+#define CHANGE_FINISHED 2
 /* No reward brings more than 4 copies, but owed rewards add up, so leave room. */
 #define CHANGE_MAX_CARDS 40
 #define CHANGE_MAX_LENGTH (12 + 4 * CHANGE_MAX_CARDS)
@@ -67,6 +71,7 @@ typedef struct {
     int same_protocol;
     int spectator;
     int settings_known;
+    int shares;          /* shares deck changes with its opponent */
     uint32_t settings_hash;
 } peer;
 
@@ -77,6 +82,7 @@ static int g_send_nothing = 0;
 /* This machine's settings hash, set by the game's thread (the settings are not read from this one). */
 static volatile LONG g_own_hash = 0;
 static volatile LONG g_own_hash_known = 0;
+static volatile LONG g_own_shares = 0;
 
 /* The latest change of each side's deck still being delivered, and how far each peer has got with it. */
 typedef struct {
@@ -175,8 +181,8 @@ static void maybe_announce(peer *known)
         rules = "the same rules";
     else
         rules = "different rules";
-    slog("peers: the %s has the mod (%s, %s)", relation_name(known->relation),
-         known->spectator ? "a spectator" : "a player", rules);
+    slog("peers: the %s has the mod (%s, %s%s)", relation_name(known->relation),
+         known->spectator ? "a spectator" : "a player", rules, known->shares ? ", shares deck changes" : "");
 }
 
 static void forget_peer(peer *gone, const char *why)
@@ -203,7 +209,8 @@ static void send_hello(peer *to)
     write_header(hello, KIND_HELLO);
     hello[6] = (unsigned char)((to->heard_from ? HELLO_HEARD_YOU : 0)
                                | (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSWATCH ? HELLO_SPECTATOR : 0)
-                               | (g_own_hash_known ? HELLO_SETTINGS_KNOWN : 0));
+                               | (g_own_hash_known ? HELLO_SETTINGS_KNOWN : 0)
+                               | (g_own_shares ? HELLO_SHARES : 0));
     hello[7] = (unsigned char)hash;
     hello[8] = (unsigned char)(hash >> 8);
     hello[9] = (unsigned char)(hash >> 16);
@@ -283,6 +290,7 @@ static void on_hello(UINT_PTR socket_handle, peer *from, const unsigned char *pa
     from->spectator = (packet[6] & HELLO_SPECTATOR) != 0;
     from->same_protocol = packet[4] == MOD_PROTOCOL;
     from->settings_known = (packet[6] & HELLO_SETTINGS_KNOWN) != 0;
+    from->shares = (packet[6] & HELLO_SHARES) != 0;
     from->settings_hash = hash;
     maybe_announce(from);
     /* Answer at once while it has not heard from us, so neither side stops before the other knows. */
@@ -328,10 +336,32 @@ int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int le
     return own;
 }
 
-void peers_set_settings(uint32_t hash, int known)
+void peers_set_settings(uint32_t hash, int known, int shares)
 {
     InterlockedExchange(&g_own_hash, (LONG)hash);
     InterlockedExchange(&g_own_hash_known, known);
+    InterlockedExchange(&g_own_shares, shares);
+}
+
+int peers_opponent_shares(void)
+{
+    peer_relation relation;
+    int wau, found = 0;
+
+    /* mainMode 4 (VSCLIENT in SokuLib's names) is the host: its opponent is its child that is not a
+     * spectator. The client's opponent is its parent. */
+    if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT)
+        relation = PEER_CHILD;
+    else if (SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER)
+        relation = PEER_PARENT;
+    else
+        return 0;
+    EnterCriticalSection(&g_lock);
+    for (wau = 0; wau < MAX_PEERS && !found; wau++)
+        found = g_peers[wau].used && g_peers[wau].relation == relation && g_peers[wau].heard_from
+            && g_peers[wau].same_protocol && !g_peers[wau].spectator && g_peers[wau].shares;
+    LeaveCriticalSection(&g_lock);
+    return found;
 }
 
 int peers_has_mod(peer_relation relation)
@@ -435,7 +465,8 @@ static void start_flight(const peer_deck_change *change, int from_peer)
     flight->packet[6] = (unsigned char)change->side;
     flight->packet[7] = (unsigned char)change->character;
     flight->packet[8] = (unsigned char)change->serial;
-    flight->packet[9] = (unsigned char)(change->opponent_may_see ? CHANGE_OPPONENT_MAY_SEE : 0);
+    flight->packet[9] = (unsigned char)((change->opponent_may_see ? CHANGE_OPPONENT_MAY_SEE : 0)
+                                        | (change->finished ? CHANGE_FINISHED : 0));
     offset = write_cards(flight->packet, 10, &change->added);
     flight->length = write_cards(flight->packet, offset, &change->removed);
     g_seen[change->side] = 1;
@@ -465,6 +496,7 @@ static void on_change(peer *from, const unsigned char *packet, int len)
     change.character = packet[7];
     change.serial = packet[8];
     change.opponent_may_see = (packet[9] & CHANGE_OPPONENT_MAY_SEE) != 0;
+    change.finished = (packet[9] & CHANGE_FINISHED) != 0;
     offset = read_cards(packet, len, 10, &change.added);
     if (offset < 0 || read_cards(packet, len, offset, &change.removed) < 0)
         return;
@@ -479,8 +511,9 @@ static void on_change(peer *from, const unsigned char *packet, int len)
     /* A sender only resends its newest change, so any other serial is a new one. */
     if (g_seen[side] && change.serial == g_seen_serial[side])
         return;
-    slog("peers: the %s sent change %d of the %s's deck (%d in, %d out)", relation_name(from->relation),
-         change.serial, side ? "client" : "host", change.added.count, change.removed.count);
+    slog("peers: the %s sent change %d of the %s's deck (%d in, %d out%s)", relation_name(from->relation),
+         change.serial, side ? "client" : "host", change.added.count, change.removed.count,
+         change.finished ? ", finished" : "");
     start_flight(&change, (int)(from - g_peers));
     changes_on_received(&change);
 }

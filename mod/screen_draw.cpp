@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "internal.h"
+#include "spectator.h"
 
 /* The box under the cursor, and the bar beside a list that scrolls. */
 #define CURSOR_FILL     0x60FFE080u
@@ -1351,6 +1352,123 @@ static void rebuild_gallery_cards(void)
     add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
 }
 
+static void draw_box(int pos_x, int pos_y, int width, int height, unsigned fill, unsigned border);
+
+/* Both players' deck changes, once both have finished with the screen after the match: player 1's (the
+ * host, on the left in the match) on top and player 2's below, as in the match, each with the cards that came in on the left and the ones that
+ * left on the right, a little larger than the deck screen's cards. 4 a side, as a reward brings at
+ * most 4 copies. */
+#define SHARE_CARDS 4
+#define SHARE_IN_X 28
+#define SHARE_OUT_X 336
+#define SHARE_PITCH_X 68
+#define SHARE_SECTION_Y(player) ((player) ? 216 : 56)
+#define SHARE_CARDS_Y(player) (SHARE_SECTION_Y(player) + 44)
+static Sprite g_share_art[2][2][SHARE_CARDS];   /* player (0 the host), kind (0 in, 1 out), card */
+static int g_share_art_loaded[2][2][SHARE_CARDS];
+static int g_share_art_count[2][2];
+
+static void load_share_cards(int player, int kind, int character, const sts_deck *cards)
+{
+    int wau;
+
+    g_share_art_count[player][kind] = cards->count < SHARE_CARDS ? cards->count : SHARE_CARDS;
+    for (wau = 0; wau < g_share_art_count[player][kind]; wau++) {
+        Sprite *sprite = &g_share_art[player][kind][wau];
+        int *loaded = &g_share_art_loaded[player][kind][wau];
+
+        *loaded = load_card_sprite(sprite, character, cards->ids[wau], 0, 0, 1);
+        if (*loaded) {
+            SokuLib::Vector2u size = sprite->texture.getSize();
+
+            sprite->setSize({size.x * 3 / 2, size.y * 3 / 2});
+        }
+    }
+}
+
+/* One player's part: whose deck, then what came in and what left. */
+static void add_share_section(int player, const char *heading, int character, const sts_deck *added,
+                              const sts_deck *removed)
+{
+    int pos_y = SHARE_SECTION_Y(player);
+    char line[160];
+
+    add_label(heading, g_font_small, 20, pos_y, 600, 20, COLOR_GOLD);
+    if (!added->count && !removed->count) {
+        add_label(tr("No change."), g_font_small, SHARE_IN_X, pos_y + 22, 300, 20, COLOR_GREY);
+        return;
+    }
+    add_label(tr("Came in"), g_font_small, SHARE_IN_X, pos_y + 22, 120, 20, COLOR_GREEN);
+    add_label(tr("Left"), g_font_small, SHARE_OUT_X, pos_y + 22, 120, 20, COLOR_RED);
+    if (added->count > SHARE_CARDS) {
+        sprintf(line, tr("And %d more."), added->count - SHARE_CARDS);
+        add_label(line, g_font_small, SHARE_IN_X + 130, pos_y + 22, 160, 20, COLOR_GREY);
+    }
+    if (removed->count > SHARE_CARDS) {
+        sprintf(line, tr("And %d more."), removed->count - SHARE_CARDS);
+        add_label(line, g_font_small, SHARE_OUT_X + 130, pos_y + 22, 160, 20, COLOR_GREY);
+    }
+    load_share_cards(player, 0, character, added);
+    load_share_cards(player, 1, character, removed);
+}
+
+static void rebuild_opponent(void)
+{
+    sts_deck added, removed;
+    char line[160];
+    int character, player;
+
+    memset(g_share_art_count, 0, sizeof g_share_art_count);
+    if (!g_opponent_shown) {
+        add_label(tr("Girls are now praying..."), g_font_big, 20, 200, 600, 30, COLOR_WHITE);
+        add_label(tr("Your opponent is still taking their reward."), g_font_small, 20, 236, 600, 20, COLOR_GREY);
+        sprintf(line, tr("%s: stop waiting"), BUTTON_B);
+        add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+        return;
+    }
+    add_label(tr("Deck changes"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    for (player = 0; player < 2; player++) {
+        char name[32];
+
+        if (player == share_own_side())
+            share_own_change(&character, &added, &removed);
+        else
+            share_opponent_change(&character, &added, &removed);
+        share_profile_name(player, name, sizeof name);
+        sprintf(line, tr("%s (%s)"), name[0] ? name : (player ? tr("Player 2") : tr("Player 1")),
+                character_label(character));
+        add_share_section(player, line, character, &added, &removed);
+    }
+    sprintf(line, tr("%s: continue"), BUTTON_A);
+    add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+}
+
+static void draw_opponent_cards(void)
+{
+    int player, kind, wau;
+
+    for (player = 0; player < 2; player++) {
+        for (kind = 0; kind < 2; kind++) {
+            for (wau = 0; wau < g_share_art_count[player][kind]; wau++) {
+                Sprite *sprite = &g_share_art[player][kind][wau];
+                SokuLib::Vector2u size;
+                int pos_x = (kind ? SHARE_OUT_X : SHARE_IN_X) + wau * SHARE_PITCH_X, pos_y = SHARE_CARDS_Y(player);
+
+                if (!g_share_art_loaded[player][kind][wau])
+                    continue;
+                size = sprite->texture.getSize();
+                size.x = size.x * 3 / 2;
+                size.y = size.y * 3 / 2;
+                draw_box(pos_x - 2, pos_y - 2, (int)size.x + 4, (int)size.y + 4, kind ? 0x60FF9090u : 0x6090FF90u,
+                         kind ? COLOR_RED : COLOR_GREEN);
+                sprite->tint = COLOR_WHITE;
+                sprite->setPosition({pos_x, pos_y});
+                sprite->draw();
+            }
+        }
+    }
+}
+
 static void rebuild(void)
 {
     int wau;
@@ -1385,6 +1503,7 @@ static void rebuild(void)
     case ST_GALLERY_KINDS:      rebuild_gallery_kinds(); break;
     case ST_GALLERY_CHARACTERS: rebuild_gallery_characters(); break;
     case ST_GALLERY_CARDS:      rebuild_gallery_cards(); break;
+    case ST_OPPONENT:      rebuild_opponent(); break;
     case ST_CLOSED:        break;
     }
     /* The clocks, under the match number or the card count. */
@@ -1395,6 +1514,9 @@ static void rebuild(void)
         if (seconds >= 0) {
             sprintf(text, tr("Time left: %d"), seconds);
             add_label(text, g_font_small, 500, 40, 130, 20, seconds <= 10 ? COLOR_RED : COLOR_GOLD);
+        } else if ((seconds = opponent_seconds_left()) >= 0) {
+            sprintf(text, tr("Closes in %d"), seconds);
+            add_label(text, g_font_small, 500, 40, 130, 20, COLOR_GREY);
         } else if ((seconds = deck_seconds_left()) >= 0) {
             sprintf(text, g_run.phase == STS_PHASE_REWARD ? tr("Next offer in %d") : tr("Closes in %d"), seconds);
             add_label(text, g_font_small, 500, 40, 130, 20, COLOR_GREY);
@@ -1461,7 +1583,7 @@ static void draw_background(int opaque)
      * and nor does most of the gallery: only a character's own cards. */
     if (g_state != ST_CHOOSE && g_state != ST_SETTINGS && g_state != ST_SETTINGS_CONFIRM
         && g_state != ST_GALLERY_KINDS && g_state != ST_GALLERY_CHARACTERS
-        && (g_state != ST_GALLERY_CARDS || g_gallery_character >= 0)) {
+        && (g_state != ST_GALLERY_CARDS || g_gallery_character >= 0) && g_state != ST_OPPONENT) {
         int character = g_state == ST_GALLERY_CARDS ? g_gallery_character : g_run.character;
 
         if (g_portrait_character != character) {
@@ -1826,6 +1948,9 @@ static void draw_screen_parts(void)
     case ST_REWARD_CONFIRM:
     case ST_SWEEP:
         draw_deck_grid();
+        break;
+    case ST_OPPONENT:
+        draw_opponent_cards();
         break;
     case ST_CLOSED:
         break;
