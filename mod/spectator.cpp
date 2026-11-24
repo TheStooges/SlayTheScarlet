@@ -206,6 +206,26 @@ void spectator_on_replay_request(int match)
     g_watching_match = match;
 }
 
+void changes_on_connection_end(void)
+{
+    EnterCriticalSection(&g_lock);
+    /* The deck this player last played was this connection's: measured against it, a run deck changed
+     * in between (a new draft) would be sent as a change. The next GAME_MATCH sets it again. */
+    g_own_known = 0;
+    g_own_was_run_deck = 0;
+    memset(&g_opponent, 0, sizeof g_opponent);
+    g_opponent_finished = 0;
+    g_finished_sent = 0;
+    g_match_played = 0;
+    /* A spectator's record of the players and their changes, which a new pair does not follow on from. */
+    g_last_match = -1;
+    memset(g_compared, 0, sizeof g_compared);
+    memset(g_received, 0, sizeof g_received);
+    g_content_serial++;
+    LeaveCriticalSection(&g_lock);
+    slog("changes: the connection is over, so its deck changes are forgotten");
+}
+
 void changes_on_received(const peer_deck_change *change)
 {
     side_change *received = &g_received[change->side];
@@ -344,7 +364,7 @@ void share_send_finished(void)
     change.serial = g_serial;
     change.opponent_may_see = 1;
     change.finished = 1;
-    slog("changes: finished with the screen after match %d, sending change %d (%d in, %d out)", match, change.serial,
+    slog("changes: finished with the screen after match %d (counted since the game started), sending change %d (%d in, %d out)", match, change.serial,
          change.added.count, change.removed.count);
     peers_send_change(&change);
 }
@@ -410,7 +430,7 @@ void spectator_player_frame(int at_select)
     change.opponent_may_see = g_settings.share_changes;
     change.added = added;
     change.removed = removed;
-    slog("changes: sending change %d of this player's deck, made after match %d of this connection", change.serial,
+    slog("changes: sending change %d of this player's deck, made after match %d (counted since the game started)", change.serial,
          own_match);
     log_ids("in", &added);
     log_ids("out", &removed);

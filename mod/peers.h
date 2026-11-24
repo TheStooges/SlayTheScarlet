@@ -56,6 +56,9 @@ void peers_send_change(const peer_deck_change *change);
  * passed on. Called from the network thread with the peers' lock held: it must not call into peers. */
 void changes_on_received(const peer_deck_change *change);
 
+/* The connection is over (no peer left). Called with the peers' lock held: it must not call into peers. */
+void changes_on_connection_end(void);
+
 /* 1 if the peer with this relation has the mod and speaks the same protocol (the first such peer,
  * for children). */
 int peers_has_mod(peer_relation relation);

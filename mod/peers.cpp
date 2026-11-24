@@ -185,11 +185,29 @@ static void maybe_announce(peer *known)
          known->spectator ? "a spectator" : "a player", rules, known->shares ? ", shares deck changes" : "");
 }
 
+static void stop_changes(void);
+
+/* No peer left: the connection is over. A change still being sent belongs to it, and so does the newest
+ * serial seen of each side; the next connection starts afresh (seen 2026-11-24: an undelivered change
+ * went to the next opponent on arrival). */
+static void end_connection(void)
+{
+    int wau;
+
+    for (wau = 0; wau < MAX_PEERS; wau++)
+        if (g_peers[wau].used)
+            return;
+    stop_changes();
+    g_seen[0] = g_seen[1] = 0;
+    changes_on_connection_end();
+}
+
 static void forget_peer(peer *gone, const char *why)
 {
     if (gone->heard_from)
         slog("peers: the %s with the mod %s", relation_name(gone->relation), why);
     gone->used = 0;
+    end_connection();
 }
 
 static void forget_quiet_peers(DWORD now)

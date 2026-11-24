@@ -684,6 +684,12 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    opens (15 ms in the test). It reads only that count, only then, and keeps nothing. By decision Esc on
    the win quote counts as bad manners anyway, and a player who wants out can close the game; the
    skipped-screen fallback above stays for anything that gets past it.
+   Reconnecting without restarting the game (tested 2026-11-24) carried state over: a change still
+   being delivered went to the next opponent, and the next connection measured a new run deck (drafted
+   in between) against the last connection's deck. So when the last peer is forgotten (QUIT or 15 s of
+   silence), `end_connection` in `mod/peers.cpp` stops delivery and forgets the serials seen, and
+   `changes_on_connection_end` forgets the player's last deck, the opponent's change, and a
+   spectator's record of the players.
    By decision (2026-11-15), deck sizes other than 20 are for full mode only: the game nullifies a
    deck that is not 20 cards (seen with DeckRandomizer), so a vanilla opponent would get no deck.
 6. Items: data-driven effects (max HP, meter gain, spirit regen rate/delay first). Can be built and
