@@ -104,9 +104,10 @@ int write_active_deck(char *why, size_t why_size)
     return 1;
 }
 
-/* Deck editing mods that cannot run alongside a run deck, or NULL if none is loaded. EasyDecks
- * reads the deck from profile memory, shows the run deck and saves it over the player's real
- * deck in their .pf. Nothing goes into memory while one of these is loaded. */
+/* Deck mods that cannot run alongside a run deck, or NULL if none is loaded. EasyDecks reads the
+ * deck from profile memory, shows the run deck and saves it over the player's real deck in their
+ * .pf. InfiniteDecks replaces the four deck slots with a list of decks, so a run deck written into
+ * a slot could not be chosen. Nothing goes into memory while one of these is loaded. */
 const char *blocking_mod(void)
 {
     static const char *const names[] = { "EasyDecks", "InfiniteDecks" };
@@ -392,7 +393,7 @@ int activate_run_deck(void)
     int fresh = !g_active || g_active_character != g_run.character;
 
     if (blocking_mod()) {
-        set_error(tr("Cannot use this deck"), tr("another mod is loaded that could overwrite your real deck"));
+        set_error(tr("Cannot use this deck"), tr("a mod is loaded that this one does not work with"));
         return 0;
     }
     if (g_run.phase == STS_PHASE_FINISHED)

@@ -1241,6 +1241,14 @@ static void delete_run(int character)
 
 static void on_choose_event(screen_event event)
 {
+    /* With a mod loaded that runs do not work with, the menu only shows why, and only closes. */
+    if (blocking_mod()) {
+        if (event == EV_CANCEL) {
+            SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+            g_state = ST_CLOSED;
+        }
+        return;
+    }
     /* The player switch: left, right and confirm change player; the buttons for runs do nothing. */
     if (g_cursor == CHOOSE_PLAYER && (event == EV_LEFT || event == EV_RIGHT || event == EV_CONFIRM)) {
         switch_player();

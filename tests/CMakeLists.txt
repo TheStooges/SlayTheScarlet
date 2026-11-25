@@ -14,7 +14,7 @@ add_executable(sts_tests
 target_link_libraries(sts_tests PRIVATE sts_core)
 # The mod's sources, so the tests can check every tr("...") has a translation. The list is taken
 # when CMake configures, so a new file in mod/ needs CMake to run again.
-file(GLOB STS_MOD_SOURCE_LIST ${CMAKE_SOURCE_DIR}/mod/*.cpp)
+file(GLOB_RECURSE STS_MOD_SOURCE_LIST ${CMAKE_SOURCE_DIR}/mod/*.cpp)
 list(JOIN STS_MOD_SOURCE_LIST "|" STS_MOD_SOURCE_PATHS)
 target_compile_definitions(sts_tests PRIVATE
   STS_CARDS_PATH="${CMAKE_SOURCE_DIR}/data/cards.csv"

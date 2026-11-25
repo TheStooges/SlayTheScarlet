@@ -116,7 +116,7 @@ void screen_render_title_hint(void)
         ensure_fonts();
         make_hint_line(&lines[0], "F7: Slay the Scarlet", top, COLOR_WHITE);
         if (mod_in_the_way)
-            sprintf(text, tr("Disable %s to play runs"), mod_in_the_way);
+            sprintf(text, tr("Disable %s to use this mod"), mod_in_the_way);
         else if (first >= 100)
             sprintf(text, tr("%s: rules changed"), character_label(first - 100));
         else if (first >= 0)
@@ -516,8 +516,19 @@ static void rebuild_choose(void)
     int character;
     char line[128];
 
+    /* With a mod loaded that runs do not work with, the menu only says so. */
+    if (blocking_mod()) {
+        add_label(tr("Slay the Scarlet"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+        sprintf(line, tr("Slay the Scarlet does not work alongside %s."), blocking_mod());
+        add_label(line, g_font_small, 20, 200, 600, 20, COLOR_RED);
+        add_label(tr("Disable it in SWRSToys.ini, then restart the game."), g_font_small, 20, 218,
+                  600, 20, COLOR_RED);
+        sprintf(line, tr("%s: close"), BUTTON_B);
+        add_prompts(NULL, line);
+        return;
+    }
     add_label(tr("Slay the Scarlet: choose a character"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
-    if (g_settings.seed[0] && !blocking_mod()) {
+    if (g_settings.seed[0]) {
         _snprintf(line, sizeof line - 1, tr("Currently set seed: %s."), g_settings.seed);
         line[sizeof line - 1] = 0;
         add_label(line, g_font_small, 20, 396, 600, 20, COLOR_GOLD);
@@ -525,12 +536,6 @@ static void rebuild_choose(void)
     if (g_settings.starter_enabled)
         add_label(tr("Starting decks are on: each draft begins with set cards for the character."),
                   g_font_small, 20, 396, 600, 20, COLOR_GOLD);   /* above three lines of key prompts */
-    if (blocking_mod()) {
-        sprintf(line, tr("%s can overwrite your real decks with a run deck, so runs are off."), blocking_mod());
-        add_label(line, g_font_small, 20, 392, 600, 20, COLOR_RED);
-        sprintf(line, tr("Disable it in SWRSToys.ini and restart the game to play runs."));
-        add_label(line, g_font_small, 20, 410, 600, 20, COLOR_RED);
-    }
     /* Whose runs these are: the selected player in gold, and their profile. */
     add_label(tr("Player 1"), g_font_big, CELL_X(0) + 6, CHOOSE_PLAYER_Y, 110, 26, g_player == 0 ? COLOR_GOLD : COLOR_GREY);
     add_label(tr("Player 2"), g_font_big, CELL_X(1) + 6, CHOOSE_PLAYER_Y, 110, 26, g_player == 1 ? COLOR_GOLD : COLOR_GREY);
@@ -853,11 +858,11 @@ static void rebuild_rules(void)
             break;
         case RULES_BACK:
             add_label(tr("Back"), g_font_big, 56, pos_y, 500, 28, COLOR_WHITE);
-            note = tr("Leaves the run as it is.");
+            note = tr("Changes nothing for now.");
             break;
         case RULES_START_OVER:
             add_label(tr("Start over"), g_font_big, 56, pos_y, 500, 28, g_rules_start_over_armed ? COLOR_RED : COLOR_WHITE);
-            note = tr("Discards this run's deck and progress.");
+            note = tr("Discards this deck and its progress.");
             break;
         }
         if (note)
@@ -952,7 +957,7 @@ static void rebuild_deck(void)
         add_card_details(g_run.character, g_run.deck.ids[g_cursor], pos_y);
     add_change_list(pos_y, tr("Removed"), tr("Added"));
     if (g_run.phase == STS_PHASE_FINISHED) {
-        add_label(tr("This run is over, so its deck is no longer used."), g_font_small, 20, 396, 600, 20, COLOR_GREY);
+        add_label(tr("Finished: this deck is no longer used."), g_font_small, 20, 396, 600, 20, COLOR_GREY);
         if (card_sounds_on())
             sprintf(line, tr("%s: play sound   %s: back to the score"), BUTTON_CARD, BUTTON_B);
         else
@@ -966,10 +971,10 @@ static void rebuild_deck(void)
         char toggle[192];
 
         if (card_sounds_on())
-            sprintf(toggle, run_deck_in_use() ? tr("%s: stop using this run   %s: play sound") : tr("%s: use this run   %s: play sound"),
+            sprintf(toggle, run_deck_in_use() ? tr("%s: stop using this deck   %s: play sound") : tr("%s: use this deck   %s: play sound"),
                     BUTTON_D, BUTTON_CARD);
         else
-            sprintf(toggle, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
+            sprintf(toggle, run_deck_in_use() ? tr("%s: stop using this deck") : tr("%s: use this deck"), BUTTON_D);
         if (g_run.phase == STS_PHASE_REWARD)
             sprintf(line, tr("%s: next offer"), BUTTON_A);
         else if (g_alt_armed)
@@ -1320,7 +1325,7 @@ static void rebuild_gallery_kinds(void)
             sprintf(line, tr("Press %s again to show every card. This cannot be undone."), BUTTON_A);
             add_label(line, g_font_small, 20, 396, 600, 20, COLOR_RED);
         } else if (g_cursor == GALLERY_UNLOCK_ROW) {
-            add_label(tr("Shows every card, as if each had been found in a run."), g_font_small, 20, 396, 600, 20,
+            add_label(tr("Shows every card, as if each had been found."), g_font_small, 20, 396, 600, 20,
                       COLOR_GREY);
         }
     }
@@ -1369,7 +1374,7 @@ static void rebuild_gallery_cards(void)
     if (rows > 2)
         rows = 2;
     if (g_cursor < g_gallery_count && !gallery_card_shown(g_cursor)) {
-        add_label(tr("Not found yet: this card shows once it has been offered in a run, or starts a run's deck."), g_font_small, 24,
+        add_label(tr("Not found yet: this card shows once it has been offered to you, or was in a starting deck."), g_font_small, 24,
                   DECK_Y + rows * DECK_PITCH_Y + 8, 592, 20, COLOR_GREY);
     } else if (g_cursor < g_gallery_count) {
         add_card_details(character, g_gallery_cards[g_cursor].id, DECK_Y + rows * DECK_PITCH_Y + 8);
@@ -1925,6 +1930,8 @@ static void draw_screen_parts(void)
 {
     switch (g_state) {
     case ST_CHOOSE:
+        if (blocking_mod())
+            break;   /* only the warning: no cursor */
         if (g_cursor == CHOOSE_PLAYER)
             draw_cursor_box(CELL_X(0), CHOOSE_PLAYER_Y - 4, CELL_W * 2 + 4, 30);
         else if (g_cursor == CHOOSE_SETTINGS)

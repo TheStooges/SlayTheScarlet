@@ -34,7 +34,7 @@ NAMES_ITS_AUTHOR = {"LICENSE.txt"}
 UTF8_TEXT = set()
 
 # The README's picture of the Deck 1 symbol is left out of the zip, as plain words.
-README_IMAGE = b"(![green Deck 1 symbol](images/deck1.svg))"
+README_IMAGE = b"(![green Deck 1 symbol](docs/images/deck1.svg))"
 README_IMAGE_TEXT = b"(the first deck slot)"
 
 
@@ -80,8 +80,9 @@ def main():
         sys.exit("There are uncommitted changes, so the zip would not match a commit:\n%s\n"
                  "Commit them first, or pass --dirty for a trial run." % uncommitted)
     newest_source = max(os.path.getmtime(os.path.join(folder, name))
-                        for folder in (os.path.join(ROOT, "core"), os.path.join(ROOT, "mod"))
-                        for name in os.listdir(folder) if name.endswith((".c", ".cpp", ".h")))
+                        for top in (os.path.join(ROOT, "core"), os.path.join(ROOT, "mod"))
+                        for folder, _, names in os.walk(top)
+                        for name in names if name.endswith((".c", ".cpp", ".h")))
     if os.path.getmtime(CONTENTS["SlayTheScarlet.dll"]) < newest_source:
         sys.exit("The DLL is older than the source. Run tools\\build_release.bat again.")
 

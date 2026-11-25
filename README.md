@@ -3,20 +3,21 @@
 A deck-building run mod for Touhou 12.3 Hisoutensoku, inspired by Slay the Spire and by the OCE
 Hisoutensoku community's "Slay the Scarlet" wauvent.
 
-You draft a starting deck for one character, one card at a time. After each match you are offered
-new cards to swap in, so the deck changes as the "run" goes on.
+You draft a deck for one character, one card at a time. After each match you are offered new cards
+to swap in, so the deck changes as the "run" goes on.
 
-**This is an early test release.** Online play has been tested over a real network, against a player
-without the mod and between two players who both have it. Spectating has not been tested yet. Expect
-rough edges, and please report problems.
+**This is a test release.** Online play has been tested over a real network, both against a player
+without the mod and between two players who have it. Spectating with the mod has not been tested
+with other people yet. Expect rough edges, and please report problems.
 
 ## Requirements
 
 - Hisoutensoku **v1.10a**. The English translation (`th123e`) is fine.
 - **SWRSToys**, the mod loader included in the usual community bundles.
-- A fully unlocked save (`score123.dat`), as the community normally uses. Other saves have not been tested.
-- **EasyDecks and InfiniteDecks must be disabled.** Their editors could save a run deck over your real
-  deck, so runs are refused while either one is loaded.
+- A fully unlocked save (`score123.dat`), as the community normally uses. Other saves have not
+  been tested.
+- **EasyDecks and InfiniteDecks must be disabled.** Runs do not work alongside them, so they are
+  refused while either one is loaded.
 
 Giuroll is supported for online play. Other common mods should not need disabling.
 
@@ -31,181 +32,139 @@ Giuroll is supported for online play. Other common mods should not need disablin
    SlayTheScarlet=modules/SlayTheScarlet/SlayTheScarlet.dll
    ```
 
-4. In the same file, put a `;` at the start of the `EasyDecks` and `InfiniteDecks` lines if they are
-   enabled.
+4. In the same file, put a `;` at the start of the `EasyDecks` and `InfiniteDecks` lines if they
+   are enabled.
 5. Start the game. The main menu should show `F7: Slay the Scarlet` in the bottom right corner.
 
-To uninstall, remove the line and delete the folder. The mod never changes your profiles or
-`score123.dat`, so your real decks and profile are untouched.
+The mod's menus follow the game's language: Japanese on the Japanese game (`th123`), and English
+under the English translation (`th123e`).
 
-To update, delete the `SlayTheScarlet` folder and unzip the new one in its place. That also deletes
-your rules (`settings.ini`) and runs (the `runs` folder), so copy them back afterwards if you want to
-keep them. Runs from v0.5 on carry on after an update; runs from before v0.5 are not carried over, as
-runs are now kept for each profile.
+**To uninstall**, remove the line and delete the folder. The mod never changes your profiles or
+`score123.dat`, so your real decks are untouched.
 
-The mod's menus follow the game's language: Japanese on the Japanese game (`th123`), and English under
-the English translation (`th123e`).
+**To update**, delete the `SlayTheScarlet` folder and unzip the new one in its place. This also
+deletes your rules (`settings.ini`) and your runs (the `runs` folder), so copy those back afterwards
+to keep them.
 
 ## How to play
 
-The buttons for each screen are listed at the bottom of that screen, using your own key config.
+Each screen lists its buttons at the bottom, using your own key config.
 
 1. **Press F7 on the main menu** and choose a character. Each character has one run.
-2. **Draft your deck.** Each of the 20 picks is a choice of 3 cards. A finished draft goes into use
-   straight away.
-3. **Play a VS match, offline or online, as that character on Deck 1 (![green Deck 1 symbol](images/deck1.svg)).**
-   Your real Deck 1 is safe: the run deck only replaces it in memory, while the run is in use. To use
-   another deck slot for runs, change "Deck the run takes over" in Settings, Runs.
-4. **Take an offer after the match.** Choose 1 of 3 cards, then choose which card in your deck it
-   replaces. You cannot replace a card with another copy of itself.
+2. **Draft your deck.** Each pick is a choice of 3 cards, and the deck is full after 20 picks. A
+   finished draft goes into use straight away.
+3. **Play a VS match** as that character on Deck 1 (![green Deck 1 symbol](docs/images/deck1.svg)),
+   offline or online. Your real Deck 1 is safe: the run deck only replaces it in memory, while the
+   run is in use.
+4. **Take an offer after the match.** Choose 1 of 3 offers. An offer can give more than one copy
+   of its card, and you then choose that many cards in your deck for it to replace. A card cannot
+   replace another copy of itself.
 5. **Back to character select.** Your next match uses the changed deck.
 
-Only one run can be in use at a time for each profile. On the character screen, under F7, the button shown at the
-bottom starts using the selected character's run, or stops using it. The deck screen does the same,
-and lets you look through your deck or start over. The character screen can also delete a run, and
-opening that character later starts a new draft. Both need two presses, so one slip cannot lose a run.
+Decks are always 20 cards, with at most 4 copies of a card.
 
-A match on a different character or deck slot is a normal match: no offer, and your run is unchanged.
+A match on another character or deck slot is a normal match: no offer, and your run is unchanged.
 
-Runs are endless by default. With a match limit (Settings, Runs), the last match gives no offer, since
-its card would never be played. The run ends instead and shows its score: wins and losses, and each
-match with what its offer changed. Choosing a match shows the deck as it was after it, with the cards
-it brought in outlined in green and the ones it took out beside them in red, and opens that deck to
-look through. The deck slot goes back to your own deck. The score can still be viewed from the
-character screen, until you start the character's run over.
+### Runs
 
-An offer cannot be skipped. It is saved, so closing the game brings back the same cards rather than
-new ones. A time limit can be set (Settings, Rewards; off by default): when it runs out, any
-choices you made are kept and the rest are made at random, so your opponent never waits long. The
-deck screen after a reward then moves on by itself after 15 seconds. A card picked for you at random
-is shown by the cursor running through the offers and slowing down onto it, and cards that leave at
-random by the cursor running over your deck and marking them (turn this off with "Roulette animation"
-in Settings, Rewards; the confirm button skips it). The time spent is saved, so
-closing the game does not give you more.
+Each profile has its own runs, and one of them can be in use at a time. On the F7 menu, the button
+shown at the bottom starts or stops using the selected character's run. The deck screen does the
+same, and lets you look through your deck or start the run over. The F7 menu can also delete a
+run. Starting over and deleting both need two presses, so one slip cannot lose a run.
 
-If the connection drops during an offer, the game goes back to the title, and the offer stays on screen.
-The game's network menu appears once you have taken it.
+An offer cannot be skipped. It is saved, so closing the game brings back the same cards, not new
+ones. If the connection drops during an offer, the game goes back to the title with the offer still
+on screen, and the game's network menu appears once you have taken it.
+
+Runs are endless unless a match limit is set. Then the last match gives no offer: the run ends and
+shows its score, with your wins and losses and what each match's offer changed. Choosing a match
+shows the deck as it was after it: cards it brought in are outlined in green, and the ones it took
+out are shown beside them in red. The deck slot goes back to your own deck, and the score can still
+be viewed from the F7 menu until you start that character's run over.
 
 ### Player 2
 
-In VS Player, player 2 can play a run too. Runs belong to the profile, so each player has their own
-runs and run in use, as long as they are on different profiles. On the F7 menu, the Player 1 /
-Player 2 switch above the characters chooses whose runs it shows, and either player's buttons work
-it. After a match, each player who played their run deck gets their own offer, player 1's first.
+In VS Player, player 2 can play a run too, on their own profile. The Player 1 / Player 2 switch at
+the top of the F7 menu chooses whose runs it shows. After a match, each player who used their run
+deck gets their own offer, player 1 first. Online, only player 1's runs are used.
 
 ### Gallery
 
 The Gallery, at the bottom right of the F7 menu, shows every card in the game by type and character.
-A card shows once it has been offered to you in a run, whether you took it or not, or was in a
-starting deck. Until then it stays face down. "Unlock the gallery" shows every card at once (press it
-twice; it cannot be undone).
+A card turns face up once it has been offered to you in a run, taken or not, or was in a starting
+deck. "Unlock the gallery" shows every card at once (press it twice; it cannot be undone).
 
-### Card sounds
-
-On the draft, after a match, on the deck screen, and in the Gallery, the Use Card button plays the
-sounds the card under the cursor makes in a match. In `settings.ini`, `[sound] card_sounds` can also
-play offers and Gallery cards on their own once the cursor rests on them (`automatic`), or turn card
-sounds off (`off`).
+The Use Card button plays the sounds the card under the cursor makes in a match. This works on the
+offers, on the deck screen, and in the Gallery.
 
 ### Online
 
 Only you need the mod. Your opponent sees a normal deck, and after a match sees the usual black
-screen while you choose. Each machine sends its own deck when the next match starts, so nothing about
-the online protocol changes.
+screen while you choose. Nothing about the online protocol changes.
 
-If your opponent also has the mod, each of you plays your own run and chooses your own offers. With
-"Share deck changes with your opponent" on for both of you (Settings, Netplay; off by default), after a
-match you both see the cards each deck gained and lost. Whoever finishes their reward first
-waits, with "Girls are now praying...", until the other is done. The mod only sends its own messages to a
-machine that answers that it has the mod too, so players and spectators without it are not affected.
+If your opponent has the mod too:
 
-If your opponent's rules differ from yours, character select says so at the bottom left. Only rules count,
-not settings such as the deck slot, sounds, or sharing. It does not stop you playing.
+- Each of you plays your own run and takes your own offers.
+- With "Share deck changes with your opponent" on for both of you (off by default), you both see
+  the cards each deck gained and lost after the match. Whoever finishes first waits, with "Girls are
+  now praying...", until the other is done.
+- If their rules differ from yours, character select says so at the bottom left. It does not stop
+  you playing.
 
 A spectator with the mod sees each player's deck changes under that player's side of the screen:
-green outlines for cards that came in, red for cards that left. When the players have the mod, the
-changes show on the loading screen as soon as they are made; otherwise at the start of the match. Turn
-this off with "Show deck changes when spectating".
+green outlines for cards that came in, red for cards that left. Turn this off with "Show deck
+changes when spectating".
 
-Online, only player 1's runs are used. Player 2's runs are for VS Player.
+The mod only sends its own messages to machines that answer that they have it too, so players and
+spectators without it are not affected.
 
 ## Settings
 
-Rules are set in `settings.ini`, which lists and explains every option. You can also change them in
-game: press F7 and choose **Settings** under the characters. The settings are split into menus (Draft,
-Rewards, Runs, and Netplay). In a menu, up and down choose a setting, left and right change it (going
-round past the last value), and the line below
-explains it. Changes are kept across menus until you save them. Saving writes only the values you
-changed, so the file keeps its comments and can still be shared as a set of rules. If the change
-affects runs you have already started, the screen names them and asks before saving. A setting that
-needs another one first is greyed out. Settings that do nothing yet, and a few kept for later (cards
-per offer, copies per offer, card sounds, and some choices of others), are only in the file.
+Press F7 and choose **Settings**, under the characters. The settings are in four menus:
 
-The draft always adds one card per pick until the deck is full. You can change how many cards are
-offered (up to 3), which card types appear and how often, who gets an offer after a
-match (after every match, only if you win, only if you lose, or at random), and whether you pick the card that comes in, whether you replace chosen
-cards, a card type, or random cards. Setting `show_deck=false` makes the draft blind, hiding the
-cards you have picked so far.
+- **Draft:** a starting deck, whether the deck so far is shown while drafting, and which card types
+  are offered.
+- **Rewards:** when you get an offer (after every match, only if you win, or only if you lose),
+  whether you choose the card that comes in or it is picked at random, what leaves the deck (cards
+  you choose, a type you choose, or random cards), a time limit, the roulette animation for random
+  picks, and which card types are offered.
+- **Runs:** a set seed, a match limit (up to 20), which deck slot runs use, and whether runs carry
+  on after a rule change.
+- **Netplay:** sharing deck changes with your opponent, and showing them when spectating.
 
-A starting deck is available and off by default. With `[starter] enabled=true`, each draft starts
-from 2 copies each of Spiritual Strike Talisman and Divine Raiment of the Dragon Fish, plus 2 copies
-each of a default skill and a spell card chosen for each character, and 12 picks fill the rest.
+In a menu, up and down choose a setting, left and right change it, and the lines below explain it.
+Changes are kept across menus until you save. Saving writes only what changed to `settings.ini`, so
+the file keeps its comments and can be shared as a set of rules. The file lists and explains every
+setting, including a few that are only in the file.
 
 The defaults are provisional, until the community has played with them.
 
-`[run] matches` sets how many matches a run lasts, up to 20, or 0 for no limit (the default).
+**Starting deck** (off by default): each draft starts from 8 set cards for the character: 2
+copies each of Spiritual Strike Talisman, Divine Raiment of the Dragon Fish, a default skill, and a
+spell card. 12 picks fill the rest.
 
-For events, a set seed (Settings, Runs, or `[run] seed`) is a word such as `OCE2026`, typed with the
-keyboard: press the confirm button on it, then Enter when done or Esc to cancel. Capitals count. Everyone
-on the same character then gets the same draft offers, and starting over gives the same draft back.
-Rewards follow on from the choices each player makes. The character screen shows the seed while one
-is set, and the score screen shows the seed, the rules fingerprint, and how many times that
-character's run was started over under those rules, for a screenshot.
+**Time limit** (off by default): when it runs out, any choices you made are kept and the rest are
+made at random. The time spent is saved, so closing the game does not give you more.
 
-If you change the rules, opening a run made under the old rules offers to go back to its rules, which
-puts them back in `settings.ini` (runs started before v0.4 cannot, as they did not save their rules).
-It first lists each setting that would change, and any other runs that would then show Rules changed.
-Otherwise the run can only be started over. To let runs carry on under the new rules when their deck
-is still legal, set `allow_rule_changes=true`.
+**Set seed**, for events: a word such as `OCE2026`, typed with the keyboard (Enter to keep it, Esc
+to cancel; capitals count). Everyone on the same character then gets the same draft, and starting
+over gives the same draft back. The score screen shows the seed, the rules fingerprint, and how many
+times that character's run was started over, for a screenshot.
 
-## Current limits
-
-- Decks are always 20 cards with at most 4 copies of a card.
-  The size_min, size_max and copy_limit settings have no effect for now.
-- The `add` and `remove` reward modes act as `replace`, because the game rejects decks of other sizes.
-- Pick visibility, opponent deck display and items are planned, and have no effect yet.
-- Spectating with the mod has only been tested with unmodded players, and the deck changes shown to
-  spectators not at all yet.
+**Rule changes:** a run made under other rules can go back to its own rules, which puts them back
+in `settings.ini`. It first lists each setting that would change, and any other runs that would
+then need the same. Otherwise the run can only start over, unless "Carry on after rule changes" is
+on and the deck is still legal.
 
 ## Reporting problems
 
-Send `sts.log` from the `SlayTheScarlet` folder, along with what you were doing. It is rewritten each
-time the game starts, so copy it before restarting. It contains no IP addresses or player names.
+Send `sts.log` from the `SlayTheScarlet` folder, along with what you were doing. It is rewritten
+each time the game starts, so copy it before restarting. It contains no IP addresses or player
+names.
 
 ## Building from source
 
-This section is for developers. You need Visual Studio with "Desktop development with C++", CMake and
-git. The mod must be built as 32-bit with MSVC, from the **x86 Native Tools Command Prompt**:
-
-```
-git clone https://github.com/TheStooges/SlayTheScarlet.git
-cd SlayTheScarlet
-git submodule update --init
-mkdir build
-cd build
-cmake .. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build . --target SlayTheScarlet
-```
-
-The DLL and `settings.ini` end up in `build/mod`. The card table (`data/cards.csv`) and the
-translations (`data/lang`) are built into the DLL, so rebuild after changing them.
-
-To make a release zip, run `tools\build_release.bat` from the same prompt, then
-`python tools\package_release.py <version>`. The zip goes in `release/`.
-
-`core/` holds the rules, offers and run saves as portable C with no game dependencies, and `tests/`
-covers it. `mod/` is the Windows DLL: hooks, screens and deck handling. `CLAUDE.md` has the design
-notes and reverse-engineering findings.
+See [docs/building.md](https://github.com/TheStooges/SlayTheScarlet/blob/master/docs/building.md).
 
 ## Licence
 
@@ -217,21 +176,22 @@ This is an unofficial fan mod, and you need your own copy of the game.
 
 - **Touhou 12.3 Hisoutensoku** is by Team Shanghai Alice and Twilight Frontier.
 - **Slay the Spire**, by Mega Crit, inspired the run format.
-- **[The original "Slay the Scarlet" event](https://www.youtube.com/watch?v=aq1PMH7CWYc)** was hosted
-  by the OCE Hisoutensoku community before this mod automated it. Stooge got its modified install
-  working, and created the
-  [card collecting notes and flowcharts](https://drive.google.com/drive/folders/1SMToH54savI-kohoauLHBUqlog8rj2mr)
-  by hand.
-- **[SokuLib](https://github.com/SokuDev/SokuLib)**, by Gegel85 and the SokuDev contributors, provides
-  the reverse-engineered game structures and addresses. It is built into the DLL under the MIT
-  licence: see `lib/SokuLib/LICENSE` in the source, or `LICENSE-SokuLib.txt` in a release.
-- **[ModTemplate](https://github.com/SokuDev/ModTemplate)**, from SokuDev, was the project's starting
-  point.
-- **[SokuMods](https://github.com/SokuDev/SokuMods)**, from SokuDev, was a reference for how mods are
-  put together, and **[HandicapMod](https://github.com/SokuDev/HandicapMod)** for how decks and
+- **[The original "Slay the Scarlet" event](https://www.youtube.com/watch?v=aq1PMH7CWYc)** was
+  hosted by the OCE Hisoutensoku community before this mod automated it. Stooge got its modified
+  install working, and created the
+  [card collecting notes and flowcharts][card notes] by hand.
+- **[SokuLib](https://github.com/SokuDev/SokuLib)**, by Gegel85 and the SokuDev contributors,
+  provides the reverse-engineered game structures and addresses. It is built into the DLL under the
+  MIT licence: see `lib/SokuLib/LICENSE` in the source, or `LICENSE-SokuLib.txt` in a release.
+- **[ModTemplate](https://github.com/SokuDev/ModTemplate)**, from SokuDev, was the project's
+  starting point.
+- **[SokuMods](https://github.com/SokuDev/SokuMods)**, from SokuDev, was a reference for how mods
+  are put together, and **[HandicapMod](https://github.com/SokuDev/HandicapMod)** for how decks and
   netplay packets work.
-- **OnlinePractice**, from OCE Hisoutensoku, was a reference for which parts of the game a netplay mod
-  needs to hook.
+- **OnlinePractice**, from OCE Hisoutensoku, was a reference for which parts of the game a netplay
+  mod needs to hook.
+
+[card notes]: https://drive.google.com/drive/folders/1SMToH54savI-kohoauLHBUqlog8rj2mr
 
 #
 

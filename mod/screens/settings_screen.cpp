@@ -95,7 +95,7 @@ const char *settings_menu_name(int menu)
 const char *settings_menu_help(int menu)
 {
     switch (menu) {
-    case SETTINGS_MENU_DRAFT:  return tr("Building a run's deck, one card per pick until it is full: the starting deck, and what each pick offers.");
+    case SETTINGS_MENU_DRAFT:  return tr("Building the deck, one card per pick until it is full: the starting deck, and what each pick offers.");
     case SETTINGS_MENU_REWARD: return tr("The card offer after each match, and what it changes in the deck.");
     case SETTINGS_MENU_RUN:    return tr("How long a run lasts, and what happens to it when the rules change.");
     case SETTINGS_MENU_NETPLAY: return tr("Playing and watching online, when the others have the mod too.");
@@ -119,7 +119,7 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("draft", "show_deck", tr("Show the deck so far"), NULL);
         add_value_help(row, "true", tr("On: the deck so far is shown beside the offers."));
         add_value_help(row, "false", tr("Off: a blind draft."));
-        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
+        add_help_line(row, tr("This is not a rule, so changing it is always safe."));
         add_offer_rows("draft");
         break;
     case SETTINGS_MENU_REWARD:
@@ -162,9 +162,11 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_help_line(row, tr("A set seed fixes the draft and rewards."));
         add_help_line(row, tr("Accepts letters, digits, hyphens, and underscores."));
         row = add_row("run", "matches", tr("Match limit"), tr("How many matches a run lasts."));
-        add_value_help(row, "0", tr("Endless: the run goes on until you start over."));
-        add_help_line(row, tr("The last match gives no offer: the run ends and shows its score."));
-        row = add_row("run", "deck", tr("Deck the run takes over"), NULL);
+        add_value_help(row, "0", tr("Endless: no match limit."));
+        add_help_line(row, tr("The last match gives no offer, and the final score is shown."));
+        row = add_row("run", "deck", tr("Deck slot"),
+                      tr("Which of the character's four decks the mod's deck replaces while in use."));
+        add_help_line(row, tr("Your own deck stays safe in your profile and comes back afterwards."));
         row = add_row("run", "allow_rule_changes", tr("Carry on after rule changes"), NULL);
         add_value_help(row, "true", tr("On: a run made under other rules carries on if its deck is legal under them."));
         add_value_help(row, "false", tr("Off: a run made under other rules can only start over."));
@@ -174,11 +176,11 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "true", tr("On: after a match, you and your opponent see each other's deck changes."));
         add_value_help(row, "false", tr("Off: neither of you sees the other's deck changes."));
         add_help_line(row, tr("Only when both players have it on. The first to finish waits for the other."));
-        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
+        add_help_line(row, tr("This is not a rule, so changing it is always safe."));
         row = add_row("netplay", "spectator_changes", tr("Show deck changes when spectating"), NULL);
         add_value_help(row, "true", tr("On: the cards each player's deck gained and lost show while you watch."));
         add_value_help(row, "false", tr("Off: deck changes are not shown."));
-        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
+        add_help_line(row, tr("This is not a rule, so changing it is always safe."));
         break;
     }
     return g_build_count;
@@ -480,7 +482,7 @@ static void describe_problem(sts_settings_problem problem, const sts_settings_pr
         _snprintf(out, size - 1, "%s", tr("The chance of an offer cannot be above 100."));
         break;
     case STS_PROBLEM_MATCH_LIMIT:
-        _snprintf(out, size - 1, tr("A run cannot last more than %d matches."), STS_MATCH_LIMIT_MAX);
+        _snprintf(out, size - 1, tr("The match limit cannot be above %d."), STS_MATCH_LIMIT_MAX);
         break;
     case STS_PROBLEM_STARTER_TOO_BIG:
         _snprintf(out, size - 1, tr("%s's starting cards are more than a deck can hold."), character_label(info->character));

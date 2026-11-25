@@ -206,7 +206,7 @@ void deck_on_select_frame(void)
 /* Returns 1 if this side is playing the selected player's run deck. */
 static int log_battle_side(const char *name, int character, int deck_slot, SokuLib::CharacterManager &player)
 {
-    /* Player::deckInfo.original; see the probe findings in CLAUDE.md */
+    /* Player::deckInfo.original; see the probe findings in docs/findings.md */
     auto *original = reinterpret_cast<SokuLib::Dequeue<unsigned short> *>(
         reinterpret_cast<char *>(&player) + 0x57C + 0x20);
     static sts_deck loaded, expected;
