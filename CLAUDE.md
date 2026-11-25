@@ -61,6 +61,11 @@ the copy limit or deck bounds), rather than rerolling on failure.
 - **On-screen text** goes through `tr("...")` with the English as a string literal, never built from
   pieces (Japanese word order differs), so each line can be translated whole. A test fails if
   `data/lang/ja.txt` lacks any `tr` literal in `mod/`, or keeps one no longer used. Logs stay English.
+- **No unbounded string writes in `mod/`:** never `sprintf`, `strcpy` or `strcat`. Use `format_text`
+  (an array, whose size the compiler knows) or `format_bounded` (a pointer and its size), from
+  `mod/format.h`: text that does not fit is cut short. Translations, profile names, card names,
+  install paths and network data can all be longer than expected. Before a release, run the tests
+  under AddressSanitizer and the static analyser (see `docs/building.md`).
 
 ## Build and run (Windows)
 

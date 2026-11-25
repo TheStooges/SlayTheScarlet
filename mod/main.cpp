@@ -425,8 +425,7 @@ extern "C" __declspec(dllexport) bool Initialize(HMODULE module, HMODULE parent)
 
     /* Development aid: with observer.txt beside the DLL, only netplay is logged. No screens, no
      * deck writes, so an install can stand in for a vanilla opponent and still show its side. */
-    strcpy(observer_path, dir);
-    strcat(observer_path, "observer.txt");
+    format_text(observer_path, "%sobserver.txt", dir);
     observer = PathFileExistsA(observer_path);
     g_observer = observer;
     slog("started%s", observer ? " as a log-only observer" : "");

@@ -3,6 +3,40 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## 0.6.1 - 2026-11-25
+
+### Changed
+
+- **Offers give 1 to 4 copies by default**, chosen at random, where they always gave 1. You then
+  choose that many cards for the offer to replace.
+- **A simpler Settings screen.** Every setting now goes round past its last value, both ways. A few
+  settings left the screen and are now only in `settings.ini`: cards per pick and per offer, fewest
+  and most copies, and card sounds (the Sounds menu is gone; Use Card still plays a card's sounds).
+  Card types steps through Weighted, One of each, and Random; "When you get an offer" no longer
+  offers Random. A file that sets one of the others still works.
+- Clearer names and help: "What comes into the deck" offers "Choose an offer", and "What leaves the
+  deck" "Choose cards" or "Choose a type". "Show random picks" is now "Roulette animation", and says
+  it only shows a random pick, which is the same either way. "Deck the run takes over" is now "Deck
+  slot".
+- Key prompts on every screen put the directions on one line and the buttons below.
+- With EasyDecks or InfiniteDecks loaded, the F7 menu now only says that the mod does not work
+  alongside it, and closes.
+- Wording throughout leans less on the word "run".
+- The README is rewritten and shorter.
+
+### Fixed
+
+- Opening a list of cards in the Gallery no longer plays the first card's sounds by itself.
+- Bug fixes and performance improvements.
+
+### Upgrading
+
+- Delete the old `SlayTheScarlet` folder and unzip the new one in its place, then copy back your
+  `runs` folder and `settings.ini` if you want to keep them.
+- Your old `settings.ini` keeps 1 copy per offer, so runs carry on. With the new file instead, runs
+  made under 0.6's defaults show Rules changed, as the copies differ. Choose "Go back to this run's
+  rules" to keep 1 copy, or start over.
+
 ## 0.6 - 2026-11-25
 
 ### New

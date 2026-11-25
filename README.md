@@ -4,7 +4,7 @@ A deck-building run mod for Touhou 12.3 Hisoutensoku, inspired by Slay the Spire
 Hisoutensoku community's "Slay the Scarlet" wauvent.
 
 You draft a deck for one character, one card at a time. After each match you are offered new cards
-to swap in, so the deck changes as the "run" goes on.
+to swap in, so the deck changes as the run goes on.
 
 **This is a test release.** Online play has been tested over a real network, both against a player
 without the mod and between two players who have it. Spectating with the mod has not been tested
@@ -16,8 +16,8 @@ with other people yet. Expect rough edges, and please report problems.
 - **SWRSToys**, the mod loader included in the usual community bundles.
 - A fully unlocked save (`score123.dat`), as the community normally uses. Other saves have not
   been tested.
-- **EasyDecks and InfiniteDecks must be disabled.** Runs do not work alongside them, so they are
-  refused while either one is loaded.
+- **EasyDecks and InfiniteDecks must be disabled.** Slay the Scarlet does not work alongside them,
+  so they are refused while either one is loaded.
 
 Giuroll is supported for online play. Other common mods should not need disabling.
 
@@ -43,8 +43,8 @@ under the English translation (`th123e`).
 `score123.dat`, so your real decks are untouched.
 
 **To update**, delete the `SlayTheScarlet` folder and unzip the new one in its place. This also
-deletes your rules (`settings.ini`) and your runs (the `runs` folder), so copy those back afterwards
-to keep them.
+deletes your rules (`settings.ini`) and your decks and progress (the `runs` folder), so copy those
+back afterwards to keep them.
 
 ## How to play
 
@@ -54,8 +54,8 @@ Each screen lists its buttons at the bottom, using your own key config.
 2. **Draft your deck.** Each pick is a choice of 3 cards, and the deck is full after 20 picks. A
    finished draft goes into use straight away.
 3. **Play a VS match** as that character on Deck 1 (![green Deck 1 symbol](docs/images/deck1.svg)),
-   offline or online. Your real Deck 1 is safe: the run deck only replaces it in memory, while the
-   run is in use.
+   offline or online. Your real Deck 1 is safe: the mod's deck only replaces it in memory, while
+   in use.
 4. **Take an offer after the match.** Choose 1 of 3 offers. An offer can give more than one copy
    of its card, and you then choose that many cards in your deck for it to replace. A card cannot
    replace another copy of itself.
@@ -63,14 +63,15 @@ Each screen lists its buttons at the bottom, using your own key config.
 
 Decks are always 20 cards, with at most 4 copies of a card.
 
-A match on another character or deck slot is a normal match: no offer, and your run is unchanged.
+A match on another character or deck slot is a normal match: no offer, and your deck is unchanged.
 
 ### Runs
 
 Each profile has its own runs, and one of them can be in use at a time. On the F7 menu, the button
-shown at the bottom starts or stops using the selected character's run. The deck screen does the
-same, and lets you look through your deck or start the run over. The F7 menu can also delete a
-run. Starting over and deleting both need two presses, so one slip cannot lose a run.
+shown at the bottom starts or stops using the selected character's deck. The deck screen does the
+same, and lets you look through your deck or start over. The F7 menu can also delete a
+character's progress. Starting over and deleting both need two presses, so one slip cannot lose
+anything.
 
 An offer cannot be skipped. It is saved, so closing the game brings back the same cards, not new
 ones. If the connection drops during an offer, the game goes back to the title with the offer still
@@ -80,18 +81,18 @@ Runs are endless unless a match limit is set. Then the last match gives no offer
 shows its score, with your wins and losses and what each match's offer changed. Choosing a match
 shows the deck as it was after it: cards it brought in are outlined in green, and the ones it took
 out are shown beside them in red. The deck slot goes back to your own deck, and the score can still
-be viewed from the F7 menu until you start that character's run over.
+be viewed from the F7 menu until you start that character over.
 
 ### Player 2
 
 In VS Player, player 2 can play a run too, on their own profile. The Player 1 / Player 2 switch at
-the top of the F7 menu chooses whose runs it shows. After a match, each player who used their run
-deck gets their own offer, player 1 first. Online, only player 1's runs are used.
+the top of the F7 menu chooses whose characters it shows. After a match, each player who used the
+mod's deck gets their own offer, player 1 first. Online, only player 1's runs are used.
 
 ### Gallery
 
 The Gallery, at the bottom right of the F7 menu, shows every card in the game by type and character.
-A card turns face up once it has been offered to you in a run, taken or not, or was in a starting
+A card turns face up once it has been offered to you, taken or not, or was in a starting
 deck. "Unlock the gallery" shows every card at once (press it twice; it cannot be undone).
 
 The Use Card button plays the sounds the card under the cursor makes in a match. This works on the
@@ -128,8 +129,8 @@ Press F7 and choose **Settings**, under the characters. The settings are in four
   whether you choose the card that comes in or it is picked at random, what leaves the deck (cards
   you choose, a type you choose, or random cards), a time limit, the roulette animation for random
   picks, and which card types are offered.
-- **Runs:** a set seed, a match limit (up to 20), which deck slot runs use, and whether runs carry
-  on after a rule change.
+- **Runs:** a set seed, a match limit (up to 20), which deck slot is used, and whether a deck
+  carries on after a rule change.
 - **Netplay:** sharing deck changes with your opponent, and showing them when spectating.
 
 In a menu, up and down choose a setting, left and right change it, and the lines below explain it.
@@ -152,8 +153,8 @@ over gives the same draft back. The score screen shows the seed, the rules finge
 times that character's run was started over, for a screenshot.
 
 **Rule changes:** a run made under other rules can go back to its own rules, which puts them back
-in `settings.ini`. It first lists each setting that would change, and any other runs that would
-then need the same. Otherwise the run can only start over, unless "Carry on after rule changes" is
+in `settings.ini`. It first lists each setting that would change, and any other characters that
+would then need the same. Otherwise it can only start over, unless "Carry on after rule changes" is
 on and the deck is still legal.
 
 ## Reporting problems

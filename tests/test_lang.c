@@ -104,6 +104,9 @@ static void test_lang_shipped(void)
     CHECK(sts_lang_parse(text, length, "ja", &lang, &line) == STS_LANG_OK);
     free(text);
     used = (int *)calloc((size_t)lang.count + 1, sizeof *used);
+    CHECK(used != NULL);
+    if (!used)
+        return;
 
     /* Every character has a name. */
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {

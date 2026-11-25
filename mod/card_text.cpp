@@ -53,7 +53,7 @@ void load_card_text(int character)
 
     g_text_count = 0;
     load_text_file("data/csv/common/spellcard.csv");
-    sprintf(path, "data/csv/%.64s/spellcard.csv", SokuLib::getCharName((unsigned)character));
+    format_text(path, "data/csv/%.64s/spellcard.csv", SokuLib::getCharName((unsigned)character));
     load_text_file(path);
 }
 

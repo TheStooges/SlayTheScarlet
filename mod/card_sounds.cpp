@@ -78,9 +78,9 @@ static int sound_handle(int folder, int number)
     if (!name || g_loaded_count >= MAX_LOADED_SOUNDS)
         return 0;
     if (folder == STS_SOUND_COMMON)
-        sprintf(path, "data/se/%03d.wav", number);
+        format_text(path, "data/se/%03d.wav", number);
     else
-        sprintf(path, "data/se/%s/%03d.wav", name, number);
+        format_text(path, "data/se/%s/%03d.wav", name, number);
     SOUND_MANAGER->loadSound(&handle, path);
     if (!handle)
         slog("card sounds: could not load %s", path);

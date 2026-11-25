@@ -129,7 +129,7 @@ static void log_ids(const char *what, const sts_deck *deck)
 
     text[0] = 0;
     for (wau = 0; wau < deck->count; wau++)
-        used += (size_t)sprintf(text + used, " %u", (unsigned)deck->ids[wau]);
+        used += (size_t)format_bounded(text + used, sizeof text - used, " %u", (unsigned)deck->ids[wau]);
     slog("   %s:%s", what, deck->count ? text : " none");
 }
 

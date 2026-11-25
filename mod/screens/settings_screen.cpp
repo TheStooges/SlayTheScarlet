@@ -276,9 +276,9 @@ static int has_unsaved_changes(void)
     return !sts_settings_equal(&g_settings_edit, &g_settings_file);
 }
 
-static void settings_path(char *out)
+static void settings_path(char (&out)[MAX_PATH + 32])
 {
-    sprintf(out, "%ssettings.ini", g_dir);
+    format_text(out, "%ssettings.ini", g_dir);
 }
 
 /* Reads settings.ini as it is now. A missing file is the defaults. Returns 0 if it does not parse. */
@@ -294,7 +294,7 @@ static int read_settings_file(sts_settings *out)
         return 1;
     {
         char where[64];
-        sprintf(where, tr("settings.ini line %d"), line);
+        format_text(where, tr("settings.ini line %d"), line);
         set_error(where, sts_settings_status_str(status));
     }
     return 0;
@@ -564,7 +564,8 @@ static int list_affected_runs(uint32_t new_hash)
                 _snprintf(name, sizeof name - 1, "%s", character_label(character));
             name[sizeof name - 1] = 0;
             if (used + strlen(name) + 3 < sizeof g_settings_affected)
-                used += (size_t)sprintf(g_settings_affected + used, "%s%s", count ? ", " : "", name);
+                used += (size_t)format_bounded(g_settings_affected + used, sizeof g_settings_affected - used, "%s%s",
+                                              count ? ", " : "", name);
             count++;
         }
     }
@@ -598,7 +599,7 @@ static int write_settings_file(void)
         return 0;
     }
     /* A new file replaces the old one in one step, so a failed write cannot leave half a file. */
-    sprintf(temporary, "%s.new", path);
+    format_text(temporary, "%s.new", path);
     file = fopen(temporary, "wb");
     ok = file && fwrite(rewritten, 1, rewritten_length, file) == rewritten_length;
     if (file)

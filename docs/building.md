@@ -28,6 +28,25 @@ register the build folder's DLL in the game's `SWRSToys.ini` with an absolute, f
 `SlayTheScarlet=C:/path/to/repo/build/mod/SlayTheScarlet.dll`. Rebuilds are picked up on the next
 launch. If the DLL does not load, check the `;` comment mark, the path, and that the game is v1.10a.
 
+## Memory checks
+
+Run these before a release, each in a build folder of its own (`build-*/` is gitignored).
+
+- **AddressSanitizer on the tests**, which catches overruns, use after free and double frees in
+  `core/` along every path the tests take. Configure with
+  `cmake .. -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_C_FLAGS=/fsanitize=address /Zi"`
+  (not Debug: ASan cannot be combined with its `/RTC1` checks), build `sts_tests`, and run
+  `tests\sts_tests.exe` from the same prompt, which has ASan's runtime on its path. Any error stops
+  the run with a report naming the file and line.
+- **MSVC's static analyser** on both targets: configure with `"-DCMAKE_C_FLAGS=/analyze"
+  "-DCMAKE_CXX_FLAGS=/analyze /EHsc"` and build `sts_tests` and `SlayTheScarlet`. Look at the C6xxx
+  warnings in `core/`, `mod/` and `tests/`. Known false positives: C6200 in `rule_table_line_count`
+  (the index is guarded by `wau == 0 ||`), C6262 (a large stack frame in `core/run.c`), and C6320 and
+  C6322 (the deliberate exception guards around reading game memory).
+
+The DLL itself cannot run under ASan inside the game, so `mod/` relies on `mod/format.h` for its text
+buffers (see `CLAUDE.md`).
+
 ## Making a release
 
 Run `tools\build_release.bat` from the same prompt (tests, a Release DLL, and checks on its imports),

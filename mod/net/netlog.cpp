@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include "format.h"
 #include "netlog.h"
 #include "log.h"
 #include "run_deck.h"
@@ -66,14 +67,14 @@ static int find_in_profile(int profile, const unsigned short *ids, int count, in
     return 0;
 }
 
-static void profile_text(char *out, int profile, const unsigned short *ids, int count)
+static void profile_text(char (&out)[40], int profile, const unsigned short *ids, int count)
 {
     int character, slot;
 
     if (count > 0 && find_in_profile(profile, ids, count, &character, &slot))
-        sprintf(out, "character %d deck %d", character, slot);
+        format_text(out, "character %d deck %d", character, slot);
     else
-        strcpy(out, "no");
+        format_text(out, "no");
 }
 
 /* Logs one player's part of GAME_MATCH. Returns the offset after it, or -1 if it does not fit. */
@@ -96,7 +97,7 @@ static int log_match_player(const char *dir, const char *who, const unsigned cha
     text[0] = 0;
     for (wau = 0; wau < count; wau++) {
         ids[wau] = (unsigned short)(packet[offset + wau * 2] | (packet[offset + wau * 2 + 1] << 8));
-        used += (size_t)sprintf(text + used, "%u ", (unsigned)ids[wau]);
+        used += (size_t)format_bounded(text + used, sizeof text - used, "%u ", (unsigned)ids[wau]);
     }
     slog("%s GAME_MATCH %s: character %d skin %d deck %d, %d cards: %s", dir, who, character, skin, slot, count, text);
     profile_text(in_profile1, 1, ids, count);

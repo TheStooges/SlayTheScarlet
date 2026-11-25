@@ -1250,6 +1250,7 @@ char *sts_settings_rewrite(const char *text, size_t len, const sts_settings *set
     newline = len > 0 && memchr(text, '\r', len) ? "\r\n" : "\n";
     memset(present, 0, sizeof present);
     memset(section_seen, 0, sizeof section_seen);
+    memset(section_end, 0, sizeof section_end);
 
     /* First pass: which settings the file lists, and where each section's last setting ends. */
     for (pos = 0; pos < len;) {

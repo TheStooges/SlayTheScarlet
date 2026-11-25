@@ -4,6 +4,7 @@
 
 #include <SokuLib.hpp>
 #include <windows.h>
+#include "format.h"
 #include "log.h"
 #include "match.h"
 #include "run_deck.h"

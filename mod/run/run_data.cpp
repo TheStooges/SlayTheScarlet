@@ -52,11 +52,11 @@ int load_data(void)
         set_error("cards.csv", sts_db_status_str(db));
         return 0;
     }
-    sprintf(path, "%ssettings.ini", g_dir);
+    format_text(path, "%ssettings.ini", g_dir);
     status = sts_settings_load(path, &g_settings, &line);
     if (status != STS_SETTINGS_OK && status != STS_SETTINGS_IO) {   /* no file just means defaults */
         char where[64];
-        sprintf(where, tr("settings.ini line %d"), line);
+        format_text(where, tr("settings.ini line %d"), line);
         set_error(where, sts_settings_status_str(status));
         return 0;
     }
@@ -91,7 +91,7 @@ void save_run(void)
 
     /* Nothing is in use until a run has been saved, so this is the first write to the folders. If
      * they already exist this fails harmlessly, and a real problem shows up in the save. */
-    sprintf(path, "%s" RUNS_FOLDER, g_dir);
+    format_text(path, "%s" RUNS_FOLDER, g_dir);
     CreateDirectoryA(path, NULL);
     player_runs_folder(path, sizeof path);
     CreateDirectoryA(path, NULL);

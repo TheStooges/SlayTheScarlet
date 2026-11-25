@@ -21,7 +21,7 @@ void slog(const char *fmt, ...)
     EnterCriticalSection(&g_log_lock);
     if (!file) {
         char path[MAX_PATH + 32];
-        sprintf(path, "%ssts.log", g_dir);
+        format_text(path, "%ssts.log", g_dir);
         file = fopen(path, "w");
     }
     if (file) {

@@ -1029,7 +1029,7 @@ static void enter_rules_screen(void)
         g_rules_options[g_rules_option_count++] = RULES_RESTORE;
     g_rules_options[g_rules_option_count++] = RULES_START_OVER;
     if (!g_settings.allow_rule_changes) {
-        sprintf(g_rules_problem, tr("The current settings do not allow a run to carry on under new rules."));
+        format_text(g_rules_problem, tr("The current settings do not allow a run to carry on under new rules."));
     } else if (status != STS_RUN_OK) {
         sts_deck_status deck = sts_deck_validate(&g_run.deck, &g_settings.rules, NULL);
 

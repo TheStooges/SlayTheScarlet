@@ -21,7 +21,7 @@ void ids_text(char *out, size_t size, SokuLib::Dequeue<unsigned short> &deque)
 
     out[0] = 0;
     for (wau = 0; wau < deque.size && wau < 256 && offset + 8 < size; wau++)
-        offset += (size_t)sprintf(out + offset, "%u ", (unsigned)deque[wau]);
+        offset += (size_t)format_bounded(out + offset, size - offset, "%u ", (unsigned)deque[wau]);
 }
 
 /* The finished deck being played. It is kept apart from g_run, which the screen may be
@@ -116,7 +116,7 @@ const char *blocking_mod(void)
     for (wau = 0; wau < sizeof names / sizeof names[0]; wau++) {
         char file[32];
 
-        sprintf(file, "%s.dll", names[wau]);
+        format_text(file, "%s.dll", names[wau]);
         if (GetModuleHandleA(file))
             return names[wau];
     }
@@ -168,11 +168,11 @@ static void write_state_into(const sts_state *state, const char *folder)
     FILE *file;
     int ok;
 
-    sprintf(path, "%s" RUNS_FOLDER, g_dir);
+    format_text(path, "%s" RUNS_FOLDER, g_dir);
     CreateDirectoryA(path, NULL);
     CreateDirectoryA(folder, NULL);
-    sprintf(path, "%sstate.txt", folder);
-    sprintf(temporary, "%s.new", path);
+    format_text(path, "%sstate.txt", folder);
+    format_text(temporary, "%s.new", path);
     file = length ? fopen(temporary, "wb") : NULL;
     ok = file && fwrite(text, 1, length, file) == length;
     if (file)
@@ -192,7 +192,7 @@ static void read_state_from(sts_state *state, const char *folder)
     char *text;
 
     sts_state_init(state);
-    sprintf(path, "%sstate.txt", folder);
+    format_text(path, "%sstate.txt", folder);
     text = sts_read_file(path, &length);
     if (!text)
         return;
@@ -220,16 +220,16 @@ static void load_state_file(void)
     read_state_from(&g_saved_state, folder);
 }
 
-static void gallery_folder(char *out)
+static void gallery_folder(char *out, size_t size)
 {
-    sprintf(out, "%s" RUNS_FOLDER, g_dir);
+    format_bounded(out, size, "%s" RUNS_FOLDER, g_dir);
 }
 
 static void write_gallery_state(void)
 {
     char folder[MAX_PATH + 16];
 
-    gallery_folder(folder);
+    gallery_folder(folder, sizeof folder);
     write_state_into(&g_gallery_state, folder);
 }
 
@@ -240,7 +240,7 @@ static void load_gallery_state(void)
     if (g_gallery_state_loaded)
         return;
     g_gallery_state_loaded = 1;
-    gallery_folder(folder);
+    gallery_folder(folder, sizeof folder);
     read_state_from(&g_gallery_state, folder);
 }
 
@@ -552,13 +552,13 @@ static void profile_key(int player, char *out)
         replaced |= !allowed;
     }
     if (used == 0) {
-        strcpy(out, "profile");
+        format_bounded(out, PROFILE_KEY_SIZE, "profile");
         used = strlen(out);
         replaced = 1;
     }
     out[used] = 0;
     if (replaced || length > 0)
-        sprintf(out + used, "-%08x", (unsigned)sts_fnv1a(STS_FNV_START, file, strlen(file)));
+        format_bounded(out + used, PROFILE_KEY_SIZE - used, "-%08x", (unsigned)sts_fnv1a(STS_FNV_START, file, strlen(file)));
 }
 
 static const char *player_key(int player)
@@ -674,7 +674,7 @@ void players_on_title_frame(void)
             continue;
         if (g_profile_keys[player][0])
             forget_player(player);
-        strcpy(g_profile_keys[player], key);
+        format_text(g_profile_keys[player], "%s", key);
         slog("player %d plays on profile '%s', runs in runs\\%s\\, device %d", player + 1, player_profile_name(player),
              key, (int)player_profile(player).controllerIndex);
     }
