@@ -162,6 +162,37 @@ static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int p
     g_label_count++;
 }
 
+/* The key prompts at the bottom of a screen: the directions on a line of their own, then the buttons,
+ * on one line or two, the last line at the bottom of the screen. NULL or empty leaves a line out. */
+static void add_key_prompts(const char *directions, const char *buttons, unsigned buttons_color,
+                            const char *more_buttons, unsigned more_color)
+{
+    const char *texts[3];
+    unsigned colors[3];
+    int count = 0, wau;
+
+    if (directions && *directions) {
+        texts[count] = directions;
+        colors[count++] = COLOR_GREY;
+    }
+    if (buttons && *buttons) {
+        texts[count] = buttons;
+        colors[count++] = buttons_color;
+    }
+    if (more_buttons && *more_buttons) {
+        texts[count] = more_buttons;
+        colors[count++] = more_color;
+    }
+    for (wau = 0; wau < count; wau++)
+        add_label(texts[wau], g_font_small, 20, 458 - 18 * (count - 1 - wau), 600, 20, colors[wau]);
+}
+
+/* Directions and one line of buttons, both grey. */
+static void add_prompts(const char *directions, const char *buttons)
+{
+    add_key_prompts(directions, buttons, COLOR_GREY, NULL, COLOR_GREY);
+}
+
 /* The player's real button, as the game's key config shows it: "Z or Pad2". Takes one of the
  * fields of KeyBindings. Keeps a few buffers so one line of text can name several buttons. */
 /* A button by what it does in a match, and the key or pad button it is on for the selected player
@@ -493,7 +524,7 @@ static void rebuild_choose(void)
     }
     if (g_settings.starter_enabled)
         add_label(tr("Starting decks are on: each draft begins with set cards for the character."),
-                  g_font_small, 20, 414, 600, 20, COLOR_GOLD);
+                  g_font_small, 20, 396, 600, 20, COLOR_GOLD);   /* above three lines of key prompts */
     if (blocking_mod()) {
         sprintf(line, tr("%s can overwrite your real decks with a run deck, so runs are off."), blocking_mod());
         add_label(line, g_font_small, 20, 392, 600, 20, COLOR_RED);
@@ -517,27 +548,31 @@ static void rebuild_choose(void)
         run_status(character, line, &color);
         add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, color);
     }
-    switch (choose_toggle_for(g_cursor)) {
-    case TOGGLE_USE:
-        sprintf(line, tr("%s: use %s's run"), BUTTON_D, character_label(g_cursor));
-        add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
-        break;
-    case TOGGLE_STOP:
-        sprintf(line, tr("%s: stop using %s's run"), BUTTON_D, character_label(g_cursor));
-        add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
-        break;
-    case TOGGLE_NONE:
-        break;
+    {
+        char toggle[192];
+
+        toggle[0] = 0;
+        switch (choose_toggle_for(g_cursor)) {
+        case TOGGLE_USE:
+            sprintf(toggle, tr("%s: use %s's run"), BUTTON_D, character_label(g_cursor));
+            break;
+        case TOGGLE_STOP:
+            sprintf(toggle, tr("%s: stop using %s's run"), BUTTON_D, character_label(g_cursor));
+            break;
+        case TOGGLE_NONE:
+            break;
+        }
+        if (g_alt_armed)
+            sprintf(line, tr("Press %s again to delete this character's run."), BUTTON_C);
+        else if (g_cursor == CHOOSE_PLAYER)
+            sprintf(line, tr("%s: close"), BUTTON_B);
+        else if (g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY || !run_file_exists(g_cursor))
+            sprintf(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
+        else
+            sprintf(line, tr("%s: open   %s: close   %s twice: delete run"), BUTTON_A, BUTTON_B, BUTTON_C);
+        add_key_prompts(g_cursor == CHOOSE_PLAYER ? tr("Up/Down: choose   Left/Right: switch player") : tr("Arrows: choose"),
+                        line, g_alt_armed ? COLOR_RED : COLOR_GREY, toggle, COLOR_GREY);
     }
-    if (g_alt_armed)
-        sprintf(line, tr("Press %s again to delete this character's run."), BUTTON_C);
-    else if (g_cursor == CHOOSE_PLAYER)
-        sprintf(line, tr("Left/Right: switch player   %s: close"), BUTTON_B);
-    else if (g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY || !run_file_exists(g_cursor))
-        sprintf(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
-    else
-        sprintf(line, tr("%s: open   %s: close   %s twice: delete run"), BUTTON_A, BUTTON_B, BUTTON_C);
-    add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
 }
 
 /* The deck so far, beside the description on the draft screen. Cards are drawn small, with
@@ -642,17 +677,15 @@ static void rebuild_draft(void)
     }
     if (g_state == ST_ROULETTE)
         sprintf(line, tr("%s: skip"), BUTTON_A);
-    else if (g_state == ST_REWARD && g_run.offer_count == 1)
-        sprintf(line, card_sounds_on() ? tr("%s: take   %s: play sound") : tr("%s: take"), BUTTON_A, BUTTON_CARD);
     else if (g_state == ST_REWARD)
-        sprintf(line, card_sounds_on() ? tr("Left/Right: choose   %s: take   %s: play sound") : tr("Left/Right: choose   %s: take"),
-                BUTTON_A, BUTTON_CARD);
+        sprintf(line, card_sounds_on() ? tr("%s: take   %s: play sound") : tr("%s: take"), BUTTON_A, BUTTON_CARD);
     else if (card_sounds_on())
-        sprintf(line, tr("Left/Right: choose   %s: take   %s: play sound   %s: back (progress is saved)"), BUTTON_A,
-                BUTTON_CARD, BUTTON_B);
+        sprintf(line, tr("%s: take   %s: play sound   %s: back (progress is saved)"), BUTTON_A, BUTTON_CARD, BUTTON_B);
     else
-        sprintf(line, tr("Left/Right: choose   %s: take   %s: back (progress is saved)"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        sprintf(line, tr("%s: take   %s: back (progress is saved)"), BUTTON_A, BUTTON_B);
+    /* One offer has nothing to choose between, and the roulette takes no directions. */
+    add_prompts(g_state == ST_ROULETTE || (g_state == ST_REWARD && g_run.offer_count == 1) ? NULL : tr("Left/Right: choose"),
+                line);
 }
 
 /* Name, type and description of one of the character's cards, starting at y. */
@@ -725,7 +758,7 @@ static void rebuild_reward_remove(void)
             add_card_details(g_run.character, g_run.deck.ids[g_cursor], DECK_Y + 2 * DECK_PITCH_Y + 8);
         add_change_list(DECK_Y + 2 * DECK_PITCH_Y + 8, tr("Removing"), tr("Adding"));
         sprintf(line, tr("%s: confirm   %s: change the last pick"), BUTTON_A, BUTTON_B);
-        add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        add_prompts(NULL, line);
         return;
     }
     add_label(tr("Choose what leaves your deck"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
@@ -739,8 +772,8 @@ static void rebuild_reward_remove(void)
         sprintf(line, tr("Choose %d more."), remaining);
         add_reward_notice(line, REWARD_NOTICE_Y, COLOR_GOLD);
     }
-    sprintf(line, tr("Arrows: choose   %s: select   %s: back to the offers"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, tr("%s: select   %s: back to the offers"), BUTTON_A, BUTTON_B);
+    add_prompts(tr("Arrows: choose"), line);
 }
 
 /* What going back to the run's rules would change in settings.ini, before it does. */
@@ -788,11 +821,8 @@ static void rebuild_rules_restore(void)
         line[sizeof line - 1] = 0;
         add_wrapped(line, g_font_small, 40, pos_y + 6, 580, 17, HELP_COLUMNS, 1, 2, COLOR_RED);
     }
-    if (lines > rule_table_rows())
-        sprintf(line, tr("Up/Down: scroll   %s: change the rules   %s: back"), BUTTON_A, BUTTON_B);
-    else
-        sprintf(line, tr("%s: change the rules   %s: back"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, tr("%s: change the rules   %s: back"), BUTTON_A, BUTTON_B);
+    add_prompts(lines > rule_table_rows() ? tr("Up/Down: scroll") : NULL, line);
 }
 
 static void rebuild_rules(void)
@@ -836,8 +866,8 @@ static void rebuild_rules(void)
     if (g_rules_start_over_armed)
         sprintf(line, tr("Press %s again to discard this run.   %s: cancel"), BUTTON_A, BUTTON_B);
     else
-        sprintf(line, tr("Up/Down: choose   %s: select   %s: back"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, g_rules_start_over_armed ? COLOR_RED : COLOR_GREY);
+        sprintf(line, tr("%s: select   %s: back"), BUTTON_A, BUTTON_B);
+    add_key_prompts(tr("Up/Down: choose"), line, g_rules_start_over_armed ? COLOR_RED : COLOR_GREY, NULL, COLOR_GREY);
 }
 
 /* Cards leaving at random: the deck as it was, the cursor on it. */
@@ -857,7 +887,7 @@ static void rebuild_sweep(void)
         add_reward_notice(line, REWARD_NOTICE_Y, COLOR_GOLD);
     }
     sprintf(line, tr("%s: skip"), BUTTON_A);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    add_prompts(NULL, line);
 }
 
 /* The type choices, below the two rows of the deck. */
@@ -888,8 +918,8 @@ static void rebuild_reward_type(void)
     sprintf(line, tr("Replacing with %dx %.90s."), offer->copies, entry ? entry->name : "?");
     add_reward_notice(line, REWARD_NOTICE_Y - 17, COLOR_GOLD);
     add_reward_notice(tr("Random cards of that type leave."), REWARD_NOTICE_Y, COLOR_GOLD);
-    sprintf(line, tr("Up/Down: choose   %s: confirm   %s: back to the offers"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, tr("%s: confirm   %s: back to the offers"), BUTTON_A, BUTTON_B);
+    add_prompts(tr("Up/Down: choose"), line);
 }
 
 static void rebuild_deck(void)
@@ -924,27 +954,30 @@ static void rebuild_deck(void)
     if (g_run.phase == STS_PHASE_FINISHED) {
         add_label(tr("This run is over, so its deck is no longer used."), g_font_small, 20, 396, 600, 20, COLOR_GREY);
         if (card_sounds_on())
-            sprintf(line, tr("Arrows: inspect   %s: play sound   %s: back to the score"), BUTTON_CARD, BUTTON_B);
+            sprintf(line, tr("%s: play sound   %s: back to the score"), BUTTON_CARD, BUTTON_B);
         else
-            sprintf(line, tr("Arrows: inspect   %s: back to the score"), BUTTON_B);
-        add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+            sprintf(line, tr("%s: back to the score"), BUTTON_B);
+        add_prompts(tr("Arrows: inspect"), line);
         return;
     }
     add_label(g_status, g_font_small, 20, 396, 600, 20, run_deck_in_use() ? COLOR_GREEN : COLOR_GOLD);
-    /* With the other key prompts at the bottom, not the status line above. */
-    if (card_sounds_on())
-        sprintf(line, run_deck_in_use() ? tr("%s: stop using this run   %s: play sound") : tr("%s: use this run   %s: play sound"),
-                BUTTON_D, BUTTON_CARD);
-    else
-        sprintf(line, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
-    add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
-    if (g_run.phase == STS_PHASE_REWARD)
-        sprintf(line, tr("Arrows: inspect   %s: next offer"), BUTTON_A);
-    else if (g_alt_armed)
-        sprintf(line, tr("Press %s again to discard this run and start over."), BUTTON_C);
-    else
-        sprintf(line, tr("Arrows: inspect   %s: back   %s twice: start over"), BUTTON_B, BUTTON_C);
-    add_label(line, g_font_small, 20, 440, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
+    {
+        /* With the other key prompts at the bottom, not the status line above. */
+        char toggle[192];
+
+        if (card_sounds_on())
+            sprintf(toggle, run_deck_in_use() ? tr("%s: stop using this run   %s: play sound") : tr("%s: use this run   %s: play sound"),
+                    BUTTON_D, BUTTON_CARD);
+        else
+            sprintf(toggle, run_deck_in_use() ? tr("%s: stop using this run") : tr("%s: use this run"), BUTTON_D);
+        if (g_run.phase == STS_PHASE_REWARD)
+            sprintf(line, tr("%s: next offer"), BUTTON_A);
+        else if (g_alt_armed)
+            sprintf(line, tr("Press %s again to discard this run and start over."), BUTTON_C);
+        else
+            sprintf(line, tr("%s: back   %s twice: start over"), BUTTON_B, BUTTON_C);
+        add_key_prompts(tr("Arrows: inspect"), line, g_alt_armed ? COLOR_RED : COLOR_GREY, toggle, COLOR_GREY);
+    }
 }
 
 /* A finished run: its results, then the starting deck and each match, with what its reward changed.
@@ -1015,13 +1048,11 @@ static void rebuild_score(void)
         add_label(tr("Replaced"), g_font_small, SCORE_DECK_X + 340, SCORE_DECK_Y + 30, 240, 20, COLOR_RED);
     add_score_entries();
 
-    sprintf(line, tr("Up/Down: choose   %s: see this deck   %s: back"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
     if (g_alt_armed)
         sprintf(line, tr("Press %s again to discard this run and start over."), BUTTON_C);
     else
-        sprintf(line, tr("%s twice: start over"), BUTTON_C);
-    add_label(line, g_font_small, 20, 458, 600, 20, g_alt_armed ? COLOR_RED : COLOR_GREY);
+        sprintf(line, tr("%s: see this deck   %s: back   %s twice: start over"), BUTTON_A, BUTTON_B, BUTTON_C);
+    add_key_prompts(tr("Up/Down: choose"), line, g_alt_armed ? COLOR_RED : COLOR_GREY, NULL, COLOR_GREY);
 }
 
 /* Where each entry of the list of menus sits. Save changes stands a little apart from the menus. */
@@ -1095,7 +1126,7 @@ static void add_settings_confirm(void)
     add_help(line, 348, 2, COLOR_GOLD);
     add_help(tr("Those runs will need to start over, or carry on if that is allowed."), 383, 2, COLOR_WHITE);
     sprintf(line, tr("%s: save anyway   %s: keep editing"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    add_prompts(NULL, line);
 }
 
 /* The error (in red, up to two lines, ending above the key prompts) or the status line. Returns where
@@ -1127,7 +1158,7 @@ static void add_seed_entry(void)
     add_label(line, g_font_big, 176, SEED_BOX_Y + 4, 420, 28, COLOR_GOLD);
     add_label(tr("Letters, digits, - and _, up to 24, and capitals count. Empty turns the seed off."), g_font_small, 36,
               SEED_BOX_Y + 38, 580, 20, COLOR_GREY);
-    add_label(tr("Enter: done   Esc: cancel   Backspace: delete"), g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    add_prompts(NULL, tr("Enter: done   Esc: cancel   Backspace: delete"));
 }
 
 /* The setting under the cursor: where it is in settings.ini, its help (each value's line starting on
@@ -1147,12 +1178,10 @@ static void add_setting_help(int help_bottom)
                 help_y = add_help(current->help[wau], help_y, (help_bottom - help_y) / 17, COLOR_WHITE);
     }
     if (settings_on_seed_row())
-        sprintf(line, tr("Up/Down: choose   %s: type a seed   %s: back"), BUTTON_A, BUTTON_B);
+        sprintf(line, tr("%s: type a seed   %s: back   %s: default value"), BUTTON_A, BUTTON_B, BUTTON_C);
     else
-        sprintf(line, tr("Up/Down: choose   Left/Right: change   %s: save   %s: back"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
-    sprintf(line, tr("%s: default value"), BUTTON_C);
-    add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+        sprintf(line, tr("%s: save   %s: back   %s: default value"), BUTTON_A, BUTTON_B, BUTTON_C);
+    add_prompts(settings_on_seed_row() ? tr("Up/Down: choose") : tr("Up/Down: choose   Left/Right: change"), line);
 }
 
 static void rebuild_settings(void)
@@ -1171,8 +1200,8 @@ static void rebuild_settings(void)
         if (g_settings_leave_armed)
             sprintf(line, tr("Press %s again to leave without saving."), BUTTON_B);
         else
-            sprintf(line, tr("Up/Down: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
-        add_label(line, g_font_small, 20, 440, 600, 20, g_settings_leave_armed ? COLOR_RED : COLOR_GREY);
+            sprintf(line, tr("%s: open   %s: back"), BUTTON_A, BUTTON_B);
+        add_key_prompts(tr("Up/Down: choose"), line, g_settings_leave_armed ? COLOR_RED : COLOR_GREY, NULL, COLOR_GREY);
         return;
     }
     if (seed_entry_open())
@@ -1295,8 +1324,8 @@ static void rebuild_gallery_kinds(void)
                       COLOR_GREY);
         }
     }
-    sprintf(line, tr("Up/Down: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, tr("%s: open   %s: back"), BUTTON_A, BUTTON_B);
+    add_prompts(tr("Up/Down: choose"), line);
 }
 
 static void rebuild_gallery_characters(void)
@@ -1315,8 +1344,8 @@ static void rebuild_gallery_characters(void)
                 count_of_kind(character, g_gallery_kind));
         add_label(line, g_font_small, pos_x + 6, pos_y + 32, 110, 20, COLOR_GREY);
     }
-    sprintf(line, tr("Arrows: choose   %s: open   %s: back"), BUTTON_A, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+    sprintf(line, tr("%s: open   %s: back"), BUTTON_A, BUTTON_B);
+    add_prompts(tr("Arrows: choose"), line);
 }
 
 /* The card under the cursor, as on the deck screen. */
@@ -1347,10 +1376,10 @@ static void rebuild_gallery_cards(void)
     }
     /* Nothing to play again on a face-down card, or with card sounds off. */
     if ((g_cursor < g_gallery_count && !gallery_card_shown(g_cursor)) || !card_sounds_on())
-        sprintf(line, tr("Arrows: inspect   %s: back"), BUTTON_B);
+        sprintf(line, tr("%s: back"), BUTTON_B);
     else
-        sprintf(line, tr("Arrows: inspect   %s: play sound   %s: back"), BUTTON_CARD, BUTTON_B);
-    add_label(line, g_font_small, 20, 440, 600, 20, COLOR_GREY);
+        sprintf(line, tr("%s: play sound   %s: back"), BUTTON_CARD, BUTTON_B);
+    add_prompts(tr("Arrows: inspect"), line);
 }
 
 static void draw_box(int pos_x, int pos_y, int width, int height, unsigned fill, unsigned border);
@@ -1424,7 +1453,7 @@ static void rebuild_opponent(void)
         add_label(tr("Girls are now praying..."), g_font_big, 20, 200, 600, 30, COLOR_WHITE);
         add_label(tr("Your opponent is still taking their reward."), g_font_small, 20, 236, 600, 20, COLOR_GREY);
         sprintf(line, tr("%s: stop waiting"), BUTTON_B);
-        add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+        add_prompts(NULL, line);
         return;
     }
     add_label(tr("Deck changes"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
@@ -1441,7 +1470,7 @@ static void rebuild_opponent(void)
         add_share_section(player, line, character, &added, &removed);
     }
     sprintf(line, tr("%s: continue"), BUTTON_A);
-    add_label(line, g_font_small, 20, 458, 600, 20, COLOR_GREY);
+    add_prompts(NULL, line);
 }
 
 static void draw_opponent_cards(void)

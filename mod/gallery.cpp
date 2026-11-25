@@ -114,7 +114,9 @@ static void open_cards(int character)
     g_cursor = 0;
     g_gallery_art_dirty = 1;
     g_dirty = 1;
-    play_card_under_cursor(SOUND_SETTLE_FRAMES);
+    /* Only card sounds set to automatic play a card the cursor rests on. */
+    if (card_sounds_automatic())
+        play_card_under_cursor(SOUND_SETTLE_FRAMES);
 }
 
 static void open_kinds(void)

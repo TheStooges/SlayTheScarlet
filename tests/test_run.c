@@ -118,7 +118,7 @@ void test_run_draft(void)
             "[draft]\ncard_types=one_of_each\n",
             "[deck]\nsize_min=10\nsize_max=40\n",
             "[deck]\nsize_min=30\nsize_max=30\n",
-            "[deck]\ncopy_limit=1\n[draft]\ncard_types=mostly_skill\n",
+            "[deck]\ncopy_limit=1\n[draft]\ncard_types=mostly_skill\n[reward]\ncopies_max=1\n",
         };
         size_t wau;
         for (wau = 0; wau < sizeof inis / sizeof inis[0]; wau++) {
@@ -350,6 +350,7 @@ static void test_rewards_by_type(void)
     int j;
 
     sts_settings_defaults(&settings);
+    settings.reward.copies_max = 1;   /* one card in and one out per reward */
     settings.reward.replace = STS_REPLACE_BY_TYPE;
     ready_run(&run, &settings, 2, 31);
     for (j = 0; j < 50; j++) {
@@ -536,7 +537,7 @@ static void test_rewards_add_and_remove(void)
     sts_reward_outcome out;
     int line = 0, j;
 
-    CHECK(parse_ini("[deck]\nsize_min=20\nsize_max=23\n[reward]\nmode=add\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[deck]\nsize_min=20\nsize_max=23\n[reward]\nmode=add\ncopies_max=1\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
     ready_run(&run, &settings, 4, 41);
     for (j = 0; j < 3; j++) {
@@ -548,7 +549,7 @@ static void test_rewards_add_and_remove(void)
     CHECK(run.phase == STS_PHASE_READY && run.deck.count == 23);
 
     /* The draft stops at the smallest deck, so add grows it to the largest first. */
-    CHECK(parse_ini("[deck]\nsize_min=18\nsize_max=20\n[reward]\nmode=add\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[deck]\nsize_min=18\nsize_max=20\n[reward]\nmode=add\ncopies_max=1\n", &settings, &line) == STS_SETTINGS_OK);
     CHECK(sts_settings_validate(&settings) == NULL);
     ready_run(&run, &settings, 4, 42);
     CHECK(run.deck.count == 18);
@@ -1266,7 +1267,7 @@ static void test_reward_time_out(void)
     CHECK_EACH_DONE();
 
     /* By type: the type chosen leaves, or a random type that can. */
-    CHECK(parse_ini("[reward]\nreplacement=by_type\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(parse_ini("[reward]\nreplacement=by_type\ncopies_max=1\n", &settings, &line) == STS_SETTINGS_OK);
     for (wau = 0; wau < 20; wau++) {
         int type = wau % 2 ? -1 : STS_CARD_SYSTEM;
 

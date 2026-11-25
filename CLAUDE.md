@@ -32,8 +32,10 @@ defaults to be chosen after playtesting. Do not hardcode any of these:
 - Which offered card comes in: player chooses / random
 - Replacement control: player chooses specific cards / chooses by type (system, skill, spell) / random
 - Offer copy counts: fixed 1 or random (e.g. 2x A / 4x B / 1x C)
-- Opponent visibility of picks: hidden / reveal after you confirm (suggested default) / live
-- Opponent deck display: change only / full deck
+- Opponent visibility of picks: dropped by decision (2026-11-25). Seeing the changes afterwards
+  (`[netplay] share_changes`, v0.6) is enough; live picks would be much work for little gain.
+- Opponent deck display: change only / full deck. Kept, undecided; perhaps only at the end of a run,
+  beside the run endings of roadmap 12.
 - Items on/off; item definitions loaded from a data file, not compiled in
 
 Offer generation must filter the card pool *before* rolling (never offer a card that would break
@@ -579,6 +581,19 @@ logs or personal profiles. Keep reference files from the game install in a gitig
 
 ## Roadmap
 
+Order (decided 2026-11-25): changes that alter the game less come sooner, changes that alter it more
+come later. Things only the mod sees (its screens, settings, which cards it offers, such as rarity)
+go before anything that changes a match itself (items, status and curse cards), which come much later.
+After v0.6: reorganising the in-game settings (details to come from the developer), then the v0.6
+spectator results, then rarity (15); items (6) and status and curse cards (16) much later.
+Also mod-only, not yet placed: a proper way into the mod instead of F7 (3; F7 stays for now, by
+decision, but this may change); the opponent's deck
+display, perhaps at a run's end, and run endings (12), both undecided; turning off starting over for
+events (14); one set of rules online (11), to be revisited; the open community questions. Still to
+play: the set seed across machines (14) and player 2 in local VS. Changing the match, so after rarity
+and before items: deck sizes other than 20 with the add and remove rewards (4, 5), and a copy limit
+above 4; both need patches to the game's checks, and full mode online.
+
 1. (done) `core/`: deck model, validation (size/copy rules from settings), offer generator with
    pool filter, draft logic, settings, run save format, `.pf` deck reader (real profiles make
    good test data), tests.
@@ -609,8 +624,8 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    match numbered one after the last gets a notice (a new pair or a late join gets none), and only
    while the spectator's replay requests ask for that match (their match byte counts the same way as
    `GAME_MATCH`'s, seen in the v0.3.2 spectator log), so a catch-up replay of the previous match does
-   not show it. Then live picks over a Giuroll-dropped packet type (0x6F-0x80), relayed
-   by the client down the spectator tree.
+   not show it. Live picks (showing a player's choice as it is made) were planned next, and are
+   dropped by decision (2026-11-25): the changes shown afterwards are enough.
    Decided (2026-11-18): packets only after a handshake, so compatible mode's rule (nothing custom to
    a peer without the mod) holds. Once the opponent is known to have the mod, the players can also
    compare settings, for tournaments (casual play can ignore a mismatch). Deck changes are sent on
@@ -748,7 +763,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    (`data/infoEffect/cardFaceDown`) and silent. Unlock the gallery (a row under the kinds, pressed twice) shows every card from then on (`gallery_unlocked` in `state.txt`); the row then reads Gallery unlocked, greyed out, or All cards obtained once every card is found in runs. The found counts stay true. With `[sound] card_sounds=automatic`, a card's first sound plays when the cursor has rested for 74 frames, wherever it falls in the move.
    The draft and reward screens play the offer under the cursor the same way, first outcome only
    (`card_sounds_follow_offers`, once a frame from `screen_update`). The deck screen plays a card only on Use Card.
-   `[sound] card_sounds` (Settings, Sounds, a menu of its own; not a rule, like the roulette): `use_card` (the default: Use Card, `EV_CARD` from `input.spellcard`, plays the card under the cursor on the offers, the deck screen, and in the gallery), `automatic` (offers and gallery cards also play after the settle delay), or `off` (no card sounds; the 048 warning before a reset always plays). Key prompts name buttons by action (Melee, Weak Shot, Strong Shot, Dash, Use Card) with the key of the device the profile is set to (`profile.controllerIndex`: -1 keyboard, else a pad; the `.pf` header's first byte). A settings row that needs another setting first is greyed out and skipped (`settings_row.disabled`), not hidden. Shared
+   `[sound] card_sounds` (file only since 2026-11-25, when the Sounds menu left the settings screen; not a rule, like the roulette): `use_card` (the default: Use Card, `EV_CARD` from `input.spellcard`, plays the card under the cursor on the offers, the deck screen, and in the gallery), `automatic` (offers and gallery cards also play after the settle delay), or `off` (no card sounds; the 048 warning before a reset always plays). Key prompts name buttons by action (Melee, Weak Shot, Strong Shot, Dash, Use Card) with the key of the device the profile is set to (`profile.controllerIndex`: -1 keyboard, else a pad; the `.pf` header's first byte). A settings row that needs another setting first is greyed out and skipped (`settings_row.disabled`), not hidden. Shared
    sounds named so far: 001 light hit, 006 cut, 007 heavy hit, 008 slash, 020 block, 022 wall or ground
    bounce, 023 spell card declared (the default for spells), 026 spirit crystal landing (never a
    card's), 027 light swing, 029 swing, 031 dash, 036 card generated, 053 weather activated, 054 card used (the
@@ -770,7 +785,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    first. Details: play only once the cursor settles, so fast scrolling does not stack sounds; a
    setting to turn it off, cosmetic so not in the fingerprint (like `show_deck`). Cheaper fallback
    if it stalls: one shared game sound per card type (e.g. `SFX_SPELL_ACTIVATE` for spells).
-9. (built for v0.4, not yet played in game) Time limit: `[reward] time_limit`, off (0) by default for now
+9. (built for v0.4, played online between two copies on one PC, 2026-11-20) Time limit: `[reward] time_limit`, off (0) by default for now
    (the developer's choice), 0 to 90 in steps of 15, hashed only when set. Counted in frames in the run's `offer_frames` (saved every second),
    on every offer screen. On time-out `sts_run_reward_time_out` keeps the offer and cards already
    chosen and rolls the rest from the run's RNG. With a limit, the deck screen after a reward moves on
@@ -783,7 +798,7 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    the timer (a small save format change). In compatible mode only the local player sees the timer;
    showing it to a modded opponent needs full mode messages. See how much players stall in phase 2
    before setting a default.
-10. (built for v0.4, not yet played in game) Roulette: `[reward] roulette`,
+10. (built for v0.4, played in game; it looks right, 2026-11-25) Roulette: `[reward] roulette`,
    on by default, not a rule (left out of the fingerprint and of a run's saved rules). With
    `offer_pick=random` the core keeps the offers it picked from in `sts_run.rolled` (not saved, so a
    restart just shows the pick); on a time-out with no offer chosen, `sts_run_random_offer` draws the
@@ -813,14 +828,29 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    mod through `tr()` (translated), not read from the file's comments. Settings with no effect yet
    (deck size and copy limit, forced by compatible mode; pick visibility, opponent deck, items) are
    not shown, by decision: they join a menu when they do something. The reward mode only steps
-   between replace and skip, Saving
+   between replace and skip (No offers kept for debugging; it will become the add and remove mode,
+   name pending). Reorganised by decision (2026-11-25), keeping every setting in the file and core,
+   as items may change them later: every value goes round past either end (numbers too, in
+   `sts_settings_step`); cards per pick and per offer (3) and fewest and most copies (1 and 4, the
+   new default) are off the screen; card types step through Weighted, One of each, and Random only;
+   when you get an offer leaves out Random (so its chance shows only when a file sets Random); the
+   Sounds menu is gone (`card_sounds` stays `use_card`); "Player chooses ..." reads "Choose an offer", "Choose cards", "Choose a type"
+   (an offer, not a card, as it can give several copies); on every screen the key prompts put
+   directions on one line and buttons below, the last line at the bottom (`add_key_prompts` in
+   `mod/screen_draw.cpp`; a third line for the run toggle on the character menu and deck screen).
+   A value the screen leaves out still shows when the file sets it, until stepped past
+   (`value_on_screen` in `mod/settings_screen.cpp`). Saving
    runs `sts_settings_validate` and the starter check, lists the runs whose rules would change and
    asks, refuses if the file changed on disk since the screen opened, then writes through
    `sts_settings_rewrite` (only changed values; missing settings added to their section) to a
    temporary file moved over the old one. The settings reload at once: a run in use whose rules
-   changed stops as at start-up (`state.txt` kept), and comes back if they are changed back.  In full mode both players need one set of rules (probably the host's), and the
-   screen should show which rules are in force.
-12. (built for v0.4, not yet played in game) Match limit and score screen: `[run] matches`, 0 =
+   changed stops as at start-up (`state.txt` kept), and comes back if they are changed back.
+   One set of rules online (2026-11-25, to be revisited): forcing the host's rules on both players
+   would clash with run decks built under each player's own rules, perhaps beyond reconciling, so for
+   now the warning at character select (v0.6) is enough. An alternative idea: the draft begins on
+   connecting to the host, under the host's rules; it would get in the way of the usual character
+   select, so it may be too hard.
+12. (built for v0.4, played online between two copies on one PC, 2026-11-24) Match limit and score screen: `[run] matches`, 0 =
    endless and the default, up to 20 (by decision; the history keeps 100, so a finished run always
    has every match), part of the fingerprint only when set. The score screen lists the deck before
    the first match and each match; the chosen one shows the deck after it (worked out backwards from
@@ -841,14 +871,17 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    runs are independent (the opponent may not be on a run); in full mode the players could share
    the limit and see each other's score screen (custom messages). Opponent names stay local only.
    Open: a "first to N wins" limit instead, and ending a run early after N losses (like dying in
-   Slay the Spire); both would be settings beside `matches`.
+   Slay the Spire); both would be settings beside `matches`. Still undecided (2026-11-25), and kept.
+   Showing the opponent's full deck (the old "opponent deck display" setting) may pair with these,
+   at the end of a run.
 13. (done, for v0.2) Screen background: every mod screen draws over something not meant for it
    (the stopped battle scene after a match, so plain black; the title menu before one, showing
    through the text). Now every screen draws the deck editor's gear background
    (`data/scene/select/bg`), then on run screens the character's portrait (`data/stand/<folder>`)
    at tint alpha 0x48, then a 0x60 black shade. 0x70 was too strong: white text over a light
    portrait (Komachi's apron) was hard to read. Falls back to plain black if loading fails.
-14. (built for v0.4, not yet played in game) Set seed: `[run] seed`, a word of up to 24 letters,
+14. (built for v0.4, played on one PC, 2026-11-25; still to check that two machines give the same
+   draft for one character) Set seed: `[run] seed`, a word of up to 24 letters,
    digits, `-` and `_`, case-sensitive by decision, blank by default, hashed only when set. In game it
    is typed into a text box of the mod's own on Settings, Runs (A opens it; letters, digits, - and _
    read with GetAsyncKeyState; Enter keeps, Esc cancels; the screen's buttons are ignored meanwhile).
@@ -870,8 +903,36 @@ logs or personal profiles. Keep reference files from the game install in a gitig
    can edit the seed or the run file (the save checksum only catches accidents). So make it visible
    rather than impossible: count starts over in the run (save format change) and show the seed, the
    rules fingerprint and that count on item 12's score screen, for players to submit as a screenshot.
-   Open: whether events allow starting over at all (allow and count, only before the first match, or
-   never), as an event rule setting.
+   Decided (2026-11-25): starting over is never allowed in an event, so an event's rules must be
+   able to turn it off (not built yet). A player can still delete the run's save by hand; that stays
+   the way out of an emergency such as a misclick, and is not counted.
+
+15. (idea, 2026-11-25, not designed yet) Card rarity, as in Slay the Spire: Common, Uncommon and Rare,
+   a tier for every card chosen and balanced by the community for strength, NOT the game's own rarity
+   column (that drives unlocks and says nothing about strength). Rare cards are the strong ones a deck is
+   built around (e.g. Sakuya's Killing Doll and Private Square); without tiers a strong card turns up as
+   often as any other and is an instant pick every time. Decided so far: Rare appears less often than
+   Uncommon, Uncommon less often than Common; Rare never in the draft; every starter card is Common.
+   Open: whether Uncommon can appear in the draft; whether Rare is a lower weight or only offered every N
+   matches (or a chance after N). Look: Uncommon cards outlined cyan, Rare gold, wherever cards show
+   (offers, deck, gallery, the change screens); maybe an effect behind a hovered card, with Tenshi's
+   4-cost State of Enlightenment and Remilia's 4-cost Millennium Vampire suggested as visuals to borrow
+   (their effect files are not found yet). Fits the rules-are-settings principle: the tiers would be a
+   data file (e.g. a column in `data/cards.csv`, or a `data/rarity.csv` the community can edit), and how
+   tiers are offered would be settings; both change what is offered, so both count towards the
+   fingerprint, and offer generation filters by tier before rolling, as it does for the copy limit.
+
+16. (idea, 2026-11-25; by decision, well after the open beta) Status and curse cards, as in Slay the
+   Spire: universal cards, not tied to a character. Status cards bloat the deck so a hand has less to
+   work with, sometimes with an extra effect; the simplest does nothing but cost the time and meter to
+   use it. Curse cards are usually unplayable, sometimes cannot be removed, and give a debuff, usually
+   while in the hand. Like items (roadmap 6), they change the match, so: full mode only, both machines
+   must know both decks' extra cards before the first frame, and any debuff must survive Giuroll's
+   rollback. Everything up to v0.6 is still playable with only the game's own elements; this would be
+   the first that is not. Hard parts, none investigated: card IDs the game does not have (a deck with an
+   unknown or illegal card is silently dropped, see the findings), their art and text, how a card that
+   does nothing (or cannot be played) is used up, and the deck-loading patches. Out of scope by decision:
+   new skill, spell or system cards, which would need new moves, effects and sounds.
 
 ## Open questions
 

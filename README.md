@@ -79,7 +79,7 @@ new ones. A time limit can be set (Settings, Rewards; off by default): when it r
 choices you made are kept and the rest are made at random, so your opponent never waits long. The
 deck screen after a reward then moves on by itself after 15 seconds. A card picked for you at random
 is shown by the cursor running through the offers and slowing down onto it, and cards that leave at
-random by the cursor running over your deck and marking them (turn this off with "Show random picks"
+random by the cursor running over your deck and marking them (turn this off with "Roulette animation"
 in Settings, Rewards; the confirm button skips it). The time spent is saved, so
 closing the game does not give you more.
 
@@ -103,9 +103,9 @@ twice; it cannot be undone).
 ### Card sounds
 
 On the draft, after a match, on the deck screen, and in the Gallery, the Use Card button plays the
-sounds the card under the cursor makes in a match. In Settings, Sounds, "Card sounds" can also play
-offers and Gallery cards on their own once the cursor rests on them (Automatic), or turn card sounds
-off (Off).
+sounds the card under the cursor makes in a match. In `settings.ini`, `[sound] card_sounds` can also
+play offers and Gallery cards on their own once the cursor rests on them (`automatic`), or turn card
+sounds off (`off`).
 
 ### Online
 
@@ -133,11 +133,13 @@ Online, only player 1's runs are used. Player 2's runs are for VS Player.
 
 Rules are set in `settings.ini`, which lists and explains every option. You can also change them in
 game: press F7 and choose **Settings** under the characters. The settings are split into menus (Draft,
-Rewards, Runs, Netplay, and Sounds). In a menu, up and down choose a setting, left and right change it, and the line below
+Rewards, Runs, and Netplay). In a menu, up and down choose a setting, left and right change it (going
+round past the last value), and the line below
 explains it. Changes are kept across menus until you save them. Saving writes only the values you
 changed, so the file keeps its comments and can still be shared as a set of rules. If the change
 affects runs you have already started, the screen names them and asks before saving. A setting that
-needs another one first is greyed out. Settings that do nothing yet are only in the file.
+needs another one first is greyed out. Settings that do nothing yet, and a few kept for later (cards
+per offer, copies per offer, card sounds, and some choices of others), are only in the file.
 
 The draft always adds one card per pick until the deck is full. You can change how many cards are
 offered (up to 3), which card types appear and how often, who gets an offer after a

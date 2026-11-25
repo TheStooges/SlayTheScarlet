@@ -438,7 +438,7 @@ static void test_settings_one_value(void)
     sts_settings_defaults(&settings);
     CHECK(sts_settings_get(&settings, "draft", "offers", value, sizeof value) && strcmp(value, "3") == 0);
     CHECK(!sts_settings_get(&settings, "draft", "picks", value, sizeof value));
-    CHECK(sts_settings_get(&settings, "reward", "copies_max", value, sizeof value) && strcmp(value, "1") == 0);
+    CHECK(sts_settings_get(&settings, "reward", "copies_max", value, sizeof value) && strcmp(value, "4") == 0);
     CHECK(sts_settings_get(&settings, "draft", "show_deck", value, sizeof value) && strcmp(value, "true") == 0);
     CHECK(sts_settings_get(&settings, "draft", "card_types", value, sizeof value) && strcmp(value, "weighted") == 0);
     CHECK(sts_settings_get(&settings, "reward", "who_picks", value, sizeof value) && strcmp(value, "both") == 0);
@@ -464,15 +464,20 @@ static void test_settings_one_value(void)
     CHECK(sts_settings_set(&settings, "draft", "colour", "red") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_equal(&settings, &before));
 
-    /* Numbers step within the screen's range. */
+    /* Numbers step within the screen's range, and go round past either end. */
     sts_settings_defaults(&settings);
     CHECK(sts_settings_step(&settings, "draft", "offers", 1) && settings.draft.offer_count == 4);
-    for (wau = 0; wau < 20; wau++)
-        sts_settings_step(&settings, "draft", "offers", 1);
-    CHECK(settings.draft.offer_count == STS_OFFER_MAX);
-    for (wau = 0; wau < 20; wau++)
-        sts_settings_step(&settings, "reward", "copies_max", -1);
-    CHECK(settings.reward.copies_max == 1);
+    while (settings.draft.offer_count < STS_OFFER_MAX)
+        CHECK(sts_settings_step(&settings, "draft", "offers", 1));
+    CHECK(sts_settings_step(&settings, "draft", "offers", 1) && settings.draft.offer_count == 1);
+    CHECK(sts_settings_step(&settings, "draft", "offers", -1) && settings.draft.offer_count == STS_OFFER_MAX);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 90);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 0);
+    /* A value from the file between steps stops at the end before going round. */
+    CHECK(sts_settings_set(&settings, "reward", "time_limit", "80") == STS_SETTINGS_OK);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 90);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 0);
+    sts_settings_defaults(&settings);
 
     /* Choices go round in order, both ways. */
     CHECK(sts_settings_step(&settings, "reward", "who_picks", -1) && settings.who_picks == STS_WHO_RANDOM);
@@ -494,16 +499,16 @@ static void test_settings_one_value(void)
     CHECK(!sts_settings_step(&settings, "draft", "nonsense", 1));
     CHECK(sts_settings_equal(&settings, &before));
 
-    /* The chance of a random offer steps by 25 within 0 to 100, and a value between steps moves
-     * onto the next one. */
+    /* The chance of a random offer steps by 25 within 0 to 100, going round past either end, and a
+     * value between steps moves onto the next one. */
     sts_settings_defaults(&settings);
     CHECK(settings.random_chance == 50);
     CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 75);
     CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 100);
-    CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 100);
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 0);
     settings.random_chance = 25;
     CHECK(sts_settings_step(&settings, "reward", "random_chance", -1) && settings.random_chance == 0);
-    CHECK(sts_settings_step(&settings, "reward", "random_chance", -1) && settings.random_chance == 0);
+    CHECK(sts_settings_step(&settings, "reward", "random_chance", -1) && settings.random_chance == 100);
     settings.random_chance = 60;
     CHECK(sts_settings_step(&settings, "reward", "random_chance", 1) && settings.random_chance == 75);
     settings.random_chance = 60;
@@ -528,17 +533,16 @@ static void test_settings_one_value(void)
     settings.who_picks = before.who_picks = STS_WHO_RANDOM;
     CHECK(sts_settings_hash(&settings) != sts_settings_hash(&before));
 
-    /* Fewest and most copies cannot pass each other. The draft's copies are not settings. */
+    /* Fewest and most copies cannot pass each other: each goes round within the other's bound. The
+     * draft's copies are not settings. */
     sts_settings_defaults(&settings);
     CHECK(!sts_settings_step(&settings, "draft", "copies_max", 1) && settings.draft.copies_max == 1);
+    settings.reward.copies_max = 2;
+    CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 2);
     CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 1);
+    settings.reward.copies_min = 2;
+    CHECK(sts_settings_step(&settings, "reward", "copies_max", -1) && settings.reward.copies_max == STS_GAME_COPY_LIMIT);
     CHECK(sts_settings_step(&settings, "reward", "copies_max", 1) && settings.reward.copies_max == 2);
-    CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 2);
-    CHECK(sts_settings_step(&settings, "reward", "copies_min", 1) && settings.reward.copies_min == 2);
-    CHECK(sts_settings_step(&settings, "reward", "copies_max", -1) && settings.reward.copies_max == 2);
-    for (wau = 0; wau < 5; wau++)
-        sts_settings_step(&settings, "reward", "copies_max", 1);
-    CHECK(settings.reward.copies_max == STS_GAME_COPY_LIMIT);
     settings.reward.copies_min = 3;   /* upside down, from the file */
     settings.reward.copies_max = 2;
     CHECK(sts_settings_step(&settings, "reward", "copies_min", -1) && settings.reward.copies_min == 2);
@@ -594,7 +598,7 @@ static void test_settings_rewrite(void)
         CHECK(strstr(result, "\nwho_picks=both\n") == NULL);
         /* 3 to 2 keeps the length, false to true is one shorter, both to winner two longer. */
         CHECK(strlen(result) == strlen(shipped) - 1 + 2);
-        CHECK(strstr(result, "# How many cards each pick offers. The screen fits up to 3.\noffers=2\n") != NULL);
+        CHECK(strstr(result, "# How many cards each pick offers. The screen fits up to 3. Not on the in-game screen.\noffers=2\n") != NULL);
         free(result);
     }
 
@@ -730,10 +734,9 @@ static void test_settings_match_limit(void)
     CHECK(parse_ini("[run]\nmatches=-1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
 
     sts_settings_defaults(&settings);
-    CHECK(sts_settings_step(&settings, "run", "matches", -1) && settings.match_limit == 0);
+    CHECK(sts_settings_step(&settings, "run", "matches", -1) && settings.match_limit == STS_MATCH_LIMIT_MAX);
+    CHECK(sts_settings_step(&settings, "run", "matches", 1) && settings.match_limit == 0);
     CHECK(sts_settings_step(&settings, "run", "matches", 1) && settings.match_limit == 1);
-    settings.match_limit = STS_MATCH_LIMIT_MAX;
-    CHECK(sts_settings_step(&settings, "run", "matches", 1) && settings.match_limit == STS_MATCH_LIMIT_MAX);
 }
 
 /* The set seed: blank by default, a word of plain characters, part of the fingerprint only when set,
@@ -800,10 +803,10 @@ static void test_settings_time_limit(void)
     settings.time_limit = 60;
     CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 75);
     CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 90);
-    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 90);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", 1) && settings.time_limit == 0);
     settings.time_limit = 15;
     CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 0);
-    CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 0);
+    CHECK(sts_settings_step(&settings, "reward", "time_limit", -1) && settings.time_limit == 90);
 }
 
 /* The roulette is only for show: on by default, and neither in the fingerprint nor in a run's rules. */

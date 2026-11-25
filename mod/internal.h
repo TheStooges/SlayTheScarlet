@@ -129,7 +129,7 @@ typedef struct {
 } settings_row;
 #define MAX_SETTINGS_ROWS 48
 /* The settings are split into menus, listed in this order and followed by Save changes. */
-enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_NETPLAY, SETTINGS_MENU_SOUND,
+enum { SETTINGS_MENU_DRAFT, SETTINGS_MENU_REWARD, SETTINGS_MENU_RUN, SETTINGS_MENU_NETPLAY,
        SETTINGS_MENU_COUNT };
 #define SETTINGS_LIST_Y 56
 #define SETTINGS_ROW_H 19

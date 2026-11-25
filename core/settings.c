@@ -158,7 +158,7 @@ void sts_settings_defaults(sts_settings *settings)
     settings->reward.mode = STS_REWARD_REPLACE;
     settings->reward.offer_count = 3;
     settings->reward.copies_min = 1;
-    settings->reward.copies_max = 1;
+    settings->reward.copies_max = 4;
     settings->reward.type_mask = STS_TYPE_ALL;
     settings->reward.replace = STS_REPLACE_CHOOSE;
 
@@ -961,17 +961,19 @@ int sts_settings_step(sts_settings *settings, const char *section, const char *k
     switch (ref.kind) {
     case KIND_INT: {
         int size = ref.step_size > 0 ? ref.step_size : 1;
-        int number = read_number(&ref);
+        int before = read_number(&ref), number = before;
 
         /* A value between steps, from the file, moves onto the next step in that direction. */
         if (number % size != 0)
             number = number - number % size + (direction > 0 ? size : 0);
         else
             number += direction * size;
+        /* Past either end the value goes round to the other, as choices do. A value that was not
+         * yet at the end stops there first. */
         if (number > ref.step_max)
-            number = ref.step_max;
+            number = before >= ref.step_max ? ref.step_min : ref.step_max;
         if (number < ref.step_min)
-            number = ref.step_min;
+            number = before <= ref.step_min ? ref.step_max : ref.step_min;
         write_number(&ref, number);
         return 1;
     }

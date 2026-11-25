@@ -65,18 +65,13 @@ int settings_help_shown(const settings_row *row, int line)
     return strcmp(value, row->help_value[line]) == 0;
 }
 
-/* The draft and the reward have the same offer settings, except that only the reward's copies can
- * be set: the draft adds one card per pick. */
-static void add_offer_rows(const char *section, const char *copies_help)
+/* The draft and the reward have the same offer settings. How many cards an offer shows, and how
+ * many copies it gives, stay in settings.ini but are not on the screen, by decision: items may
+ * change them later. */
+static void add_offer_rows(const char *section)
 {
     settings_row *row;
 
-    add_row(section, "offers", section[0] == 'd' ? tr("Cards per pick") : tr("Cards per offer"),
-            section[0] == 'd' ? tr("How many cards each pick offers.") : tr("How many cards each offer shows."));
-    if (copies_help) {
-        add_row(section, "copies_min", tr("Fewest copies"), copies_help);
-        add_row(section, "copies_max", tr("Most copies"), copies_help);
-    }
     row = add_row(section, "card_types", tr("Card types"), NULL);
     add_value_help(row, "random", tr("Random: every card is equally likely."));
     add_value_help(row, "weighted", tr("Weighted: each type comes up about as often as the others."));
@@ -93,7 +88,6 @@ const char *settings_menu_name(int menu)
     case SETTINGS_MENU_REWARD: return tr("Rewards");
     case SETTINGS_MENU_RUN:    return tr("Runs");
     case SETTINGS_MENU_NETPLAY: return tr("Netplay");
-    case SETTINGS_MENU_SOUND:  return tr("Sounds");
     }
     return tr("Save changes");
 }
@@ -105,7 +99,6 @@ const char *settings_menu_help(int menu)
     case SETTINGS_MENU_REWARD: return tr("The card offer after each match, and what it changes in the deck.");
     case SETTINGS_MENU_RUN:    return tr("How long a run lasts, and what happens to it when the rules change.");
     case SETTINGS_MENU_NETPLAY: return tr("Playing and watching online, when the others have the mod too.");
-    case SETTINGS_MENU_SOUND:  return tr("The sounds cards make on the mod's screens.");
     }
     return tr("Writes the changes from every menu to settings.ini.");
 }
@@ -127,7 +120,7 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "true", tr("On: the deck so far is shown beside the offers."));
         add_value_help(row, "false", tr("Off: a blind draft."));
         add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
-        add_offer_rows("draft", NULL);
+        add_offer_rows("draft");
         break;
     case SETTINGS_MENU_REWARD:
         row = add_row("reward", "mode", tr("Reward mode"), NULL);
@@ -139,27 +132,29 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "winner", tr("Only if you win: no offer after a loss."));
         add_value_help(row, "loser", tr("Only if you lose: no offer after a win."));
         add_value_help(row, "random", tr("Random: a set chance of an offer after each match, win or lose."));
-        row = add_row("reward", "random_chance", tr("Chance of an offer"),
-                      tr("Out of 100: how likely an offer is after each match."));
-        add_help_line(row, tr("Only with \"When you get an offer\" on Random."));
-        if (row)
-            row->disabled = g_settings_edit.who_picks != STS_WHO_RANDOM;
+        /* Random is not one of the screen's choices, by decision; a file that sets it still shows
+         * it, with its chance. */
+        if (g_settings_edit.who_picks == STS_WHO_RANDOM) {
+            row = add_row("reward", "random_chance", tr("Chance of an offer"),
+                          tr("Out of 100: how likely an offer is after each match."));
+        }
         row = add_row("reward", "offer_pick", tr("What comes into the deck"), NULL);
-        add_value_help(row, "choose", tr("Player chooses a card: pick one of the cards offered."));
-        add_value_help(row, "random", tr("Random: one of the cards offered is picked for you."));
+        add_value_help(row, "choose", tr("Choose an offer: pick one of the offers."));
+        add_value_help(row, "random", tr("Random: one of the offers is picked for you."));
         add_help_line(row, tr("With \"What leaves the deck\" on Random too, the swap happens by itself."));
         row = add_row("reward", "replacement", tr("What leaves the deck"), NULL);
-        add_value_help(row, "choose", tr("Player chooses cards: pick exactly which cards leave."));
-        add_value_help(row, "by_type", tr("Player chooses a type: random cards of the chosen type leave."));
+        add_value_help(row, "choose", tr("Choose cards: pick exactly which cards leave."));
+        add_value_help(row, "by_type", tr("Choose a type: random cards of the chosen type leave."));
         add_value_help(row, "random", tr("Random: the cards that leave are chosen at random."));
         row = add_row("reward", "time_limit", tr("Time limit"),
                       tr("Seconds to take an offer. When it runs out, what is left is chosen at random."));
         add_value_help(row, "0", tr("No limit: take as long as you like."));
-        row = add_row("reward", "roulette", tr("Show random picks"), NULL);
-        add_value_help(row, "true", tr("On: a pick made at random runs through the offers, or the deck, before it lands."));
-        add_value_help(row, "false", tr("Off: a pick made at random is shown straight away."));
-        add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
-        add_offer_rows("reward", tr("Each offer gives a random number of copies in this range."));
+        row = add_row("reward", "roulette", tr("Roulette animation"), NULL);
+        add_value_help(row, "true", tr("On: the cursor runs over the cards, then stops on the pick."));
+        add_value_help(row, "false", tr("Off: the result shows straight away."));
+        add_help_line(row, tr("Only for random picks: by a setting, or when time runs out."));
+        add_help_line(row, tr("Cosmetic, not a rule: the pick is the same either way."));
+        add_offer_rows("reward");
         break;
     case SETTINGS_MENU_RUN:
         row = add_row("run", "seed", tr("Set seed"), NULL);
@@ -184,13 +179,6 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "true", tr("On: the cards each player's deck gained and lost show while you watch."));
         add_value_help(row, "false", tr("Off: deck changes are not shown."));
         add_help_line(row, tr("This is not a rule, so runs carry on when it changes."));
-        break;
-    case SETTINGS_MENU_SOUND:
-        row = add_row("sound", "card_sounds", tr("Card sounds"), NULL);
-        add_value_help(row, "use_card", tr("On Use Card: a card plays its sounds when Use Card is pressed on it."));
-        add_value_help(row, "automatic", tr("Automatic: also once the cursor has rested on an offer or a gallery card."));
-        add_value_help(row, "off", tr("Off: cards make no sounds."));
-        add_help_line(row, tr("On the offers, the deck screen, and the gallery. This is not a rule, so runs carry on when it changes."));
         break;
     }
     return g_build_count;
@@ -226,8 +214,8 @@ static const char *choice_text(const char *raw)
     if (strcmp(raw, "skip") == 0) return tr("No offers");
     if (strcmp(raw, "add") == 0) return tr("Add a card");
     if (strcmp(raw, "remove") == 0) return tr("Remove a card");
-    if (strcmp(raw, "choose") == 0) return tr("Player chooses cards");
-    if (strcmp(raw, "by_type") == 0) return tr("Player chooses a type");
+    if (strcmp(raw, "choose") == 0) return tr("Choose cards");
+    if (strcmp(raw, "by_type") == 0) return tr("Choose a type");
     if (strcmp(raw, "random") == 0) return tr("Random");
     if (strcmp(raw, "weighted") == 0) return tr("Weighted");
     if (strcmp(raw, "one_of_each") == 0) return tr("One of each");
@@ -235,9 +223,6 @@ static const char *choice_text(const char *raw)
     if (strcmp(raw, "mostly_skill") == 0) return tr("Mostly Skill");
     if (strcmp(raw, "mostly_spell") == 0) return tr("Mostly Spell");
     if (strcmp(raw, "custom") == 0) return tr("Custom");
-    if (strcmp(raw, "off") == 0) return tr("Off");
-    if (strcmp(raw, "use_card") == 0) return tr("On Use Card");
-    if (strcmp(raw, "automatic") == 0) return tr("Automatic");
     return NULL;
 }
 
@@ -252,7 +237,7 @@ void settings_value_text(const settings_row *row, char *out, size_t size)
     sts_settings_get(&g_settings_edit, row->section, row->key, raw, sizeof raw);
     /* The other "choose" is about the cards that leave. */
     if (strcmp(row->key, "offer_pick") == 0 && strcmp(raw, "choose") == 0)
-        words = tr("Player chooses a card");
+        words = tr("Choose an offer");
     else if (strcmp(row->key, "matches") == 0 && strcmp(raw, "0") == 0)
         words = tr("Endless");
     else if (strcmp(row->key, "time_limit") == 0 && strcmp(raw, "0") == 0)
@@ -380,11 +365,24 @@ static void move_settings_cursor(int direction)
     g_dirty = 1;
 }
 
-/* Without the mod on both sides, a reward cannot change the deck size, so the reward only
- * steps between replacing a card and no offers. */
-static int reward_mode_allowed(void)
+/* Whether the screen steps onto the setting's current value. Without the mod on both sides, a reward
+ * cannot change the deck size, so the reward only steps between replacing a card and no offers. Some
+ * values are left off the screen by decision, kept for items or a file to use: Mostly System, Skill,
+ * and Spell card types, and an offer at random. A file can still set them, and the screen shows
+ * them until stepped past. */
+static int value_on_screen(const settings_row *row)
 {
-    return g_settings_edit.reward.mode == STS_REWARD_REPLACE || g_settings_edit.reward.mode == STS_REWARD_SKIP;
+    char value[64];
+
+    if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "mode") == 0)
+        return g_settings_edit.reward.mode == STS_REWARD_REPLACE || g_settings_edit.reward.mode == STS_REWARD_SKIP;
+    if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "who_picks") == 0)
+        return g_settings_edit.who_picks != STS_WHO_RANDOM;
+    if (strcmp(row->key, "card_types") == 0) {
+        sts_settings_get(&g_settings_edit, row->section, row->key, value, sizeof value);
+        return strcmp(value, "weighted") == 0 || strcmp(value, "one_of_each") == 0 || strcmp(value, "random") == 0;
+    }
+    return 1;
 }
 
 static void change_setting(int direction)
@@ -398,9 +396,8 @@ static void change_setting(int direction)
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
         return;
     }
-    if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "mode") == 0)
-        for (wau = 0; wau < 4 && !reward_mode_allowed(); wau++)
-            sts_settings_step(&g_settings_edit, row->section, row->key, direction);
+    for (wau = 0; wau < 8 && !value_on_screen(row); wau++)
+        sts_settings_step(&g_settings_edit, row->section, row->key, direction);
     /* No more offers than the screen fits. */
     if (g_settings_edit.draft.offer_count > OFFERS_ON_SCREEN)
         g_settings_edit.draft.offer_count = OFFERS_ON_SCREEN;
