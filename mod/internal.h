@@ -219,6 +219,14 @@ int game_is_japanese(void);
 /* screen_draw.cpp: a card's image, at its own size times scale. The character is whose card it is: the
  * same ID is a different card for each. Returns 0 if it could not be loaded. */
 int load_card_sprite(Sprite *sprite, int character, uint16_t id, int pos_x, int pos_y, unsigned scale);
+/* The effect behind an offer's card for its tier (an sts_rarity), centred on the card: Remilia's flames
+ * for uncommon, Tenshi's burst for rare, nothing for common. shown counts the frames since the offers
+ * appeared, the same for every offer so they stay in step; offer is its place, so each can take its own
+ * random way round. */
+void draw_offer_effect(int tier, int center_x, int center_y, unsigned shown, unsigned offer);
+/* Called as offers appear: plays the sound of the spell the effect comes from (nothing for common), and
+ * picks new random turns for the rare lightning. */
+void offer_effect_sound(int tier);
 
 /* card_text.cpp */
 void load_card_text(int character);

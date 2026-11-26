@@ -131,6 +131,20 @@ recorded here, and online logging now lives in `mod/net/netlog.cpp`.
 - **Skill input images:** `data/profile/deck2/022_SkillCard000Cost.bmp` to `004` (64x32) are the deck
   screen's images, one per skill input, in `cost_or_slot` order. The top half says "Skill Card", the
   bottom half has the arrows and button name. Paths load as `.bmp` though the archive holds `.cv2`.
+- **Card effect sprites** (effect probe, 2026-11-26, Practice mode): a character object's
+  `frameData->texIndex` is its image's place in `data/character/<name>/<name>.pat`'s image list
+  plus 85 (checked on Remilia and Tenshi; presumably 85 shared images come first). Images load by
+  `data/character/<name>/<image>.bmp`, held as 24-bit `.cv2` with black for nothing, drawn additive
+  (blend mode 2). Remilia's Millennium Vampire (action 608) makes one object, action 858: a red
+  flame aura, `bulletHa000` to `bulletHa019` (128x128), 2 frames each, looping, at 3x scale, centred
+  on her (frame offset 64,101), fading in over its first 13 images. Tenshi's State of Enlightenment
+  (action 606, sequence 1) makes a burst of action 856 objects: 12 sparks of `bulletCc001` in a
+  ring, `objectDd000` (a glow, 5x to 6x) and `objectDe000` (a ring, 2x) 100 pixels below her, and
+  red lightning, `spellBulletDa000` to `003` (128x128, 2 frames each), on her. A second run, logging
+  every pose: the glow pulses between two poses every 2 frames and ends after 25 frames, the ring
+  after 42, the sparks after 50; the lightning's fifth pose is a 20-frame blank, and it loops every 28
+  frames for as long as the spell lasts. Remilia's flames loop every 40 frames, ending with the spell
+  (684 frames in that run).
 - **Game archives** (`th123a.dat`, `th123b.dat`, `th123c.dat`; 11,663 files): u16 file count, u32
   list size, then the list, XORed with MT19937 (seeded with list size + 6, low byte of each output)
   and then a rolling key (start 0xC5, step 0x83, step grows by 0x53). Entries are u32 offset, u32

@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <shlwapi.h>
 #include <string.h>
+#include "effect_probe.h"
 #include "netlog.h"
 #include "spectator.h"
 #include "peers.h"
@@ -267,6 +268,7 @@ static int __fastcall on_select_render(SokuLib::Select *This)
 static int __fastcall on_battle_process(SokuLib::Battle *This)
 {
     deck_on_battle_frame();
+    effect_probe_frame();
     if (SokuLib::menuManager.empty())
         g_result_closing = 0;
     return (This->*g_og_battle_process)();

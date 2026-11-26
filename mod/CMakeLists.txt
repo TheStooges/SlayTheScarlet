@@ -22,6 +22,7 @@ add_library(SlayTheScarlet MODULE
   main.cpp
   card_sounds.cpp
   card_text.cpp
+  effect_probe.cpp
   embedded.cpp
   log.cpp
   text.cpp
@@ -30,6 +31,7 @@ add_library(SlayTheScarlet MODULE
   run/run_deck.cpp
   screens/gallery.cpp
   screens/history.cpp
+  screens/offer_effects.cpp
   screens/screen.cpp
   screens/screen_draw.cpp
   screens/settings_screen.cpp

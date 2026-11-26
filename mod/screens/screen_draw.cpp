@@ -1803,19 +1803,78 @@ static void draw_scrollbar(int pos_y, int height, int shown, int total, int top)
     draw_box(SCROLLBAR_X, pos_y + height * top / total, 4, height * shown / total, SCROLL_THUMB, SCROLL_THUMB);
 }
 
+/* Each offer's box is outlined in the colour of its rarity, as offers count it (sts_card_tier). */
+static const unsigned g_tier_borders[STS_TIER_COUNT] = {
+    0xFFA0A0A0u,   /* common: grey */
+    0xFF30D8FFu,   /* uncommon: cyan */
+    0xFFFFB020u    /* rare: gold, deeper than the cursor's pale yellow */
+};
+
+/* The offers on screen, to tell when new ones appear. */
+static uint32_t offers_signature(const sts_offer *offers, int count)
+{
+    uint32_t hash = 2166136261u ^ (uint32_t)count ^ ((uint32_t)g_run.picks_done << 8) ^ ((uint32_t)g_run.matches_played << 16);
+    int wau;
+
+    for (wau = 0; wau < count; wau++)
+        hash = (hash ^ offers[wau].id ^ ((uint32_t)offers[wau].copies << 12)) * 16777619u;
+    return hash;
+}
+
 static void draw_offers(void)
 {
+    static unsigned shown = 0;
+    static uint32_t last_signature = 0;
+    static DWORD last_drawn = 0;
+    const sts_offer *offers;
     int offer_count, wau;
+    int rarity = g_run.phase == STS_PHASE_DRAFT ? g_settings.draft.rarity : g_settings.reward.rarity;
+    uint32_t signature;
+    DWORD now = GetTickCount();
 
-    shown_offers(&offer_count);
+    offers = shown_offers(&offer_count);
+    /* The effects start again with each new set of offers, as a spell's do when it is used, and when
+     * the offers come back on screen after a while away. The highest rarity's spell sound plays. */
+    signature = offers_signature(offers, offer_count);
+    if (signature != last_signature || now - last_drawn > 250) {
+        int highest = -1;
+
+        last_signature = signature;
+        shown = 0;
+        for (wau = 0; wau < offer_count && rarity; wau++) {
+            const sts_card *card = sts_card_db_find(&g_db, g_run.character, offers[wau].id);
+
+            if (card && sts_card_tier(card) > highest)
+                highest = sts_card_tier(card);
+        }
+        offer_effect_sound(highest);
+    }
+    last_drawn = now;
     for (wau = 0; wau < offer_count && wau < STS_OFFER_MAX; wau++) {
-        int selected = wau == g_cursor;
+        const sts_card *card = sts_card_db_find(&g_db, g_run.character, offers[wau].id);
+        int selected = wau == g_cursor, pos_x = offer_x(wau, offer_count);
+        unsigned border = selected ? CURSOR_BORDER : 0x80FFFFFFu;
 
-        draw_box(offer_x(wau, offer_count), OFFER_Y, OFFER_W, 226, selected ? CURSOR_FILL : 0x40FFFFFFu,
-                 selected ? CURSOR_BORDER : 0x80FFFFFFu);
-        if (g_has_art[wau])
+        if (rarity && card)
+            border = g_tier_borders[sts_card_tier(card)];
+        draw_box(pos_x, OFFER_Y, OFFER_W, 226, selected ? CURSOR_FILL : 0x40FFFFFFu, border);
+        /* The selected box's outline is twice as thick, as its colour now tells the rarity. */
+        if (selected && rarity && card)
+            draw_box(pos_x + 1, OFFER_Y + 1, OFFER_W - 2, 224, 0, border);
+        if (g_has_art[wau]) {
+            /* The effect behind the card, in step on every offer, as a pick's offers share their rarity;
+             * each turns its lightning its own way. */
+            if (rarity && card) {
+                SokuLib::Vector2i where = g_art[wau].getPosition();
+                SokuLib::Vector2u size = g_art[wau].getSize();
+
+                draw_offer_effect(sts_card_tier(card), where.x + (int)size.x / 2, where.y + (int)size.y / 2, shown,
+                                  (unsigned)wau);
+            }
             g_art[wau].draw();
     }
+    }
+    shown++;
     if (draft_deck_shown())
         draw_draft_deck();
 }
