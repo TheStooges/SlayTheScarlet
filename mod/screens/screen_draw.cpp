@@ -2199,36 +2199,51 @@ void screen_render(int opaque)
     }
 }
 
-void screen_render_rules_warning(void)
-{
-    static Sprite line;
-    static int made = 0;
-    static SokuLib::Vector2i size;
-    int pos_x, pos_y;
+/* One warning line, made the first time it is needed. */
+typedef struct {
+    Sprite line;
+    int made;
+    SokuLib::Vector2i size;
+} warning_line;
 
-    if (!peers_opponent_rules_differ())
-        return;
-    if (!made) {
-        made = 1;
-        if (!line.texture.createFromText(tr("StS: Opponent's rules differ."), g_font_small, {600, 20},
-                                         &size)) {
-            size.x = 0;
+static void draw_warning(warning_line *warning, const char *text, int bottom)
+{
+    if (!warning->made) {
+        warning->made = 1;
+        if (!warning->line.texture.createFromText(text, g_font_small, {600, 20}, &warning->size)) {
+            warning->size.x = 0;
             return;
         }
-        line.setSize(size.to<unsigned>());
-        line.rect.left = 0;
-        line.rect.top = 0;
-        line.rect.width = size.x;
-        line.rect.height = size.y;
-        line.tint = COLOR_RED;
+        warning->line.setSize(warning->size.to<unsigned>());
+        warning->line.rect.left = 0;
+        warning->line.rect.top = 0;
+        warning->line.rect.width = warning->size.x;
+        warning->line.rect.height = warning->size.y;
+        warning->line.tint = COLOR_RED;
     }
-    if (size.x <= 0)
+    if (warning->size.x <= 0)
         return;
+    draw_box(16 - 8, bottom - warning->size.y - 6, warning->size.x + 16, warning->size.y + 6, 0xC0000000u, COLOR_RED);
+    warning->line.setPosition({16, bottom - warning->size.y - 3});
+    warning->line.draw();
+}
+
+void screen_render_peer_warnings(void)
+{
+    static warning_line version, rules, seed;
     /* Bottom left, just above the game's key prompts (which start at about y 460): the top of the
-     * screen holds the scene's title. Kept short to end before OnlinePractice's label (from x 258). */
-    pos_x = 16;
-    pos_y = 456 - (size.y + 6) + 3;
-    draw_box(pos_x - 8, pos_y - 3, size.x + 16, size.y + 6, 0xC0000000u, COLOR_RED);
-    line.setPosition({pos_x, pos_y});
-    line.draw();
+     * screen holds the scene's title. Kept short to end before OnlinePractice's label (from x 258).
+     * Only what differs shows, one line above another. */
+    int bottom = 456;
+
+    if (peers_opponent_version_differs()) {
+        draw_warning(&version, tr("StS: Opponent's version differs."), bottom);
+        bottom -= 26;
+    }
+    if (peers_opponent_rules_differ()) {
+        draw_warning(&rules, tr("StS: Opponent's rules differ."), bottom);
+        bottom -= 26;
+    }
+    if (peers_opponent_seed_differs())
+        draw_warning(&seed, tr("StS: Opponent's seed differs."), bottom);
 }

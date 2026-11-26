@@ -116,8 +116,8 @@ If your opponent has the mod too:
 - With "Share deck changes with your opponent" on for both of you (off by default), you both see
   the cards each deck gained and lost after the match. Whoever finishes first waits, with "Girls are
   now praying...", until the other is done.
-- If their rules differ from yours, character select says so at the bottom left. It does not stop
-  you playing.
+- If their version of the mod, their rules, or their set seed differ from yours, character select
+  says so at the bottom left. It does not stop you playing, and shows nothing when they match.
 
 A spectator with the mod sees each player's deck changes under that player's side of the screen:
 green outlines for cards that came in, red for cards that left. Turn this off with "Show deck

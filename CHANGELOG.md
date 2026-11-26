@@ -15,6 +15,8 @@ What changed in each release of Slay the Scarlet. Releases are on the
 - **Rarity shows on the offers.** Each offer's box is outlined grey, cyan, or gold. Uncommon cards
   burn with Remilia's flames from Millennium Vampire, and rare cards crackle with Tenshi's lightning
   from State of Enlightenment, each with its spell's sound as the offers appear.
+- **Online warnings.** Beside "Opponent's rules differ", character select now also says when your
+  opponent's version of the mod differs, or their set seed, for events. Nothing shows when they match.
 - **More copies are rarer.** An offer gives 1 copy about half the time, and each extra copy is half
   as likely as one fewer: 4 copies about 1 time in 15.
 

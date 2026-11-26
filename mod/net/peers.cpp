@@ -3,7 +3,10 @@
  * The mod's packets all start: u8 type (0x77), "STS", u8 protocol, u8 kind. A hello then has u8 flags
  * (bit 0: I have heard from you; bit 1: I am a spectator; bit 3: I share deck changes with my opponent)
  * and u32 the hash of my settings, for checking later that both players have the same rules (bit 2 says
- * it is known: the settings loaded).
+ * it is known: the settings loaded). From 0.7 it goes on: u32 a hash of my DLL file (the same for two
+ * copies of one release), u32 the hash of my settings without the set seed, u32 a hash of the set seed,
+ * then u8 the length of my version and the version's text. A hello without them is from an older
+ * version, which reads only the first part, so the protocol stays the same.
  *
  * A deck change: u8 side (0 the host's deck, 1 the client's), u8 character, u8 serial, u8 flags (bit 0:
  * the sender lets the opponent see it; bit 1: the sender has finished with the screen after the match,
@@ -21,6 +24,7 @@
 #include <string.h>
 #include "internal.h"
 #include "peers.h"
+#include "version.h"
 
 /* In the range Giuroll drops (0x6F-0x80), so machines without the mod never see it, and clear of the
  * bytes Giuroll uses itself (0x6B-0x6E). The three letters after it keep it apart from any other mod
@@ -29,6 +33,8 @@
 #define MOD_PROTOCOL 1
 #define KIND_HELLO 1
 #define HELLO_LENGTH 11
+#define HELLO_VERSION_MAX 15
+#define HELLO_FULL_LENGTH (HELLO_LENGTH + 13)   /* before the version's text */
 #define HELLO_HEARD_YOU 1
 #define HELLO_SPECTATOR 2
 #define HELLO_SETTINGS_KNOWN 4
@@ -73,6 +79,11 @@ typedef struct {
     int settings_known;
     int shares;          /* shares deck changes with its opponent */
     uint32_t settings_hash;
+    int full_hello;      /* its hello has the parts from 0.7 on: a build, rules without the seed, a seed */
+    uint32_t build_hash;
+    uint32_t rules_hash;  /* the settings hash without the set seed */
+    uint32_t seed_hash;
+    char version[HELLO_VERSION_MAX + 1];
 } peer;
 
 static CRITICAL_SECTION g_lock;
@@ -83,6 +94,10 @@ static int g_send_nothing = 0;
 static volatile LONG g_own_hash = 0;
 static volatile LONG g_own_hash_known = 0;
 static volatile LONG g_own_shares = 0;
+static volatile LONG g_own_rules_hash = 0;
+static volatile LONG g_own_seed_hash = 0;
+/* A hash of this DLL's file, made once when the hooks go in. */
+static uint32_t g_own_build_hash = 0;
 
 /* The latest change of each side's deck still being delivered, and how far each peer has got with it. */
 typedef struct {
@@ -183,6 +198,12 @@ static void maybe_announce(peer *known)
         rules = "different rules";
     slog("peers: the %s has the mod (%s, %s%s)", relation_name(known->relation),
          known->spectator ? "a spectator" : "a player", rules, known->shares ? ", shares deck changes" : "");
+    if (!known->full_hello)
+        slog("peers: its version is older than 0.7");
+    else
+        slog("peers: its version is %s, %s build; %s seed", known->version,
+             known->build_hash == g_own_build_hash ? "the same" : "another",
+             known->seed_hash == (uint32_t)g_own_seed_hash ? "the same" : "another");
 }
 
 static void stop_changes(void);
@@ -219,10 +240,24 @@ static void forget_quiet_peers(DWORD now)
             forget_peer(&g_peers[wau], "has gone quiet");
 }
 
+static void put_u32(unsigned char *out, uint32_t value)
+{
+    out[0] = (unsigned char)value;
+    out[1] = (unsigned char)(value >> 8);
+    out[2] = (unsigned char)(value >> 16);
+    out[3] = (unsigned char)(value >> 24);
+}
+
+static uint32_t get_u32(const unsigned char *in)
+{
+    return (uint32_t)in[0] | (uint32_t)in[1] << 8 | (uint32_t)in[2] << 16 | (uint32_t)in[3] << 24;
+}
+
 static void send_hello(peer *to)
 {
-    unsigned char hello[HELLO_LENGTH];
+    unsigned char hello[HELLO_FULL_LENGTH + HELLO_VERSION_MAX];
     uint32_t hash = (uint32_t)g_own_hash;
+    size_t version_length = strlen(STS_MOD_VERSION);
 
     write_header(hello, KIND_HELLO);
     hello[6] = (unsigned char)((to->heard_from ? HELLO_HEARD_YOU : 0)
@@ -233,8 +268,16 @@ static void send_hello(peer *to)
     hello[8] = (unsigned char)(hash >> 8);
     hello[9] = (unsigned char)(hash >> 16);
     hello[10] = (unsigned char)(hash >> 24);
+    put_u32(hello + 11, g_own_build_hash);
+    put_u32(hello + 15, (uint32_t)g_own_rules_hash);
+    put_u32(hello + 19, (uint32_t)g_own_seed_hash);
+    if (version_length > HELLO_VERSION_MAX)
+        version_length = HELLO_VERSION_MAX;
+    hello[23] = (unsigned char)version_length;
+    memcpy(hello + HELLO_FULL_LENGTH, STS_MOD_VERSION, version_length);
     to->last_hello = GetTickCount();
-    g_send(to->socket_handle, (const char *)hello, HELLO_LENGTH, 0, to->address, to->address_length);
+    g_send(to->socket_handle, (const char *)hello, (int)(HELLO_FULL_LENGTH + version_length), 0, to->address,
+           to->address_length);
 }
 
 /* Sends a hello if this peer still needs one: it has not answered yet, or has not said it heard us. */
@@ -255,11 +298,37 @@ static void maybe_send_hello(peer *to, DWORD now)
     send_hello(to);
 }
 
+/* A hash of this DLL's file: the same for two copies of one release, and different for any other build.
+ * 0 if the file cannot be read, which then matches no one. */
+static uint32_t build_hash(void)
+{
+    char path[MAX_PATH];
+    HMODULE module = NULL;
+    HANDLE file;
+    unsigned char buffer[8192];
+    DWORD read = 0;
+    uint32_t hash = STS_FNV_START;
+
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCSTR)&build_hash, &module)
+        || !GetModuleFileNameA(module, path, sizeof path))
+        return 0;
+    file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE)
+        return 0;
+    while (ReadFile(file, buffer, sizeof buffer, &read, NULL) && read > 0)
+        hash = sts_fnv1a(hash, buffer, read);
+    CloseHandle(file);
+    return hash;
+}
+
 void peers_install(int send_nothing, void *original_sendto)
 {
     InitializeCriticalSection(&g_lock);
     g_send_nothing = send_nothing;
     g_send = (sendto_fn)original_sendto;
+    g_own_build_hash = build_hash();
+    slog("peers: version %s, build %08x", STS_MOD_VERSION, (unsigned)g_own_build_hash);
 }
 
 void peers_on_send(UINT_PTR socket_handle, const unsigned char *packet, int len, const void *to, int tolen)
@@ -297,6 +366,7 @@ void peers_on_send(UINT_PTR socket_handle, const unsigned char *packet, int len,
 static void on_hello(UINT_PTR socket_handle, peer *from, const unsigned char *packet, int len)
 {
     uint32_t hash;
+    int wau;
 
     if (len < HELLO_LENGTH)
         return;
@@ -310,6 +380,19 @@ static void on_hello(UINT_PTR socket_handle, peer *from, const unsigned char *pa
     from->settings_known = (packet[6] & HELLO_SETTINGS_KNOWN) != 0;
     from->shares = (packet[6] & HELLO_SHARES) != 0;
     from->settings_hash = hash;
+    from->full_hello = 0;
+    if (len >= HELLO_FULL_LENGTH && packet[23] <= HELLO_VERSION_MAX && len >= HELLO_FULL_LENGTH + packet[23]) {
+        from->full_hello = 1;
+        from->build_hash = get_u32(packet + 11);
+        from->rules_hash = get_u32(packet + 15);
+        from->seed_hash = get_u32(packet + 19);
+        memcpy(from->version, packet + HELLO_FULL_LENGTH, packet[23]);
+        from->version[packet[23]] = 0;
+        /* Shown in the log only, but keep it plain text. */
+        for (wau = 0; wau < packet[23]; wau++)
+            if (from->version[wau] < 0x20 || from->version[wau] > 0x7E)
+                from->version[wau] = '?';
+    }
     maybe_announce(from);
     /* Answer at once while it has not heard from us, so neither side stops before the other knows. */
     if (!g_send_nothing && !(packet[6] & HELLO_HEARD_YOU))
@@ -354,8 +437,10 @@ int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int le
     return own;
 }
 
-void peers_set_settings(uint32_t hash, int known, int shares)
+void peers_set_settings(uint32_t hash, uint32_t rules_hash, uint32_t seed_hash, int known, int shares)
 {
+    InterlockedExchange(&g_own_rules_hash, (LONG)rules_hash);
+    InterlockedExchange(&g_own_seed_hash, (LONG)seed_hash);
     InterlockedExchange(&g_own_hash, (LONG)hash);
     InterlockedExchange(&g_own_hash_known, known);
     InterlockedExchange(&g_own_shares, shares);
@@ -381,6 +466,19 @@ static peer *opponent_peer(void)
     return NULL;
 }
 
+int peers_opponent_version_differs(void)
+{
+    peer *opponent;
+    int differ;
+
+    EnterCriticalSection(&g_lock);
+    opponent = opponent_peer();
+    differ = opponent && (!opponent->full_hello || opponent->build_hash != g_own_build_hash);
+    LeaveCriticalSection(&g_lock);
+    return differ;
+}
+
+/* Rules and seeds are only compared between the same builds: another build may count them otherwise. */
 int peers_opponent_rules_differ(void)
 {
     peer *opponent;
@@ -388,8 +486,21 @@ int peers_opponent_rules_differ(void)
 
     EnterCriticalSection(&g_lock);
     opponent = opponent_peer();
-    differ = opponent && opponent->settings_known && g_own_hash_known
-        && opponent->settings_hash != (uint32_t)g_own_hash;
+    differ = opponent && opponent->full_hello && opponent->build_hash == g_own_build_hash
+        && opponent->settings_known && g_own_hash_known && opponent->rules_hash != (uint32_t)g_own_rules_hash;
+    LeaveCriticalSection(&g_lock);
+    return differ;
+}
+
+int peers_opponent_seed_differs(void)
+{
+    peer *opponent;
+    int differ;
+
+    EnterCriticalSection(&g_lock);
+    opponent = opponent_peer();
+    differ = opponent && opponent->full_hello && opponent->build_hash == g_own_build_hash
+        && opponent->settings_known && g_own_hash_known && opponent->seed_hash != (uint32_t)g_own_seed_hash;
     LeaveCriticalSection(&g_lock);
     return differ;
 }

@@ -39,14 +39,18 @@ void peers_on_send(UINT_PTR socket_handle, const unsigned char *packet, int len,
 /* Every packet received. Returns 1 if it was the mod's own, so the caller hides it from the game. */
 int peers_on_receive(UINT_PTR socket_handle, const unsigned char *packet, int len, const void *from, int fromlen);
 
-/* This machine's settings hash, for the hello, whether the settings have loaded, and whether this
- * player shares deck changes with the opponent. Called by the game's thread whenever they may have
- * changed. */
-void peers_set_settings(uint32_t hash, int known, int shares);
+/* This machine's settings hash, the same without the set seed, a hash of the set seed, whether the
+ * settings have loaded, and whether this player shares deck changes with the opponent. Called by the
+ * game's thread whenever they may have changed. */
+void peers_set_settings(uint32_t hash, uint32_t rules_hash, uint32_t seed_hash, int known, int shares);
 
-/* 1 if this machine is a player, its opponent has the mod, and their rules (the settings hash, both
- * loaded) differ from this machine's. */
+/* For a player whose opponent has the mod. Each is 0 when the two match, so nothing shows then.
+ * Version: the opponent has another build of the mod (another version, or a build of its own), or one
+ * older than 0.7, which does not say. Rules and seed are only compared on the same build: rules
+ * leave out the set seed, and the seed is for events, where everyone uses the same one. */
+int peers_opponent_version_differs(void);
 int peers_opponent_rules_differ(void);
+int peers_opponent_seed_differs(void);
 
 /* 1 if this machine is a player and its opponent has the mod and shares deck changes. Stops being 1
  * when the opponent leaves. */

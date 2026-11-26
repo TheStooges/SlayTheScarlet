@@ -72,6 +72,12 @@ def main():
 
     if not re.fullmatch(r"[0-9A-Za-z.\-]+", options.version):
         sys.exit("A version is made of letters, digits, dots and dashes.")
+    # The mod tells online opponents its version (mod/version.h), so the two must agree.
+    with open(os.path.join(ROOT, "mod", "version.h"), encoding="ascii") as handle:
+        built = re.search(r'#define STS_MOD_VERSION "([^"]*)"', handle.read())
+    if not built or built.group(1) != options.version:
+        sys.exit("mod/version.h says %s. Change STS_MOD_VERSION there, rebuild, and package again."
+                 % (built.group(1) if built else "nothing"))
     for source in CONTENTS.values():
         if not os.path.isfile(source):
             sys.exit("Missing %s. Run tools\\build_release.bat first." % source)

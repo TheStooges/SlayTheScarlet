@@ -92,14 +92,14 @@ static void log_select_stage(const SokuLib::Select &select)
         } \
     }
 
-/* Online character select's drawing: the warning when the opponent's rules differ. */
+/* Online character select's drawing: warnings when the opponent's mod version, rules or seed differ. */
 #define NET_SELECT_RENDER_HOOK(Type) \
     static int (SokuLib::Type::*g_og_##Type##_render)(); \
     static int __fastcall on_##Type##_render(SokuLib::Type *This) \
     { \
         int result = (This->*g_og_##Type##_render)(); \
         if (!g_observer) \
-            screen_render_rules_warning(); \
+            screen_render_peer_warnings(); \
         return result; \
     }
 
@@ -185,8 +185,15 @@ static int __fastcall on_title_process(SokuLib::Title *This)
             loaded = 1;
             load_data();
         }
-        peers_set_settings(g_data_ok ? sts_settings_hash(&g_settings) : 0, g_data_ok,
-                           g_data_ok && g_settings.share_changes);
+        {
+            sts_settings without_seed = g_settings;
+
+            without_seed.seed[0] = 0;
+            peers_set_settings(g_data_ok ? sts_settings_hash(&g_settings) : 0,
+                               g_data_ok ? sts_settings_hash(&without_seed) : 0,
+                               sts_fnv1a(STS_FNV_START, g_settings.seed, strlen(g_settings.seed)), g_data_ok,
+                               g_data_ok && g_settings.share_changes);
+        }
     }
     g_result_closing = 0;
     deck_on_title_frame();

@@ -49,7 +49,9 @@ buffers (see `CLAUDE.md`).
 
 ## Making a release
 
-Run `tools\build_release.bat` from the same prompt (tests, a Release DLL, and checks on its imports),
+First set the version in `mod/version.h` (`STS_MOD_VERSION`): the mod tells online opponents its
+version, and the package script refuses a version that differs from it. Then run
+`tools\build_release.bat` from the same prompt (tests, a Release DLL, and checks on its imports),
 then `python tools\package_release.py <version>`. The zip and the debug files go in `release/`. The
 script refuses to run with uncommitted changes, and scans the zip for local paths and the user name.
 Keep the PDB of each release, to read crash dumps. Attach only the zip to the GitHub release.

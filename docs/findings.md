@@ -51,6 +51,10 @@ recorded here, and online logging now lives in `mod/net/netlog.cpp`.
   assumed from the layout, not yet checked over a real network. The buffer is sized for up to 256
   cards. The deck travels as an explicit
   card list, plus the slot number (`deckId`).
+- **The mod's hello** (0.7): after its 11 bytes (header, flags, settings hash) come u32 a hash of the
+  DLL file, u32 the settings hash without the set seed, u32 a hash of the seed, u8 the version's
+  length and its text (see `mod/net/peers.cpp`). 0.6.1 reads only the first 11 bytes, so the
+  protocol number stays 1, and a hello without the rest is from an older version.
 - **Opcodes already in use** (pick mod message IDs outside these; the list may be incomplete):
   base game 0x01-0x0B, 0x0D, 0x0E; SokuRoll 0x10-0x14; AdvancedPracticeMode 0x15-0x17;
   DesyncDetector 0x20-0x21; Giuroll battle input 0x6B; Soku2 0xD3. Inner `GameType` events
