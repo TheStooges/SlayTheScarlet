@@ -162,6 +162,20 @@ static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int p
     g_label_count++;
 }
 
+/* As add_label, but with the text's right edge at right_x, however long it turns out. */
+static void add_label_right(const char *text, SokuLib::SWRFont &font, int right_x, int pos_y, int width, int height,
+                            unsigned color)
+{
+    int before = g_label_count;
+
+    add_label(text, font, right_x - width, pos_y, width, height, color);
+    if (g_label_count > before) {
+        Sprite *sprite = &g_labels[g_label_count - 1];
+
+        sprite->setPosition({right_x - (int)sprite->getSize().x, pos_y});
+    }
+}
+
 /* ---------- key prompts that light up ----------
  * A prompt turns white while its key is held, and for a moment after a quick press, so the press can
  * be seen. The font is monospaced, so the lit part is drawn over the grey line as a copy of the line
@@ -1422,7 +1436,8 @@ static void rebuild_gallery_kinds(void)
         }
         add_label(gallery_kind_name(kind), g_font_big, 56, GALLERY_KIND_Y(kind), 400, 28, COLOR_WHITE);
         format_text(line, tr("%d of %d found"), found, count);
-        add_label(line, g_font_small, 470, GALLERY_KIND_Y(kind) + 6, 140, 20, COLOR_GREY);
+        /* Right-aligned in the row's box (44 to 596), so counts of any length line up. */
+        add_label_right(line, g_font_small, 588, GALLERY_KIND_Y(kind) + 6, 200, 20, COLOR_GREY);
     }
     /* Once every card shows, the row says why, greyed out: found in runs, or unlocked. */
     if (gallery_all_found()) {

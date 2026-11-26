@@ -23,6 +23,10 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 ### Changed
 
+- **A Display menu in Settings** holds the roulette animation and showing the deck while drafting, the
+  settings that are not rules.
+- **Runs from 0.6.1 need starting over.** Rarity changes the rules, so their character shows that the
+  rules have changed.
 - **`settings.ini` now holds exactly the settings on the Settings screen.** Settings and values that
   were only in the file (deck size, copy limit, cards per pick and per offer, fewest and most copies,
   add and remove rewards, offers at random, the mostly_* card types, card sounds, and a few unused

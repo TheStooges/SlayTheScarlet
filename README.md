@@ -128,17 +128,18 @@ spectators without it are not affected.
 
 ## Settings
 
-Press F7 and choose **Settings**, under the characters. The settings are in four menus:
+Press F7 and choose **Settings**, under the characters. The settings are in five menus:
 
-- **Draft:** a starting deck, whether the deck so far is shown while drafting, and which card types
-  are offered.
-- **Rewards:** when you get an offer (after every match, only if you win, or only if you lose),
-  whether you choose the card that comes in or it is picked at random, what leaves the deck (cards
-  you choose, a type you choose, or random cards), a time limit, the roulette animation for random
-  picks, and which card types are offered.
+- **Draft:** a starting deck, and which card types are offered.
+- **Rewards:** whether there are offers at all, when you get one (after every match, only if you
+  win, or only if you lose), whether you choose the card that comes in or it is picked at random,
+  what leaves the deck (cards you choose, a type you choose, or random cards), a time limit, and
+  which card types are offered.
 - **Runs:** a set seed, a match limit (up to 20), which deck slot is used, and whether a deck
   carries on after a rule change.
 - **Netplay:** sharing deck changes with your opponent, and showing them when spectating.
+- **Display:** the roulette animation for random picks, and whether the deck so far is shown while
+  drafting.
 
 In a menu, up and down choose a setting, left and right change it, and the lines below explain it.
 Changes are kept across menus until you save. Saving writes only what changed to `settings.ini`, so

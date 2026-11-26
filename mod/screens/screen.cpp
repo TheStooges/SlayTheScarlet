@@ -1236,11 +1236,18 @@ static void choose_random_character(void)
     sts_rng_seed(&g_choose_rng, (uint64_t)ticks.QuadPart, 0x6368);
     g_choose_target = (int)sts_rng_below(&g_choose_rng, STS_NUM_CHARACTERS);
     slog("random character: %d", g_choose_target);
+    g_choose_roulette = 1;
+    /* Without the roulette, the cursor goes straight to the pick and rests there, as at the roulette's
+     * end, so the pick shows before its screen opens. */
     if (!g_settings.reward_roulette) {
-        open_character_from_menu(g_choose_target);
+        g_choose_step = ROULETTE_STEPS;
+        g_choose_wait = ROULETTE_HOLD;
+        g_cursor = g_choose_target;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_error[0] = 0;
+        g_dirty = 1;
         return;
     }
-    g_choose_roulette = 1;
     g_choose_step = 0;
     g_choose_wait = g_roulette_gaps[0];
     g_cursor = random_other_character();

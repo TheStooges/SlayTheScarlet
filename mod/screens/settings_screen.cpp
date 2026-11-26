@@ -65,9 +65,8 @@ int settings_help_shown(const settings_row *row, int line)
     return strcmp(value, row->help_value[line]) == 0;
 }
 
-/* The draft and the reward have the same offer settings. How many cards an offer shows, and how
- * many copies it gives, stay in settings.ini but are not on the screen, by decision: items may
- * change them later. */
+/* The draft and the reward have the same offer settings. How many cards an offer shows, how many
+ * copies it gives, and the rarity odds are only set in code, by decision: items may change them later. */
 static void add_offer_rows(const char *section)
 {
     settings_row *row;
@@ -75,9 +74,6 @@ static void add_offer_rows(const char *section)
     row = add_row(section, "card_types", tr("Card types"), NULL);
     add_value_help(row, "random", tr("Random: every card is equally likely."));
     add_value_help(row, "weighted", tr("Weighted: each type comes up about as often as the others."));
-    add_value_help(row, "mostly_system", tr("Mostly System: system cards come up more often than the others."));
-    add_value_help(row, "mostly_skill", tr("Mostly Skill: skill cards come up more often than the others."));
-    add_value_help(row, "mostly_spell", tr("Mostly Spell: spell cards come up more often than the others."));
     add_value_help(row, "one_of_each", tr("One of each: every offer shows a system card, a skill card, and a spell card."));
 }
 
@@ -88,6 +84,7 @@ const char *settings_menu_name(int menu)
     case SETTINGS_MENU_REWARD: return tr("Rewards");
     case SETTINGS_MENU_RUN:    return tr("Runs");
     case SETTINGS_MENU_NETPLAY: return tr("Netplay");
+    case SETTINGS_MENU_DISPLAY: return tr("Display");
     }
     return tr("Save changes");
 }
@@ -99,12 +96,14 @@ const char *settings_menu_help(int menu)
     case SETTINGS_MENU_REWARD: return tr("The card offer after each match, and what it changes in the deck.");
     case SETTINGS_MENU_RUN:    return tr("How long a run lasts, and what happens to it when the rules change.");
     case SETTINGS_MENU_NETPLAY: return tr("Playing and watching online, when the others have the mod too.");
+    case SETTINGS_MENU_DISPLAY: return tr("What the screens show and how. None of these are rules.");
     }
     return tr("Writes the changes from every menu to settings.ini.");
 }
 
-/* The settings of one menu, built into rows. Returns how many. Settings with no effect yet (deck
- * size, copy limit, netplay and items) are left out until they do something. */
+/* The settings of one menu, built into rows. Returns how many. Only settings.ini's settings are here
+ * (sts_settings_in_file), each in the menu it belongs with; the ones that are not rules are in Display,
+ * or in Netplay and Runs where they are about those. */
 static int build_menu_rows(int menu, settings_row *rows)
 {
     settings_row *row;
@@ -116,10 +115,6 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("starter", "enabled", tr("Starting deck"), NULL);
         add_value_help(row, "true", tr("On: 8 set cards for the character to start, then 12 picks fill the rest."));
         add_value_help(row, "false", tr("Off: each draft starts from an empty deck and takes 20 picks."));
-        row = add_row("draft", "show_deck", tr("Show the deck so far"), NULL);
-        add_value_help(row, "true", tr("On: the deck so far is shown beside the offers."));
-        add_value_help(row, "false", tr("Off: a blind draft."));
-        add_help_line(row, tr("This is not a rule, so changing it is always safe."));
         add_offer_rows("draft");
         break;
     case SETTINGS_MENU_REWARD:
@@ -131,13 +126,6 @@ static int build_menu_rows(int menu, settings_row *rows)
         add_value_help(row, "both", tr("After every match: you get an offer, win or lose."));
         add_value_help(row, "winner", tr("Only if you win: no offer after a loss."));
         add_value_help(row, "loser", tr("Only if you lose: no offer after a win."));
-        add_value_help(row, "random", tr("Random: a set chance of an offer after each match, win or lose."));
-        /* Random is not one of the screen's choices, by decision; a file that sets it still shows
-         * it, with its chance. */
-        if (g_settings_edit.who_picks == STS_WHO_RANDOM) {
-            row = add_row("reward", "random_chance", tr("Chance of an offer"),
-                          tr("Out of 100: how likely an offer is after each match."));
-        }
         row = add_row("reward", "offer_pick", tr("What comes into the deck"), NULL);
         add_value_help(row, "choose", tr("Choose an offer: pick one of the offers."));
         add_value_help(row, "random", tr("Random: one of the offers is picked for you."));
@@ -149,11 +137,6 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("reward", "time_limit", tr("Time limit"),
                       tr("Seconds to take an offer. When it runs out, what is left is chosen at random."));
         add_value_help(row, "0", tr("No limit: take as long as you like."));
-        row = add_row("reward", "roulette", tr("Roulette animation"), NULL);
-        add_value_help(row, "true", tr("On: the cursor runs over the cards, then stops on the pick."));
-        add_value_help(row, "false", tr("Off: the result shows straight away."));
-        add_help_line(row, tr("Only for random picks: by a setting, or when time runs out."));
-        add_help_line(row, tr("Cosmetic, not a rule: the pick is the same either way."));
         add_offer_rows("reward");
         break;
     case SETTINGS_MENU_RUN:
@@ -180,6 +163,17 @@ static int build_menu_rows(int menu, settings_row *rows)
         row = add_row("netplay", "spectator_changes", tr("Show deck changes when spectating"), NULL);
         add_value_help(row, "true", tr("On: the cards each player's deck gained and lost show while you watch."));
         add_value_help(row, "false", tr("Off: deck changes are not shown."));
+        add_help_line(row, tr("This is not a rule, so changing it is always safe."));
+        break;
+    case SETTINGS_MENU_DISPLAY:
+        row = add_row("reward", "roulette", tr("Roulette animation"), NULL);
+        add_value_help(row, "true", tr("On: the cursor runs over the choices, then stops on the pick."));
+        add_value_help(row, "false", tr("Off: the result shows straight away."));
+        add_help_line(row, tr("Only for random picks: by a setting, when time runs out, or Random on the menu."));
+        add_help_line(row, tr("Cosmetic, not a rule: the pick is the same either way."));
+        row = add_row("draft", "show_deck", tr("Show the deck so far"), NULL);
+        add_value_help(row, "true", tr("On: the deck so far is shown beside the draft's offers."));
+        add_value_help(row, "false", tr("Off: a blind draft."));
         add_help_line(row, tr("This is not a rule, so changing it is always safe."));
         break;
     }
@@ -214,17 +208,11 @@ static const char *choice_text(const char *raw)
     if (strcmp(raw, "loser") == 0) return tr("Only if you lose");
     if (strcmp(raw, "replace") == 0) return tr("Replace a card");
     if (strcmp(raw, "skip") == 0) return tr("No offers");
-    if (strcmp(raw, "add") == 0) return tr("Add a card");
-    if (strcmp(raw, "remove") == 0) return tr("Remove a card");
     if (strcmp(raw, "choose") == 0) return tr("Choose cards");
     if (strcmp(raw, "by_type") == 0) return tr("Choose a type");
     if (strcmp(raw, "random") == 0) return tr("Random");
     if (strcmp(raw, "weighted") == 0) return tr("Weighted");
     if (strcmp(raw, "one_of_each") == 0) return tr("One of each");
-    if (strcmp(raw, "mostly_system") == 0) return tr("Mostly System");
-    if (strcmp(raw, "mostly_skill") == 0) return tr("Mostly Skill");
-    if (strcmp(raw, "mostly_spell") == 0) return tr("Mostly Spell");
-    if (strcmp(raw, "custom") == 0) return tr("Custom");
     return NULL;
 }
 
@@ -441,47 +429,18 @@ const char *offers_off_screen(const sts_settings *settings)
 static void describe_problem(sts_settings_problem problem, const sts_settings_problem_info *info, char *out,
                              size_t size)
 {
-    const sts_rules *rules = &g_settings_edit.rules;
-
+    (void)info;
     out[0] = 0;
     switch (problem) {
     case STS_PROBLEM_NONE:
         return;
-    case STS_PROBLEM_DECK_SIZE:
-    case STS_PROBLEM_DECK_TOO_BIG:
-    case STS_PROBLEM_COPY_LIMIT:
-    case STS_PROBLEM_REWARD_SIZE:
-        _snprintf(out, size - 1, "%s", tr("The deck size or copy limit in settings.ini does not work. Change it in the file."));
-        break;
-    case STS_PROBLEM_DRAFT_OFFERS:
-    case STS_PROBLEM_REWARD_OFFERS:
-        _snprintf(out, size - 1, "%s", offers_off_screen(&g_settings_edit) ? offers_off_screen(&g_settings_edit)
-                                                                           : tr("Cards per pick or per offer must be at least 1."));
-        break;
-    case STS_PROBLEM_DRAFT_COPIES:
-    case STS_PROBLEM_REWARD_COPIES:
-        _snprintf(out, size - 1, "%s", tr("Fewest copies cannot be above most copies."));
-        break;
-    case STS_PROBLEM_DRAFT_COPY_LIMIT:
-    case STS_PROBLEM_REWARD_COPY_LIMIT:
-        _snprintf(out, size - 1, tr("Most copies cannot be above %d, the copies of one card a deck may hold."),
-                  rules->copy_limit);
-        break;
-    case STS_PROBLEM_DRAFT_RARITY:
-    case STS_PROBLEM_REWARD_RARITY:
-        _snprintf(out, size - 1, "%s", tr("The rarity weights in settings.ini cannot all be 0. Change them in the file."));
-        break;
-    case STS_PROBLEM_RANDOM_CHANCE:
-        _snprintf(out, size - 1, "%s", tr("The chance of an offer cannot be above 100."));
-        break;
     case STS_PROBLEM_MATCH_LIMIT:
         _snprintf(out, size - 1, tr("The match limit cannot be above %d."), STS_MATCH_LIMIT_MAX);
         break;
-    case STS_PROBLEM_STARTER_TOO_BIG:
-        _snprintf(out, size - 1, tr("%s's starting cards are more than a deck can hold."), character_label(info->character));
-        break;
-    case STS_PROBLEM_STARTER_COPIES:
-        _snprintf(out, size - 1, tr("%s's starting cards have too many copies of one card."), character_label(info->character));
+    /* The rest are about settings only code sets (sts_settings_in_file): the player cannot cause them or
+     * fix them, so they only ask for a report. The log names the problem (sts_settings_validate). */
+    default:
+        _snprintf(out, size - 1, "%s", tr("The rules built into the mod do not work together. Please report this."));
         break;
     }
     out[size - 1] = 0;
