@@ -19,6 +19,9 @@ void screen_open_opponent(void);
 /* Handles one frame of input. */
 void screen_update(const SokuLib::KeyInput &input);
 
+/* Lights the key prompts of the keys held this frame (screen_draw.cpp). Called by screen_update. */
+void screen_light_prompts(const SokuLib::KeyInput &input, int escape);
+
 /* Draws on top of whatever the game has drawn this frame. With opaque set it replaces the
  * frame; otherwise the game's scene shows faintly behind it. */
 void screen_render(int opaque);

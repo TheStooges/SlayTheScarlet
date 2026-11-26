@@ -148,6 +148,7 @@ static int g_roulette_wait = 0;
 static roulette_then g_roulette_then = ROULETTE_THEN_SHOW;
 
 static void start_deck_timer(void);
+static void tick_choose_roulette(void);
 static void time_out_reward_at(int index);
 static void start_pending_sweep(void);
 static int g_sweep_pending = 0;   /* a sweep is set up, to start when the roulette ends */
@@ -826,6 +827,7 @@ static void on_opponent_event(screen_event event)
 static void tick_timers(void)
 {
     tick_roulette();
+    tick_choose_roulette();
     tick_sweep();
     tick_opponent();
     if (reward_seconds_left() >= 0) {
@@ -1165,7 +1167,124 @@ static int g_choose_column = 0;
 
 static int on_last_choose_row(void)
 {
-    return g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY;
+    return g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_RANDOM || g_cursor == CHOOSE_GALLERY;
+}
+
+/* The last row's entries from left to right, and the column each sits under. */
+static const int g_last_row[] = {CHOOSE_SETTINGS, CHOOSE_RANDOM, CHOOSE_GALLERY};
+static const int g_last_row_column[] = {0, COLS / 2, COLS - 1};
+#define LAST_ROW_COUNT 3
+
+static int last_row_index(void)
+{
+    int wau;
+
+    for (wau = 0; wau < LAST_ROW_COUNT; wau++)
+        if (g_last_row[wau] == g_cursor)
+            return wau;
+    return 0;
+}
+
+/* ---------- a random character ----------
+ * The character is picked first; with the roulette animation on, the cursor then jumps from character
+ * to character at random, slowing down as the offer roulette does, and lands on it with its last step.
+ * It never stops on the pick before then, nor twice on one character. The confirm button skips to it,
+ * and cancel stops where it is. It is only for show (a local random state): the pick is made first. */
+
+static sts_rng g_choose_rng;
+static int g_choose_roulette = 0;
+static int g_choose_target = 0;
+static int g_choose_step = 0;
+static int g_choose_wait = 0;
+
+int choose_roulette_running(void)
+{
+    return g_choose_roulette;
+}
+
+static void open_character_from_menu(int character)
+{
+    g_cursor = character;
+    g_choose_column = character % COLS;
+    SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+    open_character(character);
+    g_dirty = 1;
+}
+
+/* A character for the cursor to jump to on the way: not the one it is on, nor the pick. */
+static int random_other_character(void)
+{
+    /* Before the first jump the cursor is on Random, not on a character, so only the pick is left out. */
+    int on_grid = g_cursor >= 0 && g_cursor < STS_NUM_CHARACTERS && g_cursor != g_choose_target;
+    int character = (int)sts_rng_below(&g_choose_rng, (uint32_t)(STS_NUM_CHARACTERS - 1 - on_grid));
+    int low = on_grid && g_cursor < g_choose_target ? g_cursor : g_choose_target;
+    int high = !on_grid ? -1 : g_cursor < g_choose_target ? g_choose_target : g_cursor;
+
+    /* Counting past the ones left out, lowest first, every other character is as likely. */
+    if (character >= low)
+        character++;
+    if (high >= 0 && character >= high)
+        character++;
+    return character;
+}
+
+static void choose_random_character(void)
+{
+    LARGE_INTEGER ticks;
+
+    QueryPerformanceCounter(&ticks);
+    sts_rng_seed(&g_choose_rng, (uint64_t)ticks.QuadPart, 0x6368);
+    g_choose_target = (int)sts_rng_below(&g_choose_rng, STS_NUM_CHARACTERS);
+    slog("random character: %d", g_choose_target);
+    if (!g_settings.reward_roulette) {
+        open_character_from_menu(g_choose_target);
+        return;
+    }
+    g_choose_roulette = 1;
+    g_choose_step = 0;
+    g_choose_wait = g_roulette_gaps[0];
+    g_cursor = random_other_character();
+    g_error[0] = 0;
+    g_dirty = 1;
+}
+
+static void tick_choose_roulette(void)
+{
+    if (!g_choose_roulette || g_state != ST_CHOOSE) {
+        g_choose_roulette = 0;
+        return;
+    }
+    if (--g_choose_wait > 0)
+        return;
+    if (g_choose_step == ROULETTE_STEPS) {
+        g_choose_roulette = 0;
+        open_character_from_menu(g_choose_target);
+        return;
+    }
+    g_choose_step++;
+    g_cursor = g_choose_step == ROULETTE_STEPS ? g_choose_target : random_other_character();
+    g_dirty = 1;
+    if (g_choose_step == ROULETTE_STEPS) {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CONFIRM);
+        g_choose_wait = ROULETTE_HOLD;
+    } else {
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
+        g_choose_wait = g_roulette_gaps[g_choose_step];
+    }
+}
+
+/* While it runs: confirm goes straight to the pick, cancel stops on the character under the cursor. */
+static void on_choose_roulette_event(screen_event event)
+{
+    if (event == EV_CONFIRM) {
+        g_choose_roulette = 0;
+        open_character_from_menu(g_choose_target);
+    } else if (event == EV_CANCEL) {
+        g_choose_roulette = 0;
+        g_choose_column = g_cursor % COLS;
+        SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_CANCEL);
+        g_dirty = 1;
+    }
 }
 
 /* The row the cursor is on: 0 for the player switch, then the character rows, then Settings and the
@@ -1179,8 +1298,8 @@ static int choose_row(void)
     return 1 + g_cursor / COLS;
 }
 
-/* Up and down go through the rows, wrapping round. The last row has Settings under the first column
- * and the gallery under the last: the one nearer the column is chosen, Settings from the middle one. */
+/* Up and down go through the rows, wrapping round. The last row has Settings under the first column,
+ * a random character under the middle one and the gallery under the last: the nearest is chosen. */
 static void move_choose_vertically(int direction)
 {
     int row = choose_row();
@@ -1191,7 +1310,8 @@ static void move_choose_vertically(int direction)
     if (row == 0)
         g_cursor = CHOOSE_PLAYER;
     else if (row == CHOOSE_ROWS - 1)
-        g_cursor = g_choose_column > COLS / 2 ? CHOOSE_GALLERY : CHOOSE_SETTINGS;
+        g_cursor = g_choose_column > COLS / 2 ? CHOOSE_GALLERY : g_choose_column == COLS / 2 ? CHOOSE_RANDOM
+                 : CHOOSE_SETTINGS;
     else
         g_cursor = (row - 1) * COLS + g_choose_column;
 }
@@ -1241,6 +1361,10 @@ static void delete_run(int character)
 
 static void on_choose_event(screen_event event)
 {
+    if (g_choose_roulette) {
+        on_choose_roulette_event(event);
+        return;
+    }
     /* With a mod loaded that runs do not work with, the menu only shows why, and only closes. */
     if (blocking_mod()) {
         if (event == EV_CANCEL) {
@@ -1256,13 +1380,16 @@ static void on_choose_event(screen_event event)
     }
     if (g_cursor == CHOOSE_PLAYER && (event == EV_ALT || event == EV_TOGGLE))
         return;
-    /* The last row has Settings and the gallery: left and right go between them, and the buttons
-     * for runs do nothing there. Going back up then lands on the column above the entry. */
+    /* The last row has Settings, a random character and the gallery: left and right go between them,
+     * wrapping round, and the buttons for runs do nothing there. Going back up then lands on the
+     * column above the entry. */
     if (on_last_choose_row() && (event == EV_ALT || event == EV_TOGGLE))
         return;
     if (on_last_choose_row() && (event == EV_LEFT || event == EV_RIGHT)) {
-        g_cursor = g_cursor == CHOOSE_SETTINGS ? CHOOSE_GALLERY : CHOOSE_SETTINGS;
-        g_choose_column = g_cursor == CHOOSE_SETTINGS ? 0 : COLS - 1;
+        int index = (last_row_index() + (event == EV_RIGHT ? 1 : LAST_ROW_COUNT - 1)) % LAST_ROW_COUNT;
+
+        g_cursor = g_last_row[index];
+        g_choose_column = g_last_row_column[index];
         SokuLib::playSEWaveBuffer(SokuLib::SFX_MENU_MOVE);
         g_error[0] = 0;
         g_dirty = 1;
@@ -1281,6 +1408,11 @@ static void on_choose_event(screen_event event)
         }
         if (g_cursor == CHOOSE_GALLERY) {
             open_gallery();
+            return;
+        }
+        if (g_cursor == CHOOSE_RANDOM) {
+            if (g_data_ok && !blocking_mod())
+                choose_random_character();
             return;
         }
         if (g_data_ok && !blocking_mod()) {
@@ -1899,6 +2031,7 @@ void screen_update(const SokuLib::KeyInput &input)
         seed_entry_update();
         return;
     }
+    screen_light_prompts(input, escape);
     if (input.horizontalAxis < 0 && repeats_while_held(input.horizontalAxis))
         handle_event(EV_LEFT);
     else if (input.horizontalAxis > 0 && repeats_while_held(input.horizontalAxis))

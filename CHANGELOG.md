@@ -3,6 +3,31 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
+## Unreleased
+
+### Added
+
+- **Card rarity.** Every card is common, uncommon, or rare, and each pick's cards are all of one
+  rarity. Rewards are common 6 times in 10, uncommon 3, and rare 1. Online, both players' offers
+  after a match are of the same rarity. The draft opens with a common pick, an uncommon pick, and a
+  rare pick, then is mostly common and sometimes uncommon, with at most one rare card per draft. The
+  rarities are a first draft for the community to balance.
+- **Rarity shows on the offers.** Each offer's box is outlined grey, cyan, or gold. Uncommon cards
+  burn with Remilia's flames from Millennium Vampire, and rare cards crackle with Tenshi's lightning
+  from State of Enlightenment, each with its spell's sound as the offers appear.
+- **More copies are rarer.** An offer gives 1 copy about half the time, and each extra copy is half
+  as likely as one fewer: 4 copies about 1 time in 15.
+
+- **Random character.** The F7 menu has Random between Settings and the Gallery. With the roulette
+  animation on, the cursor runs round the characters and lands on one; the confirm button skips to it.
+
+### Changed
+
+- **`settings.ini` now holds exactly the settings on the Settings screen.** Settings and values that
+  were only in the file (deck size, copy limit, cards per pick and per offer, fewest and most copies,
+  add and remove rewards, offers at random, the mostly_* card types, card sounds, and a few unused
+  ones) are no longer read: a file that lists them still loads, with their defaults.
+
 ## 0.6.1 - 2026-11-25
 
 ### Changed

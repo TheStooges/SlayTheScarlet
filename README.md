@@ -50,7 +50,8 @@ back afterwards to keep them.
 
 Each screen lists its buttons at the bottom, using your own key config.
 
-1. **Press F7 on the main menu** and choose a character. Each character has one run.
+1. **Press F7 on the main menu** and choose a character, or Random at the bottom. Each character has
+   one run.
 2. **Draft your deck.** Each pick is a choice of 3 cards, and the deck is full after 20 picks. A
    finished draft goes into use straight away.
 3. **Play a VS match** as that character on Deck 1 (![green Deck 1 symbol](docs/images/deck1.svg)),

@@ -155,10 +155,58 @@ void card_sounds_stop(void)
     g_wait = 0;
 }
 
+/* ---------- A Penny Saved, pressed too often ----------
+ * More than COIN_PRESSES presses of Use Card on it in quick succession (each within COIN_QUICK_GAP
+ * frames of the last) play the guard crush sound instead, and then its sounds stay quiet for
+ * COIN_QUIET_FRAMES, or until the cursor leaves the card and comes back to it. */
+#define COIN_ID 12
+#define COIN_PRESSES 5
+#define COIN_QUICK_GAP 30
+#define COIN_QUIET_FRAMES 180
+#define GUARD_CRUSH_SOUND 38   /* common/038 */
+
+static unsigned g_frame = 0;            /* counts every frame card_sounds_tick runs */
+static int g_coin_place = -1;           /* where the cursor was: the screen and the card under it */
+static int g_coin_presses = 0;
+static unsigned g_coin_last_press = 0;
+static int g_coin_quiet = 0;
+static unsigned g_coin_quiet_until = 0;
+
+static int cursor_place(void)
+{
+    return (int)g_state * 1000 + g_cursor;
+}
+
+int card_sounds_use_card(int owner, uint16_t id)
+{
+    if (owner != STS_SOUND_SYSTEM || id != COIN_ID)
+        return 1;
+    if (g_coin_quiet && g_frame < g_coin_quiet_until)
+        return 0;
+    g_coin_quiet = 0;
+    g_coin_presses = g_coin_presses > 0 && g_frame - g_coin_last_press <= COIN_QUICK_GAP ? g_coin_presses + 1 : 1;
+    g_coin_last_press = g_frame;
+    if (g_coin_presses <= COIN_PRESSES)
+        return 1;
+    card_sounds_stop();
+    play_common_sound(GUARD_CRUSH_SOUND);
+    g_coin_presses = 0;
+    g_coin_quiet = 1;
+    g_coin_quiet_until = g_frame + COIN_QUIET_FRAMES;
+    return 0;
+}
+
 void card_sounds_tick(void)
 {
     int wau;
 
+    g_frame++;
+    /* The cursor moved: the count starts again, and so do the coin's sounds. */
+    if (cursor_place() != g_coin_place) {
+        g_coin_place = cursor_place();
+        g_coin_presses = 0;
+        g_coin_quiet = 0;
+    }
     if (!g_plays)
         return;
     if (g_elapsed < 0) {
@@ -222,14 +270,23 @@ void card_sounds_follow_offers(void)
         card_sounds_stop();
 }
 
+/* With Use Card, as the run's card under the cursor would play, unless it is a coin pressed too often. */
+static void use_run_card(uint16_t id)
+{
+    const sts_card *card = sts_card_db_find(&g_db, g_run.character, id);
+
+    if (card_sounds_use_card(card && card->type == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_run.character, id))
+        start_run_card_sounds(id, 0);
+}
+
 void card_sounds_play_under_cursor(void)
 {
     if (!card_sounds_on() || g_cursor < 0)
         return;
     if ((g_state == ST_DRAFT || g_state == ST_REWARD) && g_cursor < g_run.offer_count)
-        start_run_card_sounds(g_run.offers[g_cursor].id, 0);
+        use_run_card(g_run.offers[g_cursor].id);
     else if (g_state == ST_DECK && g_cursor < g_run.deck.count)
-        start_run_card_sounds(g_run.deck.ids[g_cursor], 0);
+        use_run_card(g_run.deck.ids[g_cursor]);
 }
 
 void play_common_sound(int number)

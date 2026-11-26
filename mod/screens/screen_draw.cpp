@@ -162,6 +162,104 @@ static void add_label(const char *text, SokuLib::SWRFont &font, int pos_x, int p
     g_label_count++;
 }
 
+/* ---------- key prompts that light up ----------
+ * A prompt turns white while its key is held, and for a moment after a quick press, so the press can
+ * be seen. The font is monospaced, so the lit part is drawn over the grey line as a copy of the line
+ * with everything else blanked out: it sits exactly on its words, and each line is still translated
+ * whole. Buttons are found by their names in the line ("Melee (Z)"); any direction lights the
+ * directions line. Only grey lines light up, not warnings. */
+enum { PROMPT_DIRECTIONS, PROMPT_A, PROMPT_B, PROMPT_C, PROMPT_D, PROMPT_CARD, PROMPT_KEYS };
+#define PROMPT_LIT_FRAMES 10
+#define COLOR_PROMPT_LIT COLOR_WHITE
+static int g_prompt_lit[PROMPT_KEYS];
+
+void screen_light_prompts(const SokuLib::KeyInput &input, int escape)
+{
+    int held[PROMPT_KEYS];
+    int wau, changed = 0;
+
+    held[PROMPT_DIRECTIONS] = input.horizontalAxis != 0 || input.verticalAxis != 0;
+    held[PROMPT_A] = input.a > 0;
+    held[PROMPT_B] = input.b > 0 || escape;
+    held[PROMPT_C] = input.c > 0;
+    held[PROMPT_D] = input.d > 0;
+    held[PROMPT_CARD] = input.spellcard > 0;
+    for (wau = 0; wau < PROMPT_KEYS; wau++) {
+        int was_lit = g_prompt_lit[wau] > 0;
+
+        if (held[wau])
+            g_prompt_lit[wau] = PROMPT_LIT_FRAMES;
+        else if (g_prompt_lit[wau] > 0)
+            g_prompt_lit[wau]--;
+        changed |= was_lit != (g_prompt_lit[wau] > 0);
+    }
+    if (changed)
+        g_dirty = 1;
+}
+
+static const char *button_name(int SokuLib::KeyBindings::*field, const char *action);
+
+/* The name a lit button has in the prompts, or NULL. */
+static const char *lit_button(int key)
+{
+    if (g_prompt_lit[key] <= 0)
+        return NULL;
+    switch (key) {
+    case PROMPT_A:    return button_name(&SokuLib::KeyBindings::a, tr("Melee"));
+    case PROMPT_B:    return button_name(&SokuLib::KeyBindings::b, tr("Weak Shot"));
+    case PROMPT_C:    return button_name(&SokuLib::KeyBindings::c, tr("Strong Shot"));
+    case PROMPT_D:    return button_name(&SokuLib::KeyBindings::d, tr("Dash"));
+    case PROMPT_CARD: return button_name(&SokuLib::KeyBindings::spellcard, tr("Use Card"));
+    }
+    return NULL;
+}
+
+/* Draws the lit prompts of one line over it. Prompts are separated by three spaces. */
+static void add_lit_prompts(const char *text, int is_directions, int pos_y)
+{
+    char lit[256], names[PROMPT_KEYS][64];
+    size_t length = strlen(text), start = 0;
+    int wau, name_count = 0, any = 0;
+
+    if (length >= sizeof lit)
+        return;
+    if (is_directions) {
+        if (g_prompt_lit[PROMPT_DIRECTIONS] > 0)
+            add_label(text, g_font_small, 20, pos_y, 600, 20, COLOR_PROMPT_LIT);
+        return;
+    }
+    /* Copied, since button_name only keeps its last few. */
+    for (wau = PROMPT_A; wau < PROMPT_KEYS; wau++) {
+        const char *name = lit_button(wau);
+
+        if (name)
+            format_text(names[name_count++], "%s", name);
+    }
+    if (name_count == 0)
+        return;
+    memset(lit, ' ', length);
+    lit[length] = 0;
+    while (start < length) {
+        const char *gap = strstr(text + start, "   ");
+        size_t end = gap ? (size_t)(gap - text) : length;
+        char part[256];
+
+        memcpy(part, text + start, end - start);
+        part[end - start] = 0;
+        for (wau = 0; wau < name_count; wau++) {
+            if (strstr(part, names[wau])) {
+                memcpy(lit + start, text + start, end - start);
+                any = 1;
+            }
+        }
+        start = end;
+        while (start < length && text[start] == ' ')
+            start++;
+    }
+    if (any)
+        add_label(lit, g_font_small, 20, pos_y, 600, 20, COLOR_PROMPT_LIT);
+}
+
 /* The key prompts at the bottom of a screen: the directions on a line of their own, then the buttons,
  * on one line or two, the last line at the bottom of the screen. NULL or empty leaves a line out. */
 static void add_key_prompts(const char *directions, const char *buttons, unsigned buttons_color,
@@ -183,8 +281,13 @@ static void add_key_prompts(const char *directions, const char *buttons, unsigne
         texts[count] = more_buttons;
         colors[count++] = more_color;
     }
-    for (wau = 0; wau < count; wau++)
-        add_label(texts[wau], g_font_small, 20, 458 - 18 * (count - 1 - wau), 600, 20, colors[wau]);
+    for (wau = 0; wau < count; wau++) {
+        int pos_y = 458 - 18 * (count - 1 - wau);
+
+        add_label(texts[wau], g_font_small, 20, pos_y, 600, 20, colors[wau]);
+        if (colors[wau] == COLOR_GREY)
+            add_lit_prompts(texts[wau], directions && *directions && wau == 0, pos_y);
+    }
 }
 
 /* Directions and one line of buttons, both grey. */
@@ -527,7 +630,8 @@ static void rebuild_choose(void)
         add_prompts(NULL, line);
         return;
     }
-    add_label(tr("Slay the Scarlet: choose a character"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
+    add_label(choose_roulette_running() ? tr("Slay the Scarlet: a character is picked at random")
+                                        : tr("Slay the Scarlet: choose a character"), g_font_big, 20, 16, 600, 30, COLOR_WHITE);
     if (g_settings.seed[0]) {
         _snprintf(line, sizeof line - 1, tr("Currently set seed: %s."), g_settings.seed);
         line[sizeof line - 1] = 0;
@@ -543,6 +647,7 @@ static void rebuild_choose(void)
     line[sizeof line - 1] = 0;
     add_label(line, g_font_small, CELL_X(2) + 6, CHOOSE_PLAYER_Y + 6, 350, 20, COLOR_GREY);
     add_label(tr("Settings"), g_font_big, CHOOSE_SETTINGS_X + 6, CHOOSE_SETTINGS_Y + 4, 200, 26, COLOR_WHITE);
+    add_label(tr("Random"), g_font_big, CHOOSE_RANDOM_X + 6, CHOOSE_RANDOM_Y + 4, 110, 26, COLOR_WHITE);
     add_label(tr("Gallery"), g_font_big, CHOOSE_GALLERY_X + 6, CHOOSE_GALLERY_Y + 4, 110, 26, COLOR_WHITE);
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         int pos_x = CELL_X(character);
@@ -557,6 +662,11 @@ static void rebuild_choose(void)
         char toggle[192];
 
         toggle[0] = 0;
+        if (choose_roulette_running()) {
+            format_text(line, tr("%s: skip"), BUTTON_A);
+            add_prompts(NULL, line);
+            return;
+        }
         switch (choose_toggle_for(g_cursor)) {
         case TOGGLE_USE:
             format_text(toggle, tr("%s: use %s's run"), BUTTON_D, character_label(g_cursor));
@@ -571,7 +681,8 @@ static void rebuild_choose(void)
             format_text(line, tr("Press %s again to delete this character's run."), BUTTON_C);
         else if (g_cursor == CHOOSE_PLAYER)
             format_text(line, tr("%s: close"), BUTTON_B);
-        else if (g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_GALLERY || !run_file_exists(g_cursor))
+        else if (g_cursor == CHOOSE_SETTINGS || g_cursor == CHOOSE_RANDOM || g_cursor == CHOOSE_GALLERY
+                 || !run_file_exists(g_cursor))
             format_text(line, tr("%s: open   %s: close"), BUTTON_A, BUTTON_B);
         else
             format_text(line, tr("%s: open   %s: close   %s twice: delete run"), BUTTON_A, BUTTON_B, BUTTON_C);
@@ -1872,7 +1983,7 @@ static void draw_offers(void)
                                   (unsigned)wau);
             }
             g_art[wau].draw();
-    }
+        }
     }
     shown++;
     if (draft_deck_shown())
@@ -1997,6 +2108,8 @@ static void draw_screen_parts(void)
             draw_cursor_box(CHOOSE_SETTINGS_X, CHOOSE_SETTINGS_Y, 116, 32);
         else if (g_cursor == CHOOSE_GALLERY)
             draw_cursor_box(CHOOSE_GALLERY_X, CHOOSE_GALLERY_Y, 116, 32);
+        else if (g_cursor == CHOOSE_RANDOM)
+            draw_cursor_box(CHOOSE_RANDOM_X, CHOOSE_RANDOM_Y, 116, 32);
         else
             draw_cursor_box(CELL_X(g_cursor), CELL_Y(g_cursor), CELL_W, CELL_H);
         break;

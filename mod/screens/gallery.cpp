@@ -56,15 +56,19 @@ int gallery_card_shown(int index)
         && (gallery_unlocked() || card_found(g_gallery_character, g_gallery_cards[index].id));
 }
 
+/* delay 0 is a press of Use Card. */
 static void play_card_under_cursor(int delay)
 {
     const sts_card *card = card_under_cursor();
+    int owner = g_gallery_kind == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_gallery_character;
 
-    if (card && gallery_card_shown(g_cursor) && card_sounds_on())
-        card_sounds_start(g_gallery_kind == STS_CARD_SYSTEM ? STS_SOUND_SYSTEM : g_gallery_character,
-                          card->id, card->type, delay, 1);
-    else
+    if (card && gallery_card_shown(g_cursor) && card_sounds_on()) {
+        if (delay == 0 && !card_sounds_use_card(owner, card->id))
+            return;
+        card_sounds_start(owner, card->id, card->type, delay, 1);
+    } else {
         card_sounds_stop();
+    }
 }
 
 /* Skills in the order players name their inputs: 236, 623, 214, 421, then 22. A skill's

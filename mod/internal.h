@@ -42,8 +42,8 @@ void move_run_decks_to_setting(void);
 #define SCREEN_H 480
 #define COLS 5
 #define ROWS 4
-/* The character menu's last row, after the characters: the settings screen on the left and the
- * gallery on the right. */
+/* The character menu's last row, after the characters: the settings screen on the left, a random
+ * character in the middle, and the gallery on the right. */
 #define CHOOSE_SETTINGS STS_NUM_CHARACTERS
 #define CHOOSE_SETTINGS_X 24
 #define CHOOSE_SETTINGS_Y 356
@@ -53,6 +53,11 @@ void move_run_decks_to_setting(void);
 /* The row above the characters: whose runs the menu shows, player 1's or player 2's. */
 #define CHOOSE_PLAYER (STS_NUM_CHARACTERS + 2)
 #define CHOOSE_PLAYER_Y 48
+#define CHOOSE_RANDOM (STS_NUM_CHARACTERS + 3)
+#define CHOOSE_RANDOM_X (24 + (COLS / 2) * 120)
+#define CHOOSE_RANDOM_Y CHOOSE_SETTINGS_Y
+/* 1 while the cursor runs over the characters to land on a random one. */
+int choose_roulette_running(void);
 /* Rows of the character menu: the player switch, the characters, and Settings and the gallery. */
 #define CHOOSE_ROWS (STS_NUM_CHARACTERS / COLS + 2)
 /* How many cards the draft and reward screens fit side by side. */
@@ -175,6 +180,10 @@ int card_sounds_on(void);
 int card_sounds_automatic(void);
 /* Use Card on the draft, a reward, or the deck screen: the card under the cursor plays its sounds at once. */
 void card_sounds_play_under_cursor(void);
+/* Called for each press of Use Card on a card: returns 1 if its sounds may play. A Penny Saved pressed
+ * more than five times in quick succession plays the guard crush sound instead and returns 0, and
+ * then stays quiet a while, or until the cursor leaves it and comes back. */
+int card_sounds_use_card(int owner, uint16_t id);
 void card_sounds_stop(void);
 void card_sounds_tick(void);
 void card_sounds_release(void);

@@ -609,6 +609,8 @@ ja=オフ: 結果をすぐに表示します。
 # The gallery: every card, playing its sounds
 en=Gallery
 ja=ギャラリー
+en=Slay the Scarlet: a character is picked at random
+ja=Slay the Scarlet: キャラクターをランダムに選んでいます
 en=Slay the Scarlet: gallery
 ja=Slay the Scarlet: ギャラリー
 en=Gallery: skill cards
