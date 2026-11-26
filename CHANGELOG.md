@@ -3,7 +3,7 @@
 What changed in each release of Slay the Scarlet. Releases are on the
 [Releases page](https://github.com/TheStooges/SlayTheScarlet/releases).
 
-## 0.7 - 2026-11-25
+## 0.7 - 2026-11-26
 
 ### Added
 
@@ -19,9 +19,11 @@ What changed in each release of Slay the Scarlet. Releases are on the
   opponent's version of the mod differs, or their set seed, for events. Nothing shows when they match.
 - **More copies are rarer.** An offer gives 1 copy about half the time, and each extra copy is half
   as likely as one fewer: 4 copies about 1 time in 15.
-
 - **Random character.** The F7 menu has Random between Settings and the Gallery. With the roulette
-  animation on, the cursor runs round the characters and lands on one; the confirm button skips to it.
+  animation on, the cursor jumps between characters at random and lands on one; the confirm button
+  skips to it. With it off, the pick shows for a moment before its draft opens.
+- **Key prompts light up.** A key's prompt at the bottom of the screen turns white while the key is
+  pressed.
 
 ### Changed
 
@@ -33,6 +35,7 @@ What changed in each release of Slay the Scarlet. Releases are on the
   were only in the file (deck size, copy limit, cards per pick and per offer, fewest and most copies,
   add and remove rewards, offers at random, the mostly_* card types, card sounds, and a few unused
   ones) are no longer read: a file that lists them still loads, with their defaults.
+- The Gallery's card counts line up on the right.
 
 ## 0.6.1 - 2026-11-25
 
