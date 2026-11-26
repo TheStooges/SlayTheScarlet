@@ -334,7 +334,7 @@ above 4; both need patches to the game's checks, and full mode online.
    column (that drives unlocks and says nothing about strength). Rare cards are the strong ones a deck is
    built around (e.g. Sakuya's Killing Doll and Private Square); without tiers a strong card turns up as
    often as any other and is an instant pick every time. Decided so far: Rare appears less often than
-   Uncommon, Uncommon less often than Common; Rare never in the draft; every starter card is Common.
+   Uncommon, Uncommon less often than Common; Rare never in the draft.
    Open: whether Uncommon can appear in the draft; whether Rare is a lower weight or only offered every N
    matches (or a chance after N). Look: Uncommon cards outlined cyan, Rare gold, wherever cards show
    (offers, deck, gallery, the change screens); maybe an effect behind a hovered card, with Tenshi's
@@ -343,6 +343,26 @@ above 4; both need patches to the game's checks, and full mode online.
    data file (e.g. a column in `data/cards.csv`, or a `data/rarity.csv` the community can edit), and how
    tiers are offered would be settings; both change what is offered, so both count towards the
    fingerprint, and offer generation filters by tier before rolling, as it does for the copy limit.
+   Decided (2026-11-26), replacing "every starter card is Common": a fourth rarity, Starter, for
+   Spiritual Strike Talisman (Bomb), Divine Raiment of the Dragon Fish (Hangeki), and each character's
+   starter skill and spell. As in Slay the Spire, an offer's tier is rolled for the whole offer, so all
+   its cards share one tier; each tier needs enough cards for variety. A first draft of the tiers is in
+   `data/rarity.csv` (not read by the mod yet; the community balances it), made from card usage over
+   about 10.6 million games (a spreadsheet the developer was given, `card_scores.csv`, kept in the
+   gitignored `reference/`). Its four bands per character (C, UC, R, SR) became three, R and SR both
+   Rare. Skills and spells are ranked within their own type (`tier_skill`, `tier_spell`): ranked against
+   all of a character's cards, spells crowd the top and about 10 to 12 cards per character came out
+   Rare. A system card has one rarity for every character, the average of its per-character tiers:
+   A Penny Saved (Coin) Rare; Magic Potion, Tengu Fan and Sword of Scarlet Perception Uncommon; the
+   rest Common. That gave each character 5 to 8 Rare cards (Coin among them), 5 to 8 Uncommon of
+   their own plus 3 system, and 7 to 10 Common of their own plus 15 system. Things to handle when it is
+   built: a tier can run short (cards at the copy limit drop out), so fall back to a neighbouring tier;
+   with one of each card type, a Rare offer's system card is always Coin, Bomb or Hangeki (accepted);
+   and Common is mostly system cards. The developer then adjusted the tiers by hand (each character
+   now has 5 to 7 Rare cards of their own, Patchouli the most). Decided (2026-11-26): Starter cards
+   are offered; Bomb and Hangeki count as Rare, being strong, and the starter skills and spells as
+   Common. Counted that way, with system cards, each character has 8 to 10 Rare (17 to 21% of
+   their offerable cards), 13 to 15 Uncommon, and 20 to 24 Common.
 
 16. (idea, 2026-11-25; by decision, well after the open beta) Status and curse cards, as in Slay the
    Spire: universal cards, not tied to a character. Status cards bloat the deck so a hand has less to

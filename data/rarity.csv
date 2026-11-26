@@ -1,0 +1,498 @@
+# Card rarity for offers, one line per card. Not read by the mod yet: rarity is planned (see
+# docs/roadmap.md, item 15), and these tiers are a draft for the community to balance.
+#
+# owner,id,rarity,name
+#   owner and id as in cards.csv. rarity: common, uncommon, rare or starter. name is the rest of
+#   the line (it may hold commas), only for people editing this file: English, from th123e. The
+#   mod always takes names from the game.
+#
+# starter marks Spiritual Strike Talisman, Divine Raiment of the Dragon Fish, and each
+# character's starter skill and spell. In offers, the two system cards count as rare and the
+# skills and spells as common.
+#
+# How the draft was made: it started from card usage across about 10.6 million games
+# (card_scores.csv, not in this repository), with each skill ranked against the character's
+# other skills and each spell against their other spells, and a system card given one rarity for
+# every character. The tiers were then adjusted by hand.
+system,0,starter,Spiritual Strike Talisman
+system,1,common,Magic Potion
+system,2,common,Stopwatch
+system,3,common,Hakurouken
+system,4,common,Sacrificial Doll
+system,5,common,Grimoire
+system,6,common,Custom Parasol
+system,7,common,Soul Torch
+system,8,common,Left-handed Folding Fan
+system,9,common,Ibuki Gourd
+system,10,uncommon,Tengu Fan
+system,11,uncommon,Spell-Breaking Drug
+system,12,rare,A Penny Saved
+system,13,starter,Divine Raiment of the Dragon Fish
+system,14,uncommon,Sword of Scarlet Perception
+system,15,uncommon,Illness Recovery Charm
+system,16,common,Frozen Frog
+system,17,common,Dragon Star
+system,18,uncommon,Control Rod
+system,19,uncommon,Three Heavenly Drops
+system,20,uncommon,Catfish's Great Earthquake
+Reimu,100,starter,Hakurei Amulet
+Reimu,101,rare,Cautionary Border
+Reimu,102,common,Dimensional Rift
+Reimu,103,common,Ascension Kick
+Reimu,104,rare,Youkai Buster
+Reimu,105,uncommon,Binding Border
+Reimu,106,common,Demon Sealing Dimensional Rift
+Reimu,107,common,Sliding Ascension Kick
+Reimu,108,common,Spread Amulet
+Reimu,109,rare,Permanent Border
+Reimu,110,uncommon,Instant Dimensional Rift
+Reimu,111,common,Rain Dance
+Reimu,200,starter,Spirit Sign "Fantasy Orb"
+Reimu,201,rare,Divine Spirit "Fantasy Seal"
+Reimu,204,common,Dream Sign "Demon Binding Array"
+Reimu,206,uncommon,Divine Arts "Demon Binding Circle"
+Reimu,207,common,Boundary "Expanding Boundary"
+Reimu,208,common,Jewel Sign "Concealed Orbs of Light"
+Reimu,209,uncommon,Treasure Sign "Ying-Yang Orb"
+Reimu,210,rare,Holy Relic "Ying-Yang Sanctifier Orb"
+Reimu,214,uncommon,Divine Arts "Wind God Kick"
+Reimu,219,uncommon,"Fantasy Heaven"
+Marisa,100,rare,Witch Leyline
+Marisa,101,rare,Miasma Sweep
+Marisa,102,starter,Grand Stardust
+Marisa,103,common,Meteonic Debris
+Marisa,104,uncommon,Radial Strike
+Marisa,105,uncommon,Bosky Sweeper
+Marisa,106,common,Devildom Torch
+Marisa,107,uncommon,Narrow Spark
+Marisa,108,common,Up Sweeper
+Marisa,109,common,Stellar Missile
+Marisa,110,uncommon,Magical Reusable Bomb
+Marisa,111,common,Green Spread
+Marisa,200,rare,Love Sign "Master Spark"
+Marisa,202,uncommon,Magicannon "Final Spark"
+Marisa,203,rare,Star Sign "Dragon Meteor"
+Marisa,204,common,Love Sign "Non-Directional Laser"
+Marisa,205,common,Magic Sign "Stardust Reverie"
+Marisa,206,common,Star Sign "Escape Velocity"
+Marisa,207,uncommon,Comet "Blazing Star"
+Marisa,208,common,Star Sign "Meteonic Shower"
+Marisa,209,rare,Star Sign "Gravity Beat"
+Marisa,211,rare,Light Sign "Luminous Strike"
+Marisa,212,starter,Light Sign "Earthlight Ray"
+Marisa,214,uncommon,Magical Research "Deep Ecological Bomb"
+Marisa,215,common,Ritual Sign "Orreries Sun"
+Marisa,219,uncommon,Perversion "Sure-Fire Master Spark"
+Sakuya,100,uncommon,Close-Up Magic
+Sakuya,101,rare,Bounce No-Bounce
+Sakuya,102,starter,Magic Star Sword
+Sakuya,103,common,Vanishing Everything
+Sakuya,104,common,Propelling Silver
+Sakuya,105,uncommon,Square Ricochet
+Sakuya,106,uncommon,Sense of Thrown Edge
+Sakuya,107,uncommon,Perfect Maid
+Sakuya,108,common,Dancing Star Sword
+Sakuya,109,common,Misdirection
+Sakuya,110,common,Parallel Brane
+Sakuya,111,common,Time Paradox
+Sakuya,200,rare,Illusion Sign "Killing Doll"
+Sakuya,201,rare,Time Sign "Private Square"
+Sakuya,202,uncommon,Wound Sign "Inscribed Red Soul"
+Sakuya,203,uncommon,Buriallusion "Phantasmic Killer"
+Sakuya,204,common,Sakuya's World
+Sakuya,205,rare,Scarred Soul "Soul Sculpture"
+Sakuya,206,starter,Silver Sign "Silver Bound"
+Sakuya,207,common,Conjuring "Eternal Meek"
+Sakuya,208,rare,Speed Sign "Luminous Ricochet"
+Sakuya,209,common,Time Sign "Sakuya's Special Stopwatch"
+Sakuya,210,common,Lightspeed "C. Ricochet"
+Sakuya,211,uncommon,Time Sign "Imaginary Vertical Time"
+Sakuya,212,uncommon,Watch "Luna Dial"
+Alice,100,starter,Doll Placement
+Alice,101,common,Volatile Doll
+Alice,102,common,Doll Arrangement
+Alice,103,rare,Doll Activation
+Alice,104,rare,Returning Dolls
+Alice,105,common,Doll Cremation
+Alice,106,rare,Thousand Spear Dolls
+Alice,107,uncommon,SP Doll
+Alice,108,common,Doll Ambush
+Alice,109,uncommon,Edo High-Explosive Pawn
+Alice,110,common,Doll Archers
+Alice,111,uncommon,Seeker Wire
+Alice,200,uncommon,Magic Sign "Artful Sacrifice"
+Alice,201,rare,War Sign "Little Legion"
+Alice,202,common,Curse Sign "Shanghai Doll"
+Alice,203,rare,Demonic Control "Return Inanimate"
+Alice,204,common,War Command "Dolls of War"
+Alice,205,uncommon,Curse Sign "Hourai Doll"
+Alice,206,starter,Spy Sign "Seeker Dolls"
+Alice,207,uncommon,Crimson Sign "Holland Doll"
+Alice,208,uncommon,Doll "Futuristic Puppet"
+Alice,209,common,Focus Power "Trip Wire"
+Alice,210,common,Lance Sign "Cute Phalanx"
+Alice,211,common,Dolls "Lemmings' Parade"
+Patchouli,100,rare,Summer Red
+Patchouli,101,rare,Winter Element
+Patchouli,102,uncommon,Spring Wind
+Patchouli,103,starter,Autumn Edge
+Patchouli,104,uncommon,Dew Spear
+Patchouli,105,common,Summer Flame
+Patchouli,106,uncommon,Condensed Bubble
+Patchouli,107,common,Flash of Spring
+Patchouli,108,rare,Autumn Blade
+Patchouli,109,rare,Emerald City
+Patchouli,110,common,Wipe Moisture
+Patchouli,111,common,Sticky Bubbles
+Patchouli,112,common,Static Green
+Patchouli,113,uncommon,Fall Slasher
+Patchouli,114,common,Diamond Hardness
+Patchouli,200,uncommon,Fire Metal Sign "St Elmo's Pillar"
+Patchouli,201,rare,Earth Water Sign "Noachian Deluge"
+Patchouli,202,rare,Metal Wood Sign "Elemental Harvester"
+Patchouli,203,rare,Sun Sign "Royal Flare"
+Patchouli,204,uncommon,Moon Sign "Silent Selene"
+Patchouli,205,common,Five Elements "Philosopher's Stone"
+Patchouli,206,common,Water Sign "Jellyfish Princess"
+Patchouli,207,uncommon,Moon Wood Sign "Satellite Sunflower"
+Patchouli,210,common,Sun Wood Sign "Photosynthesis"
+Patchouli,211,common,Fire Water Sign "Phlogistic Pillar"
+Patchouli,212,starter,Earth Metal Sign "Emerald Megalopolis"
+Patchouli,213,uncommon,Sun Moon Sign "Royal Diamond Ring"
+Youmu,100,uncommon,Netherworld Reflection Slash
+Youmu,101,rare,Crescent Moon Slash
+Youmu,102,starter,Slash of Life and Death
+Youmu,103,uncommon,Medium's Bind
+Youmu,104,common,Lotus Stance Cut
+Youmu,105,common,Intolerant Avici
+Youmu,106,common,Heart Carving Cut
+Youmu,107,common,Wicked Soul
+Youmu,108,rare,Phosphoric Slash
+Youmu,109,uncommon,Insightful Sword
+Youmu,110,uncommon,Slashing a Flower Upon One's Head
+Youmu,111,common,Strange Half-Body
+Youmu,200,starter,Human Sign "Slash of Present"
+Youmu,201,rare,Life Ending Sword "Meditation"
+Youmu,202,uncommon,Soul Sign "Ghostly Wheel of Pain"
+Youmu,203,rare,Obsessor "Slash of Eternity"
+Youmu,204,rare,Enlightened Sword "Rise from Delusion"
+Youmu,205,common,Spirit "Secret of Life and Death"
+Youmu,206,common,Sword Skill "Thousand Cherry Blossoms"
+Youmu,207,uncommon,Soul Cutting "Ascension to Nirvana"
+Youmu,208,common,Empty Perception "6-root Cleansing"
+Youmu,212,common,Reincarnation Sword "Sword of Cycles"
+Remilia,100,starter,Demon Lord Walk
+Remilia,101,rare,Servant Flier
+Remilia,102,rare,Demon Lord Cradle
+Remilia,103,common,Demon Lord Arrow
+Remilia,104,uncommon,Vampire Claw
+Remilia,105,rare,Chain Gang
+Remilia,106,common,Rocket Kick Upper
+Remilia,107,uncommon,Ceiling Fear
+Remilia,108,common,Trickster Devil
+Remilia,109,uncommon,Demon's Dinner Fork
+Remilia,110,common,Vampire Kiss
+Remilia,111,common,Stigmanizer
+Remilia,200,uncommon,Scarlet Sign "Red the Nightless Castle"
+Remilia,201,starter,Critical "Heart Break"
+Remilia,202,common,Midnight Sign "Demon King Cradle"
+Remilia,203,uncommon,Scarlet Devil "Scarlet Devil"
+Remilia,204,rare,Divine Spear "Spear the Gungnir"
+Remilia,205,rare,Midnight King "Dracula Cradle"
+Remilia,206,uncommon,Midnight Sign "Bad Lady Scramble"
+Remilia,207,common,Destiny "Miserable Fate"
+Remilia,208,common,"Millenium Vampire"
+Remilia,209,common,Demon "Remilia Stretch"
+Yuyuko,100,uncommon,Ghostly Butterfly
+Yuyuko,101,starter,Light of the Undead
+Yuyuko,102,rare,Eternal Wandering
+Yuyuko,103,uncommon,Dance of the Butterfly Dream
+Yuyuko,104,rare,Spirits that Died Well
+Yuyuko,105,common,Lance of the Swallowtail Crest
+Yuyuko,106,common,Spirit-Luring Nectar
+Yuyuko,107,common,Reverse Screens
+Yuyuko,108,rare,Sphere Bloom
+Yuyuko,109,common,Land of Death
+Yuyuko,110,common,Gifts to the Deceased
+Yuyuko,111,common,Sense of Elegance
+Yuyuko,200,starter,Death Sign "Ghastly Dream"
+Yuyuko,201,uncommon,Nether Sign "Passage to the Underworld"
+Yuyuko,202,rare,Ghost Sign "Ageless Dream"
+Yuyuko,203,uncommon,Deadly Butterfly "Endless Nap"
+Yuyuko,204,common,Lost Again "Gensokyo's Hell"
+Yuyuko,205,rare,Life Limit "Ticket to the Netherworld"
+Yuyuko,206,uncommon,Psyche "As the Butterfly Flies"
+Yuyuko,207,common,Butterfly Sign "Death Lance"
+Yuyuko,208,uncommon,Elegance "Invitation to the Afterlife"
+Yuyuko,209,common,Cherry Sign "Sense of Cherry Blossom"
+Yuyuko,219,uncommon,"Resurrection Butterflies"
+Yukari,100,starter,Open, Lamented Box of Urashima
+Yukari,101,rare,Ghostly Butterfly Hidden in Zen Temple
+Yukari,102,uncommon,Ride the Waves, Fight the Ocean
+Yukari,103,uncommon,Illusional Rift
+Yukari,104,rare,Bound to the Grave
+Yukari,105,common,Illusion Manji Parasol
+Yukari,106,rare,Universe of Matter and Antimatter
+Yukari,107,common,Flesh Dismantler
+Yukari,108,common,Bewitching Bait
+Yukari,109,common,Border between Brains and Feet
+Yukari,110,uncommon,Eye of Changes
+Yukari,111,common,Wings of the Chimera
+Yukari,200,uncommon,Border Sign "Quadruple Barrier"
+Yukari,201,rare,Shikigami "Ran Yakumo"
+Yukari,202,uncommon,Boundary "Border Between 2D and 3D"
+Yukari,203,rare,Boundary "Charming Quadruple Barrier"
+Yukari,204,starter,Shikigami "Chen"
+Yukari,205,uncommon,Boundary "Objective Border"
+Yukari,206,common,Fantasy Nest "Nest of Fireflies"
+Yukari,207,common,Aerial Bait "Laced With Venom"
+Yukari,208,common,Magic Eye "The Magic Eye of Laplace"
+Yukari,215,uncommon,Obsolete Line "Trip to the Old Station"
+Suika,100,rare,Spectre -Dense-
+Suika,101,starter,Gnome -Dense-
+Suika,102,uncommon,Spectre -Thin-
+Suika,103,uncommon,Gathering Oni
+Suika,104,rare,Oni Spirit Bomb
+Suika,105,common,Gnome -Thin-
+Suika,106,common,Unpleasant Mist
+Suika,107,uncommon,Thin Oni
+Suika,108,common,Foot Bellows
+Suika,109,rare,Fire Oni
+Suika,110,common,Ignis Fatuus
+Suika,111,common,Kidnapping Oni
+Suika,200,rare,Gather Sign "Throwing Mt. Togakushi"
+Suika,201,starter,Drunk Sign "Art of Oni Binding"
+Suika,202,rare,Oni Sign "Missing Power"
+Suika,203,rare,Gathering Oni "Throwing Atlas"
+Suika,204,common,Drunken Dream "Art of Gaki Binding"
+Suika,205,uncommon,Great Oni "Missing Purple Power"
+Suika,206,common,Mist Sign "Gathering and Dissipating"
+Suika,207,uncommon,Will-o-wisp "Superdense Conflagration"
+Suika,208,uncommon,Oni Sign "Massacre on Mt.Ooe"
+Suika,212,common,Secret of Kings "3-Step Destruction"
+Reisen,100,rare,Mind Explosion
+Reisen,101,starter,Illusionary Blast
+Reisen,102,common,Ultrared Field
+Reisen,103,uncommon,Disbelief Aspect
+Reisen,104,common,Mind Bending
+Reisen,105,common,Eyesight Cleaning
+Reisen,106,rare,Ultraviolet Field
+Reisen,107,common,Disorder Eye
+Reisen,108,common,Mind Dropping
+Reisen,109,rare,Ripple Vision
+Reisen,110,uncommon,Undersense Break
+Reisen,111,uncommon,Acura Spectral
+Reisen,200,uncommon,Charming Look "Corolla Vision"
+Reisen,202,common,Illusion Bomb "Mind Starmine"
+Reisen,203,starter,Fascination "Crown Vision"
+Reisen,204,rare,Red Eyes "Lunatic Blast"
+Reisen,205,rare,Lunatic Red Eyes
+Reisen,206,rare,Weak Heart "Demotivation"
+Reisen,207,uncommon,Desolation "Discarder"
+Reisen,208,uncommon,Poison Smokescreen "Gas-Woven Orb"
+Reisen,209,uncommon,Life Elixir "Grand Patriot's Elixir"
+Reisen,210,common,Shortsight "X-Wave"
+Reisen,211,common,Farsight "Infrared Moon"
+Aya,100,rare,Gust Fan
+Aya,101,uncommon,Domination Dash
+Aya,102,rare,Wind Standing of the Tengu
+Aya,103,starter,Pelting in the Night
+Aya,104,common,Gale Fan
+Aya,105,common,Graceful Dash
+Aya,106,uncommon,Tengu's Downburst
+Aya,107,common,Wind Sickle Veiling
+Aya,108,common,Wind from the Maple Fan
+Aya,109,uncommon,Tengu Felling
+Aya,110,rare,Tengu Drum
+Aya,111,common,Tengu's Pebbles
+Aya,200,rare,Whirl Sign "Maple Leaf Fan"
+Aya,201,uncommon,Tornado "Indication to the Divine"
+Aya,202,rare,Headwind "Route Forbidden to Man"
+Aya,203,common,Thrust Sign "Tengu's Macroburst"
+Aya,205,rare,Wind Sign "Wind of the Tengu Path"
+Aya,206,uncommon,Illusionary Dominance
+Aya,207,uncommon,Wind Sign "Tengu Limited Special"
+Aya,208,common,Crow Sign "Dark Daymare"
+Aya,211,uncommon,Demonic Beast "Sickle Weasel Veiling"
+Aya,212,starter,Squall "Sarutahiko's Guidance"
+Komachi,100,common,Spirits of the Firm
+Komachi,101,starter,Bound Spirits of the Earth
+Komachi,102,common,Ritual of Ecstacy
+Komachi,103,common,Floating Spirits of the Indolent Dead
+Komachi,104,rare,Scythe of the Reaper
+Komachi,105,rare,Wind on the Last Journey
+Komachi,106,uncommon,The Endless Way
+Komachi,107,uncommon,Lonely Bound Spirit
+Komachi,108,uncommon,A Human Spirit Passing By
+Komachi,109,common,Boat on the Sanzu
+Komachi,110,rare,Taste of Death
+Komachi,111,common,Scythe of Exorcism
+Komachi,200,starter,Nautical Sign "Flow of the River"
+Komachi,201,rare,Poor Fate "Short Life Expectancy"
+Komachi,202,uncommon,Spirit Sign "Abundant Floating Spirits"
+Komachi,203,uncommon,Death Song "Ferriage in the Deep Fog"
+Komachi,204,common,Exchange "Unpitiable, Pitiable Life"
+Komachi,205,common,Malice Sign "Irresolute Bound Spirit"
+Komachi,206,uncommon,Death Sign "Scythe of Final Judgement"
+Komachi,207,common,Soul Sign "Scythe of Wandering Spirits"
+Komachi,211,rare,Hell "Narrow Confines of Avici"
+Iku,100,uncommon,Dragon Fish's Strike
+Iku,101,starter,Veils like Water
+Iku,102,uncommon,Dragon Fish's Wrath
+Iku,103,common,Electrostatic Guided Missile
+Iku,104,rare,Dragon God's Strike
+Iku,105,common,Veils like Wind
+Iku,106,rare,Dragon God's Wrath
+Iku,107,rare,Dragon God's Lightning Flash
+Iku,108,common,Dragonfish, the Able Swimmer
+Iku,109,common,The Smite of the Goddess
+Iku,110,common,Whiskers of the Dragon God
+Iku,111,uncommon,Dragon's Eye
+Iku,200,common,Electric Sign "Thunder Drum Shot"
+Iku,201,uncommon,Fish Sign "Dragonfish Drill"
+Iku,202,uncommon,Lightning Sign "Elekiter Dragon Palace"
+Iku,203,uncommon,Star Light "Light Dragon's Sigh"
+Iku,206,starter,Lightning Fish "Swimming Thunder Shot"
+Iku,207,rare,Angel's Raiment "Veils like Sky"
+Iku,208,common,Angel's Raiment "Veils like Time"
+Iku,209,rare,Thorn Sign "Thundercloud Stickleback"
+Iku,210,rare,Dragonfish "Swimming Oarfish Shot"
+Iku,211,common,Orb Sign "Orb of the Five-Clawed Dragon"
+Tenshi,100,starter,Sword of the Earth
+Tenshi,101,rare,Pillars of Divine Punishment
+Tenshi,102,uncommon,Beams of Non-Perception
+Tenshi,103,uncommon,Sword of Non-Perception
+Tenshi,104,rare,Six Earthquakes -Signs-
+Tenshi,105,common,Guarding Keystones
+Tenshi,106,common,Heaven and Earth Press
+Tenshi,107,rare,Sword of Scarlet Perception
+Tenshi,108,common,Sword of Fate
+Tenshi,109,common,Awakening of the Earth Spirits
+Tenshi,110,uncommon,Scarlet Sword Temperament
+Tenshi,111,common,Sky Attack
+Tenshi,200,uncommon,Earth Sign "Sword of Unletting Soil"
+Tenshi,201,common,Non-perception "Sword of Rapture"
+Tenshi,202,rare,Heaven Sign "Sword of Divine Justice"
+Tenshi,203,common,Earthquake "Sword of Worry and Joy"
+Tenshi,204,rare,Temperament "Meteorological Revelation"
+Tenshi,205,uncommon,Keystone "World Creation Press"
+Tenshi,206,uncommon,Temperament "State of Enlightenment"
+Tenshi,207,uncommon,"Scarlet Weather Rapture"
+Tenshi,208,common,Swordplay "Sword of Swagger"
+Tenshi,209,starter,Weather "Scarlet Weather Pressure"
+Sanae,100,starter,Wind-Call
+Sanae,101,uncommon,Omikuji Bomb
+Sanae,102,rare,Sky-God Summon: Attack
+Sanae,103,uncommon,Earth-God Summon: Shield
+Sanae,104,common,Wave-Call
+Sanae,105,common,Sky Serpent
+Sanae,106,uncommon,Sky-God Summon: Wind
+Sanae,107,common,Earth-God Summon: Iron Ring
+Sanae,108,uncommon,Falling Stars
+Sanae,109,common,Cobalt Spread
+Sanae,110,common,Sky-God Summon: Onbashira
+Sanae,111,rare,Earth-God Summon: Trap
+Sanae,200,common,Prayer "Charm of Good Commerce"
+Sanae,201,rare,Esoterica "Grey Thaumaturgy"
+Sanae,202,common,Esoterica "Forgotten Ritual"
+Sanae,203,uncommon,Omikuji "Random Omikuji Barrage"
+Sanae,204,rare,Sea Opening "The Day the Sea Split"
+Sanae,205,uncommon,Sea Opening "Moses' Miracle"
+Sanae,206,starter,Miracle "Mid-Day Supernova"
+Sanae,207,rare,Miracle "Night of the Supernova Storm"
+Sanae,210,uncommon,Esoterica "9 Character Pierce"
+Cirno,100,uncommon,Icicle Shot
+Cirno,101,common,Midsummer Snowman
+Cirno,102,starter,Little Iceberg
+Cirno,103,common,Freeze Touch Me
+Cirno,104,common,Frost Pillars
+Cirno,105,rare,Ice Charge
+Cirno,106,uncommon,Icicle Bomb
+Cirno,107,uncommon,Icicle Lance
+Cirno,108,common,Freezing Light
+Cirno,109,common,Ice Kick
+Cirno,110,uncommon,Frozen Technique
+Cirno,111,rare,Icicle Sword
+Cirno,200,uncommon,Ice Sign "Icicle Machine Gun"
+Cirno,201,common,Frost Sign "Frost Columns"
+Cirno,202,common,Ice Cubes "Cold Sprinkler"
+Cirno,203,common,Cold Body "Super Ice Kick"
+Cirno,204,uncommon,Cold Sign "Perfect Freeze"
+Cirno,205,starter,Ice Sign "Fairy Spin"
+Cirno,206,uncommon,Blowing Ice "Ice Tornado"
+Cirno,207,rare,Ice Sign "Sword Freezer"
+Cirno,208,rare,Ice Cubes "Great Crusher"
+Cirno,210,common,Frozen Sign "Freeze Atmosphere"
+Cirno,213,rare,Cold Sign "Insta-Freeze Beam"
+Meiling,100,uncommon,Spiral-Light Steps
+Meiling,101,starter,Red Cannon
+Meiling,102,common,Yellow Quake Kick
+Meiling,103,common,Fragrant Wave
+Meiling,104,uncommon,Searing Red Fist
+Meiling,105,uncommon,Red Energy Release
+Meiling,106,rare,Earth Dragon Wave
+Meiling,107,common,Water Taichi Fist
+Meiling,108,rare,Kick of Showering Brilliance
+Meiling,109,common,Tiger Chi Release
+Meiling,110,uncommon,Sky Dragon Kick
+Meiling,111,common,Colorful Rain
+Meiling,200,common,Color Sign "Colorful Windchime"
+Meiling,201,rare,Ultimate Color "Mad Colorful Dance"
+Meiling,202,starter,Chi Sign "Star Bullets"
+Meiling,203,rare,Star Chi "Earth-moving Star Bullets"
+Meiling,204,rare,Attack Sign "Roc Fist"
+Meiling,205,uncommon,Fiery Attack "Roc-Killing Fist"
+Meiling,206,common,Rainbow Sign "Intense Rainbow Fist"
+Meiling,207,uncommon,Chi Sign "Earth Dragon Sky Dragon Kick"
+Meiling,208,common,Colorful Brilliance "Rainbow Taichi"
+Meiling,209,uncommon,Brilliance "Rainbow Brilliance Palm"
+Meiling,211,common,Chi Sign "Fierce Tiger Energy Release"
+Utsuho,100,common,Flare Up
+Utsuho,101,common,Ground Melt
+Utsuho,102,starter,Break Sun
+Utsuho,103,common,Shooting Star
+Utsuho,104,rare,Rocket Dive
+Utsuho,105,rare,Hell Geyser
+Utsuho,106,uncommon,Shooting Sun
+Utsuho,107,rare,Retro Atomic Model
+Utsuho,108,common,Melting Pummel Kick
+Utsuho,109,uncommon,Radiant Blade
+Utsuho,110,common,Hell Wave Cannon
+Utsuho,111,common,Vengeful Nuclear Spirits
+Utsuho,200,uncommon,Explosion Sign "Mega Flare"
+Utsuho,201,uncommon,Explosion Sign "Giga Flare"
+Utsuho,203,uncommon,Burning Star "Fixed Star"
+Utsuho,204,common,Burning Star "The Ten Suns"
+Utsuho,205,common,Nuclear Sign "Creeping Sun"
+Utsuho,206,common,"Hell's Artificial Sun"
+Utsuho,207,common,Geothermal "Nuclear Blaze Geyser"
+Utsuho,208,starter,Light Energy "High-Tension Blade"
+Utsuho,209,uncommon,Crow Sign "Yatagarasu Dive"
+Utsuho,210,uncommon,Nuclear Heat "Uncontrollable Dive"
+Utsuho,211,rare,Control "Self Tokamak"
+Utsuho,212,rare,"Subterranean Sun"
+Utsuho,213,rare,Light Cover "Nuclear Visor"
+Utsuho,214,common,"Abyss Nova"
+Suwako,100,starter,Ancient Geyser
+Suwako,101,uncommon,Toad God
+Suwako,102,rare,Lake of Great Earth
+Suwako,103,rare,Native Scourge
+Suwako,104,uncommon,Frog God
+Suwako,105,rare,Ancient Metal Ring
+Suwako,106,common,Ancient Jade
+Suwako,107,common,Blighted Earth
+Suwako,108,common,Rain-Calling Frog
+Suwako,109,uncommon,Ms Longlimbs
+Suwako,110,common,Stone Frog God
+Suwako,111,uncommon,Mishaguji Scourge
+Suwako,200,rare,Native God "Moriya God"
+Suwako,201,rare,Spring Sign "Moriya Clear Water"
+Suwako,202,common,Party Start "2 bows, 2 Claps, 1 Bow"
+Suwako,203,starter,Native God "Froggy Braves the Elements"
+Suwako,204,common,Divine Instrument "Moriya's Metal Ring"
+Suwako,205,common,Spring Sign "Horrid River Jade"
+Suwako,206,common,Frog Hunt "Snake Hears And Eats Frog"
+Suwako,207,uncommon,Native God "Master Longlimbs"
+Suwako,208,uncommon,Scourge God "Mishaguchi-sama"
+Suwako,209,rare,Native God "Red Frog of Houei 4"
+Suwako,212,uncommon,Frog Nap "Can Always Hibernate"
