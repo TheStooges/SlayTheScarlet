@@ -982,7 +982,6 @@ static void test_settings_rarity(void)
     CHECK(defaults.reward.rarity_weights[STS_RARITY_COMMON] == 60 && defaults.reward.rarity_weights[STS_RARITY_UNCOMMON] == 30
           && defaults.reward.rarity_weights[STS_RARITY_RARE] == 10);
     CHECK(defaults.reward.copy_odds == STS_COPY_ODDS_HALVING);
-    CHECK(defaults.draft.one_tier_each == 0 && defaults.reward.one_tier_each == 0 && defaults.draft_opening_tiers == 1);
 
     /* The file sets each of them; the draft has no copy odds, its copies being always 1. */
     CHECK(parse_ini("[draft]\nrarity=false\nrare_weight=5\n[reward]\ncopy_odds=falling\ncommon_weight=1\n"

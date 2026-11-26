@@ -64,9 +64,6 @@ typedef struct {
      * A tier with weight 0 is never offered. */
     int rarity;
     int rarity_weights[STS_TIER_COUNT];
-    /* With rarity on: one offer of each tier instead, common, uncommon then rare (and round again past
-     * three), whatever the weights. Only code sets it; off by default. */
-    int one_tier_each;
     sts_copy_odds copy_odds;
 } sts_offer_settings;
 

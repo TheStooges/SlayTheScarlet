@@ -67,8 +67,7 @@ Decks are always 20 cards, with at most 4 copies of a card.
 
 Every card is common, uncommon, or rare, and the cards of one pick or offer are all of the same
 rarity, shown by the colour of the offer's outline. Rare cards are the strongest: they come up 1
-time in 10 after a match. The draft's first three picks are common, uncommon, and rare, and that
-rare is the only one the draft gives.
+time in 10 after a match, and seldom in the draft, which gives at most one.
 
 A match on another character or deck slot is a normal match: no offer, and your deck is unchanged.
 

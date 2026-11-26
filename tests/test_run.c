@@ -40,7 +40,6 @@ static void test_draft_rare_limit(void)
     /* Rare nearly always, so the limit is what stops it. Uncommon is left once it does. */
     CHECK(parse_ini("[draft]\ncommon_weight=0\nuncommon_weight=1\nrare_weight=1000\n", &settings, &line)
           == STS_SETTINGS_OK);
-    settings.draft.one_tier_each = 0;   /* rolled tiers, which the limit is for */
     for (character = 0; character < STS_NUM_CHARACTERS; character++) {
         CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, 3) == STS_RUN_OK);
         CHECK_EACH(finish_draft(&run, &settings) == STS_RUN_OK && run.phase == STS_PHASE_READY);
@@ -61,43 +60,6 @@ static void test_draft_rare_limit(void)
     CHECK(finish_draft(&run, &settings) == STS_RUN_OK && rare_cards(&run) > 10);
 }
 
-/* The draft's first three picks are common, uncommon and rare, whatever the character or seed, with or
- * without the starter. */
-static void test_draft_opening(void)
-{
-    static sts_run run;
-    sts_settings settings;
-    int character, pick, wau, starter;
-
-    sts_settings_defaults(&settings);
-    for (starter = 0; starter < 2; starter++) {
-        settings.starter_enabled = starter;
-        for (character = 0; character < STS_NUM_CHARACTERS; character++) {
-            CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, (uint64_t)(character + 40)) == STS_RUN_OK);
-            for (pick = 0; pick < STS_TIER_COUNT; pick++) {
-                CHECK_EACH(run.offer_count == 3);
-                for (wau = 0; wau < run.offer_count; wau++)
-                    CHECK_EACH(sts_card_tier(sts_card_db_find(&g_db, character, run.offers[wau].id)) == pick);
-                CHECK_EACH(sts_run_draft_pick(&run, &g_db, &settings, 0) == STS_RUN_OK);
-            }
-            /* The rare one taken is the draft's one rare: no more come. */
-            CHECK_EACH(finish_draft(&run, &settings) == STS_RUN_OK && rare_cards(&run) == 1 + 4 * starter);
-        }
-    }
-    CHECK_EACH_DONE();
-
-    /* Off, the first pick rolls as usual: across seeds, not always common. */
-    settings.starter_enabled = 0;
-    settings.draft_opening_tiers = 0;
-    pick = 0;
-    for (wau = 0; wau < 200; wau++) {
-        CHECK_EACH(sts_run_start(&run, &g_db, &settings, 3, (uint64_t)wau) == STS_RUN_OK);
-        pick += sts_card_tier(sts_card_db_find(&g_db, 3, run.offers[0].id)) != STS_RARITY_COMMON;
-    }
-    CHECK_EACH_DONE();
-    CHECK(pick > 20);
-}
-
 /* A match's tier roll decides the rarity of the reward, for the players of that match alike, and an
  * owed reward keeps its own. */
 static void test_reward_tier_roll(void)
@@ -110,7 +72,6 @@ static void test_reward_tier_roll(void)
     int wau;
 
     sts_settings_defaults(&settings);
-    settings.reward.one_tier_each = 0;   /* rolled tiers, which the roll decides */
     memset(&result, 0, sizeof result);
     result.won = 1;
     result.rounds_won = 2;
@@ -290,7 +251,6 @@ void test_run_draft(void)
 
     test_run_starter();
     test_draft_rare_limit();
-    test_draft_opening();
 }
 
 /* Starts a finished draft under the given rules. */

@@ -70,9 +70,6 @@ typedef struct {
     /* The most rare cards a draft may bring in, -1 for no limit: once the deck holds this many beyond
      * its starter's, no more draft picks are rare. Only code sets it. */
     int draft_rare_max;
-    /* 1: the draft's first three picks are common, uncommon and rare, in that order, then they roll as
-     * usual. Only code sets it. */
-    int draft_opening_tiers;
     sts_who_picks who_picks;
     int random_chance;   /* out of 100, for STS_WHO_RANDOM */
     /* Seconds to take a reward, 0 for no limit. When it runs out, what is left to choose is chosen at

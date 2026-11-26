@@ -141,34 +141,13 @@ static sts_offer_settings draft_offers(const sts_run *run, const sts_card_db *db
     return cfg;
 }
 
-/* The draft's first picks show each tier in turn, common, uncommon then rare, with draft_opening_tiers:
- * the roll that lands on this pick's tier. Returns 0 for a pick that rolls as usual. A tier with
- * weight 0 cannot be landed on, so it rolls as usual too. */
-static int opening_tier_roll(const sts_run *run, const sts_settings *settings, const sts_offer_settings *cfg,
-                             uint32_t *roll)
-{
-    int tier;
-
-    if (!settings->draft_opening_tiers || !cfg->rarity || cfg->one_tier_each || run->picks_done >= STS_TIER_COUNT
-        || cfg->rarity_weights[run->picks_done] <= 0)
-        return 0;
-    *roll = 0;
-    for (tier = 0; tier < run->picks_done; tier++)
-        if (cfg->rarity_weights[tier] > 0)
-            *roll += (uint32_t)cfg->rarity_weights[tier];
-    return 1;
-}
-
 /* Rolls the next draft offers or finishes the draft, which ends when the deck reaches size_min. */
 static sts_run_status advance_draft(sts_run *run, const sts_card_db *db, const sts_settings *settings)
 {
     if (run->deck.count < settings->rules.deck_min) {
         sts_offer_settings cfg = draft_offers(run, db, settings);
-        uint32_t opening_roll;
 
-        int opening = opening_tier_roll(run, settings, &cfg, &opening_roll);
-
-        roll_offers(run, db, &settings->rules, &cfg, opening ? &opening_roll : NULL);
+        roll_offers(run, db, &settings->rules, &cfg, NULL);
         if (run->offer_count > 0)
             return STS_RUN_OK;
     }

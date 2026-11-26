@@ -22,7 +22,6 @@ add_library(SlayTheScarlet MODULE
   main.cpp
   card_sounds.cpp
   card_text.cpp
-  effect_probe.cpp
   embedded.cpp
   log.cpp
   text.cpp

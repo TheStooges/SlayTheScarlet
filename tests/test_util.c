@@ -59,7 +59,6 @@ sts_offer_settings add_settings(void)
     offer_settings.rarity_weights[STS_RARITY_UNCOMMON] = 1;
     offer_settings.rarity_weights[STS_RARITY_RARE] = 1;
     offer_settings.copy_odds = STS_COPY_ODDS_EVEN;
-    offer_settings.one_tier_each = 0;
     return offer_settings;
 }
 

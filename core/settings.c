@@ -163,7 +163,6 @@ void sts_settings_defaults(sts_settings *settings)
     settings->draft.rarity_weights[STS_RARITY_UNCOMMON] = 24;
     settings->draft.rarity_weights[STS_RARITY_RARE] = 1;
     settings->draft_rare_max = 1;
-    settings->draft_opening_tiers = 1;
 
     settings->reward.mode = STS_REWARD_REPLACE;
     settings->reward.offer_count = 3;
@@ -895,7 +894,6 @@ static uint32_t hash_offer(uint32_t hash, const sts_offer_settings *offer_settin
     hash = hash_int(hash, offer_settings->rarity_weights[STS_RARITY_COMMON]);
     hash = hash_int(hash, offer_settings->rarity_weights[STS_RARITY_UNCOMMON]);
     hash = hash_int(hash, offer_settings->rarity_weights[STS_RARITY_RARE]);
-    hash = hash_int(hash, offer_settings->one_tier_each);
     return hash_int(hash, (int)offer_settings->copy_odds);
 }
 
@@ -921,7 +919,6 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     hash = hash_offer(hash, &settings->draft);
     hash = hash_offer(hash, &settings->reward);
     hash = hash_int(hash, settings->draft_rare_max);
-    hash = hash_int(hash, settings->draft_opening_tiers);
     hash = hash_int(hash, (int)settings->who_picks);
     hash = hash_int(hash, (int)settings->pick_visibility);
     hash = hash_int(hash, (int)settings->opponent_deck);

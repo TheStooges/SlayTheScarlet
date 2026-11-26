@@ -7,7 +7,7 @@
 #include <math.h>
 #include "internal.h"
 
-/* The timings are the game's, from the effect probe. Sizes are the game's times about 0.4, which makes
+/* The timings are the game's, measured in the game (docs/findings.md). Sizes are the game's times about 0.4, which makes
  * a character about the size of the card, held back where an image would reach well past the box. */
 
 /* Remilia: 20 images of 2 frames each, looping, fading in over the first 26 frames. */

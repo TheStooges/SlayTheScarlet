@@ -9,9 +9,9 @@ What changed in each release of Slay the Scarlet. Releases are on the
 
 - **Card rarity.** Every card is common, uncommon, or rare, and each pick's cards are all of one
   rarity. Rewards are common 6 times in 10, uncommon 3, and rare 1. Online, both players' offers
-  after a match are of the same rarity. The draft opens with a common pick, an uncommon pick, and a
-  rare pick, then is mostly common and sometimes uncommon, with at most one rare card per draft. The
-  rarities are a first draft for the community to balance.
+  after a match are of the same rarity. The draft is mostly common, sometimes uncommon, and seldom
+  rare, with at most one rare card per draft. The rarities are a first draft for the community to
+  balance.
 - **Rarity shows on the offers.** Each offer's box is outlined grey, cyan, or gold. Uncommon cards
   burn with Remilia's flames from Millennium Vampire, and rare cards crackle with Tenshi's lightning
   from State of Enlightenment, each with its spell's sound as the offers appear.

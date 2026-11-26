@@ -91,7 +91,7 @@ static void collect_candidates(const sts_card_db *db, int character, const sts_c
 
         if (!(offer_settings->type_mask & STS_TYPE_BIT(card->type)))
             continue;
-        if (offer_settings->rarity && !offer_settings->one_tier_each && offer_settings->rarity_weights[tier] <= 0)
+        if (offer_settings->rarity && offer_settings->rarity_weights[tier] <= 0)
             continue;
         max_copies = max_copies_for(db, character, card, deck, rules, offer_settings);
         if (max_copies < offer_settings->copies_min)
@@ -242,19 +242,12 @@ static int generate(const sts_card_db *db, int character, const sts_deck *deck, 
     collect_candidates(db, character, &db->characters[character], deck, rules, settings, tiers);
 
     want = min_int(settings->offer_count, max_out);
-    if (want <= 0)
-        tier = -1;
-    else if (settings->rarity && settings->one_tier_each)
-        tier = 0;
-    else
-        tier = roll_tier(settings, tier_roll, rng);
+    tier = want > 0 ? roll_tier(settings, tier_roll, rng) : -1;
     for (wau = 0; wau < want && tier >= 0; wau++) {
         candidate_list *list;
         candidate picked;
         int type, j;
 
-        if (settings->rarity && settings->one_tier_each)
-            tier = wau % STS_TIER_COUNT;
         if (tier_card_count(&tiers[tier]) == 0)
             tier = fallback_tier(tiers, tier);
         if (tier < 0)
@@ -296,7 +289,7 @@ int sts_offer_is_valid(const sts_card_db *db, int character, const sts_deck *dec
 
     if (!card || !(settings->type_mask & STS_TYPE_BIT(card->type)))
         return 0;
-    if (settings->rarity && !settings->one_tier_each && settings->rarity_weights[sts_card_tier(card)] <= 0)
+    if (settings->rarity && settings->rarity_weights[sts_card_tier(card)] <= 0)
         return 0;
     return offer->copies >= settings->copies_min
         && offer->copies <= max_copies_for(db, character, card, deck, rules, settings);

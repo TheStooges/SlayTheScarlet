@@ -836,28 +836,6 @@ void test_offer_rarity(void)
         CHECK(sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8) == 0);
     }
 
-    /* One of each tier: common, uncommon, rare in turn, whatever the weights. */
-    sts_deck_clear(&deck);
-    offer_settings.rarity = 1;
-    offer_settings.one_tier_each = 1;
-    offer_settings.rarity_weights[0] = offer_settings.rarity_weights[1] = offer_settings.rarity_weights[2] = 0;
-    for (j = 0; j < 300; j++) {
-        count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
-        CHECK_EACH(count == 3);
-        for (wau = 0; wau < count; wau++)
-            CHECK_EACH(tier_of(character, offer[wau].id) == wau);
-    }
-    CHECK_EACH_DONE();
-    {
-        sts_offer coin;
-
-        coin.id = 12;   /* rare, offered though its weight is 0 */
-        coin.type = STS_CARD_SYSTEM;
-        coin.copies = 1;
-        CHECK(sts_offer_is_valid(&g_db, character, &deck, &rules, &offer_settings, &coin));
-    }
-    offer_settings.one_tier_each = 0;
-
     /* With rarity off, the weights do nothing. */
     sts_deck_clear(&deck);
     offer_settings.rarity = 0;

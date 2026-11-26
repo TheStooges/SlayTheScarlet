@@ -48,7 +48,8 @@ recorded here, and online logging now lives in `mod/net/netlog.cpp`.
   u16 cards[deckSize], u8 disabledSimultaneousButtons`; host then client, then `u8 stage, u8 music,
   u32 seed, u8 matchId`. The mod reads the seed from the host's packet (`HOST_GAME`, sent on the
   host, received on the client) for each match's reward rarity; that both see the same value is
-  assumed from the layout, not yet checked over a real network. The buffer is sized for up to 256 cards. The deck travels as an explicit
+  assumed from the layout, not yet checked over a real network. The buffer is sized for up to 256
+  cards. The deck travels as an explicit
   card list, plus the slot number (`deckId`).
 - **Opcodes already in use** (pick mod message IDs outside these; the list may be incomplete):
   base game 0x01-0x0B, 0x0D, 0x0E; SokuRoll 0x10-0x14; AdvancedPracticeMode 0x15-0x17;
@@ -131,9 +132,10 @@ recorded here, and online logging now lives in `mod/net/netlog.cpp`.
 - **Skill input images:** `data/profile/deck2/022_SkillCard000Cost.bmp` to `004` (64x32) are the deck
   screen's images, one per skill input, in `cost_or_slot` order. The top half says "Skill Card", the
   bottom half has the arrows and button name. Paths load as `.bmp` though the archive holds `.cv2`.
-- **Card effect sprites** (effect probe, 2026-11-26, Practice mode): a character object's
-  `frameData->texIndex` is its image's place in `data/character/<name>/<name>.pat`'s image list
-  plus 85 (checked on Remilia and Tenshi; presumably 85 shared images come first). Images load by
+- **Card effect sprites** (the effect probe, 2026-11-26, Practice mode; see roadmap item 15): a
+  character object's `frameData->texIndex` is its image's place in
+  `data/character/<name>/<name>.pat`'s image list plus 85 (checked on Remilia and Tenshi;
+  presumably 85 shared images come first). Images load by
   `data/character/<name>/<image>.bmp`, held as 24-bit `.cv2` with black for nothing, drawn additive
   (blend mode 2). Remilia's Millennium Vampire (action 608) makes one object, action 858: a red
   flame aura, `bulletHa000` to `bulletHa019` (128x128), 2 frames each, looping, at 3x scale, centred

@@ -373,11 +373,11 @@ above 4; both need patches to the game's checks, and full mode online.
    that host and client get the same seed, so the same tier.
    Look, built (2026-11-26): each offer's box is outlined in its rarity's colour (common grey,
    uncommon cyan, rare a deeper gold than the cursor), on the draft and reward screens only; the
-   selected box keeps the cursor's fill, with a double outline. For the effect behind a card, debug
-   builds have a probe (`mod/effect_probe.cpp`) that writes `effects.log` in Practice mode: each
-   distinct frame of both players' objects, by image index in `data/character/<name>/<name>.pat`
-   (a version 5 pattern: u8 version, u16 image count, then 128-byte names). Next: find which objects
-   Millennium Vampire and State of Enlightenment create, and draw those frames behind rare offers.
+   selected box keeps the cursor's fill, with a double outline. For the effect behind a card, a
+   debug-build probe logged each distinct frame of both players' objects in Practice mode,
+   by image index in `data/character/<name>/<name>.pat` (a version 5 pattern: u8 version, u16 image
+   count, then 128-byte names). It is not committed: it is kept with the archive tools in the
+   gitignored `reference/effect_probe/`, as the sound probe is, with a README on putting it back.
    Found and built the same day (see findings.md, card effect sprites; `mod/screens/offer_effects.cpp`):
    by decision, Remilia's flames loop behind uncommon offers (Remilia Scarlet, for the mod's name) and
    Tenshi's burst plays behind rare ones (Tenshi, for the weather of Scarlet Weather Rhapsody), always,
@@ -385,10 +385,9 @@ above 4; both need patches to the game's checks, and full mode online.
    offers appear: Remilia's flames fade in over 26 frames and loop every 40; Tenshi's glow, ring and
    sparks play once (25, 42 and 50 frames) and her lightning repeats every 28 frames. Each spell's
    sound plays as its effect appears (uncommon: Millennium Vampire's; rare: State of Enlightenment's),
-   through the card sounds, so it follows that setting. Decided (2026-11-26): the draft's first three
-   picks are common, uncommon and rare, in that order (`draft_opening_tiers`, set only in code), then
-   roll as usual; the rare one taken there is the draft's one rare. `one_tier_each` (one offer of each
-   rarity per pick) stays in the code, off.
+   through the card sounds, so it follows that setting. Tried and removed the same day: one offer of
+   each rarity per pick, and the draft's first three picks forced to common, uncommon and rare; both
+   were for seeing the outlines and effects.
 
 16. (idea, 2026-11-25; by decision, well after the open beta) Status and curse cards, as in Slay the
    Spire: universal cards, not tied to a character. Status cards bloat the deck so a hand has less to
