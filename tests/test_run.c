@@ -11,7 +11,150 @@ static sts_run_status begin_reward(sts_run *run, const sts_card_db *db, const st
     result.rounds_won = won ? 2 : 0;
     result.rounds_lost = won ? 0 : 2;
     result.opponent = 1;
+    /* Different for each match, and the same for the same run, as restarts expect. */
+    result.tier_roll = (uint32_t)run->matches_played * 2654435761u + (uint32_t)run->character;
     return sts_run_begin_reward(run, db, settings, &result, outcome);
+}
+
+static sts_run_status finish_draft(sts_run *run, const sts_settings *settings);
+static void ready_run(sts_run *run, const sts_settings *settings, int character, uint64_t seed);
+static int save_and_load(const sts_run *run, sts_run *loaded);
+
+/* The deck's cards that count as rare in offers. */
+static int rare_cards(const sts_run *run)
+{
+    int wau, count = 0;
+
+    for (wau = 0; wau < run->deck.count; wau++)
+        count += sts_card_tier(sts_card_db_find(&g_db, run->character, run->deck.ids[wau])) == STS_RARITY_RARE;
+    return count;
+}
+
+/* A draft brings in at most draft_rare_max rare cards; the starter's do not count. */
+static void test_draft_rare_limit(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    int character, line = 0;
+
+    /* Rare nearly always, so the limit is what stops it. Uncommon is left once it does. */
+    CHECK(parse_ini("[draft]\ncommon_weight=0\nuncommon_weight=1\nrare_weight=1000\n", &settings, &line)
+          == STS_SETTINGS_OK);
+    settings.draft.one_tier_each = 0;   /* rolled tiers, which the limit is for */
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, 3) == STS_RUN_OK);
+        CHECK_EACH(finish_draft(&run, &settings) == STS_RUN_OK && run.phase == STS_PHASE_READY);
+        CHECK_EACH(rare_cards(&run) == 1);
+    }
+    CHECK_EACH_DONE();
+
+    /* The starter's Spiritual Strike Talismans and Divine Raiments count as rare, but not towards the limit. */
+    settings.starter_enabled = 1;
+    CHECK(sts_run_start(&run, &g_db, &settings, 6, 3) == STS_RUN_OK);
+    CHECK(rare_cards(&run) == 4);
+    CHECK(finish_draft(&run, &settings) == STS_RUN_OK && rare_cards(&run) == 5);
+
+    /* Without a limit, every pick can be rare. */
+    settings.starter_enabled = 0;
+    settings.draft_rare_max = -1;
+    CHECK(sts_run_start(&run, &g_db, &settings, 6, 3) == STS_RUN_OK);
+    CHECK(finish_draft(&run, &settings) == STS_RUN_OK && rare_cards(&run) > 10);
+}
+
+/* The draft's first three picks are common, uncommon and rare, whatever the character or seed, with or
+ * without the starter. */
+static void test_draft_opening(void)
+{
+    static sts_run run;
+    sts_settings settings;
+    int character, pick, wau, starter;
+
+    sts_settings_defaults(&settings);
+    for (starter = 0; starter < 2; starter++) {
+        settings.starter_enabled = starter;
+        for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+            CHECK_EACH(sts_run_start(&run, &g_db, &settings, character, (uint64_t)(character + 40)) == STS_RUN_OK);
+            for (pick = 0; pick < STS_TIER_COUNT; pick++) {
+                CHECK_EACH(run.offer_count == 3);
+                for (wau = 0; wau < run.offer_count; wau++)
+                    CHECK_EACH(sts_card_tier(sts_card_db_find(&g_db, character, run.offers[wau].id)) == pick);
+                CHECK_EACH(sts_run_draft_pick(&run, &g_db, &settings, 0) == STS_RUN_OK);
+            }
+            /* The rare one taken is the draft's one rare: no more come. */
+            CHECK_EACH(finish_draft(&run, &settings) == STS_RUN_OK && rare_cards(&run) == 1 + 4 * starter);
+        }
+    }
+    CHECK_EACH_DONE();
+
+    /* Off, the first pick rolls as usual: across seeds, not always common. */
+    settings.starter_enabled = 0;
+    settings.draft_opening_tiers = 0;
+    pick = 0;
+    for (wau = 0; wau < 200; wau++) {
+        CHECK_EACH(sts_run_start(&run, &g_db, &settings, 3, (uint64_t)wau) == STS_RUN_OK);
+        pick += sts_card_tier(sts_card_db_find(&g_db, 3, run.offers[0].id)) != STS_RARITY_COMMON;
+    }
+    CHECK_EACH_DONE();
+    CHECK(pick > 20);
+}
+
+/* A match's tier roll decides the rarity of the reward, for the players of that match alike, and an
+ * owed reward keeps its own. */
+static void test_reward_tier_roll(void)
+{
+    static sts_run first, second, loaded;
+    sts_settings settings;
+    sts_match_result result;
+    sts_reward_outcome out;
+    uint32_t roll;
+    int wau;
+
+    sts_settings_defaults(&settings);
+    settings.reward.one_tier_each = 0;   /* rolled tiers, which the roll decides */
+    memset(&result, 0, sizeof result);
+    result.won = 1;
+    result.rounds_won = 2;
+    for (roll = 0; roll < 100; roll++) {
+        int expected = roll < 60 ? STS_RARITY_COMMON : roll < 90 ? STS_RARITY_UNCOMMON : STS_RARITY_RARE;
+
+        ready_run(&first, &settings, 0, 11);
+        ready_run(&second, &settings, 16, 12);
+        result.tier_roll = roll + 1000;   /* by its remainder: 1000 is a whole number of hundreds */
+        CHECK_EACH(sts_run_begin_reward(&first, &g_db, &settings, &result, &out) == STS_RUN_OK);
+        CHECK_EACH(sts_run_begin_reward(&second, &g_db, &settings, &result, &out) == STS_RUN_OK);
+        for (wau = 0; wau < first.offer_count; wau++)
+            CHECK_EACH(sts_card_tier(sts_card_db_find(&g_db, 0, first.offers[wau].id)) == expected);
+        for (wau = 0; wau < second.offer_count; wau++)
+            CHECK_EACH(sts_card_tier(sts_card_db_find(&g_db, 16, second.offers[wau].id)) == expected);
+    }
+    CHECK_EACH_DONE();
+
+    /* A match played while offers wait keeps its roll, through a save, for when its reward comes. */
+    ready_run(&first, &settings, 0, 11);
+    result.tier_roll = 5;    /* common */
+    CHECK(sts_run_begin_reward(&first, &g_db, &settings, &result, &out) == STS_RUN_OK && out == STS_REWARD_OFFERS);
+    result.tier_roll = 95;   /* rare */
+    CHECK(sts_run_begin_reward(&first, &g_db, &settings, &result, &out) == STS_RUN_OK && first.owed_count == 1);
+    CHECK(save_and_load(&first, &loaded) && loaded.owed_roll[0] == 95);
+    {
+        uint16_t leaving[4];
+        sts_replace_choice choice;
+
+        choice.remove_count = 0;
+        for (wau = 0; wau < loaded.deck.count && choice.remove_count < loaded.offers[0].copies; wau++)
+            if (loaded.deck.ids[wau] != loaded.offers[0].id)
+                leaving[choice.remove_count++] = loaded.deck.ids[wau];
+        choice.remove_ids = leaving;
+        choice.type = 0;
+        CHECK(sts_run_reward_pick(&loaded, &g_db, &settings, 0, &choice) == STS_RUN_OK);
+    }
+    CHECK(loaded.phase == STS_PHASE_REWARD && loaded.offer_count > 0);
+    for (wau = 0; wau < loaded.offer_count; wau++)
+        CHECK(sts_card_tier(sts_card_db_find(&g_db, 0, loaded.offers[wau].id)) == STS_RARITY_RARE);
+
+    /* The roll from a match's seed is fixed, and differs between seeds. */
+    CHECK(sts_match_tier_roll(1234) == sts_match_tier_roll(1234));
+    CHECK(sts_match_tier_roll(1234) != sts_match_tier_roll(1235));
 }
 
 /* Finishes a draft by always taking the first offer. */
@@ -138,14 +281,16 @@ void test_run_draft(void)
     }
 
     /* A pool too small for the deck reports stuck instead of faking a legal deck:
-     * 1 copy each of Komachi's 9 spells cannot reach 20 cards. */
-    CHECK(parse_ini("[deck]\ncopy_limit=1\n", &settings, &line) == STS_SETTINGS_OK);
+     * 1 copy each of Komachi's 9 spells cannot reach 20 cards. Rarity off, so rare ones count too. */
+    CHECK(parse_ini("[deck]\ncopy_limit=1\n[draft]\nrarity=false\n", &settings, &line) == STS_SETTINGS_OK);
     settings.draft.type_mask = STS_TYPE_BIT(STS_CARD_SPELL);   /* not a setting; only code can do this */
     CHECK(sts_run_start(&run, &g_db, &settings, 12, 1) == STS_RUN_OK);
     CHECK(finish_draft(&run, &settings) == STS_RUN_STUCK);
     CHECK(run.phase == STS_PHASE_DRAFT && run.offer_count == 0 && run.deck.count == 9);
 
     test_run_starter();
+    test_draft_rare_limit();
+    test_draft_opening();
 }
 
 /* Starts a finished draft under the given rules. */
@@ -188,9 +333,11 @@ static void test_rewards_replace_choose(void)
         uint16_t taken = run.offers[1].id;
         int had = sts_deck_count_of(&run.deck, taken);
 
-        /* Any card but the one coming in. */
-        for (wau = 0; run.deck.ids[wau] == taken; wau++) {}
-        remove[0] = run.deck.ids[wau];
+        /* Any cards but the one coming in, as many as its copies. */
+        choice.remove_count = 0;
+        for (wau = 0; wau < run.deck.count && choice.remove_count < run.offers[1].copies; wau++)
+            if (run.deck.ids[wau] != taken)
+                remove[choice.remove_count++] = run.deck.ids[wau];
         CHECK(sts_run_reward_pick(&run, &g_db, &settings, 1, &choice) == STS_RUN_OK);
         CHECK(run.phase == STS_PHASE_READY && run.offer_count == 0 && run.deck.count == 20);
         CHECK(sts_deck_count_of(&run.deck, taken) >= had);
@@ -284,8 +431,9 @@ static void test_rewards_offer_pick(void)
     sts_settings settings;
     sts_reward_outcome out;
     sts_replace_choice choice;
-    uint16_t leaving;
+    uint16_t leaving[4];
     size_t count;
+    int wau;
 
     sts_settings_defaults(&settings);
     settings.offer_pick = STS_OFFER_PICK_RANDOM;
@@ -296,9 +444,12 @@ static void test_rewards_offer_pick(void)
     CHECK(count > 0 && sts_run_parse(text, count, &loaded) == STS_RUN_OK);
     CHECK(loaded.offer_count == 1 && loaded.offers[0].id == run.offers[0].id);
 
-    leaving = run.deck.ids[0] != run.offers[0].id ? run.deck.ids[0] : run.deck.ids[run.deck.count - 1];
-    choice.remove_ids = &leaving;
-    choice.remove_count = 1;
+    /* Any cards but the one coming in, as many as its copies. */
+    choice.remove_count = 0;
+    for (wau = 0; wau < run.deck.count && choice.remove_count < run.offers[0].copies; wau++)
+        if (run.deck.ids[wau] != run.offers[0].id)
+            leaving[choice.remove_count++] = run.deck.ids[wau];
+    choice.remove_ids = leaving;
     choice.type = 0;
     CHECK(sts_run_reward_pick(&run, &g_db, &settings, 0, &choice) == STS_RUN_OK);
     CHECK(run.phase == STS_PHASE_READY && run.deck.count == 20);
@@ -583,6 +734,7 @@ void test_run_rewards(void)
     test_rewards_add_and_remove();
     test_rewards_owed();
     test_rewards_at_random();
+    test_reward_tier_roll();
 }
 
 /* Only the settings a run saves. */
@@ -614,7 +766,8 @@ static int runs_equal(const sts_run *first, const sts_run *second)
             || first->offers[wau].copies != second->offers[wau].copies)
             return 0;
     if (first->owed_count != second->owed_count
-        || memcmp(first->owed_won, second->owed_won, (size_t)first->owed_count) != 0)
+        || memcmp(first->owed_won, second->owed_won, (size_t)first->owed_count) != 0
+        || memcmp(first->owed_roll, second->owed_roll, (size_t)first->owed_count * sizeof first->owed_roll[0]) != 0)
         return 0;
     if (first->seed != second->seed || first->restarts != second->restarts
         || first->offer_frames != second->offer_frames || first->has_rules != second->has_rules
@@ -1045,18 +1198,17 @@ static void test_saved_rules(void)
     sts_settings settings, changed;
     int line = 0;
 
-    CHECK(parse_ini("[reward]\nwho_picks=random\nrandom_chance=25\nreplacement=random\n", &settings, &line)
-          == STS_SETTINGS_OK);
+    CHECK(parse_ini("[reward]\nwho_picks=winner\nreplacement=random\n", &settings, &line) == STS_SETTINGS_OK);
     ready_run(&run, &settings, 9, 95);
     CHECK(save_and_load(&run, &loaded) && loaded.has_rules && sts_run_rules_restorable(&loaded));
-    CHECK(loaded.rules.who_picks == STS_WHO_RANDOM && loaded.rules.random_chance == 25);
+    CHECK(loaded.rules.who_picks == STS_WHO_WINNER && loaded.rules.reward.replace == STS_REPLACE_RANDOM);
     CHECK(sts_settings_hash(&loaded.rules) == sts_settings_hash(&settings));
 
     changed = settings;
-    changed.reward.offer_count = 2;
+    changed.who_picks = STS_WHO_LOSER;
     CHECK(sts_run_validate(&loaded, &g_db, &changed) == STS_RUN_SETTINGS_CHANGED);
     CHECK(sts_run_adopt_rules(&loaded, &g_db, &changed) == STS_RUN_OK);
-    CHECK(loaded.rules.reward.offer_count == 2 && sts_run_rules_restorable(&loaded));
+    CHECK(loaded.rules.who_picks == STS_WHO_LOSER && sts_run_rules_restorable(&loaded));
 
     /* Rules that no longer give the run's fingerprint, as when the built-in starter changes. */
     loaded.settings_hash ^= 1;
@@ -1229,7 +1381,7 @@ static void test_reward_time_out(void)
     again = run;
     CHECK(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_OK && run.phase == STS_PHASE_READY);
     CHECK(sts_run_reward_time_out(&again, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_OK);
-    CHECK(decks_equal(&run.deck, &again.deck) && run.history[0].added_count == 1);
+    CHECK(decks_equal(&run.deck, &again.deck) && run.history[0].added_count >= 1);
     CHECK(sts_run_reward_time_out(&run, &g_db, &settings, -1, NULL, 0, -1) == STS_RUN_WRONG_PHASE);
 
     /* By choice, two copies: one card chosen before time ran out leaves, and a random one with it. */

@@ -46,7 +46,9 @@ recorded here, and online logging now lives in `mod/net/netlog.cpp`.
   (card ID -> count), which fits the copy limit being a per-ID check separate from deck size.
 - **`GAME_MATCH` packet:** per player `u8 character, u8 skinId, u8 deckId, u8 deckSize,
   u16 cards[deckSize], u8 disabledSimultaneousButtons`; host then client, then `u8 stage, u8 music,
-  u32 seed, u8 matchId`. The buffer is sized for up to 256 cards. The deck travels as an explicit
+  u32 seed, u8 matchId`. The mod reads the seed from the host's packet (`HOST_GAME`, sent on the
+  host, received on the client) for each match's reward rarity; that both see the same value is
+  assumed from the layout, not yet checked over a real network. The buffer is sized for up to 256 cards. The deck travels as an explicit
   card list, plus the slot number (`deckId`).
 - **Opcodes already in use** (pick mod message IDs outside these; the list may be incomplete):
   base game 0x01-0x0B, 0x0D, 0x0E; SokuRoll 0x10-0x14; AdvancedPracticeMode 0x15-0x17;

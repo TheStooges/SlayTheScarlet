@@ -24,6 +24,13 @@ static recvfrom_fn g_og_recvfrom = NULL;
 /* Packets are handled on more than one thread. */
 static CRITICAL_SECTION g_lock;
 
+static int g_installed = 0;
+
+/* The seed of the last GAME_MATCH the host sent, which host and client both see (sent on the host,
+ * received on the client), and whether there has been one. */
+static uint32_t g_match_seed = 0;
+static int g_match_seed_known = 0;
+
 /* Replay packets received since the last spectator line, for that line. */
 static int g_replies_since_request_line = 0;
 
@@ -199,8 +206,15 @@ static void analyze(const char *dir, const unsigned char *packet, int len)
             offset = log_match_player(dir, "host", packet, len, offset);
             if (offset >= 0)
                 offset = log_match_player(dir, "client", packet, len, offset);
-            if (offset >= 0 && offset + 7 <= len)
+            if (offset >= 0 && offset + 7 <= len) {
                 slog("   stage %d, music %d, match %d", packet[offset], packet[offset + 1], packet[offset + 6]);
+                /* After the stage and music bytes, the seed, little-endian. */
+                if (type == SokuLib::HOST_GAME) {
+                    g_match_seed = (uint32_t)packet[offset + 2] | (uint32_t)packet[offset + 3] << 8
+                                 | (uint32_t)packet[offset + 4] << 16 | (uint32_t)packet[offset + 5] << 24;
+                    g_match_seed_known = 1;
+                }
+            }
             else if (offset < 0)
                 slog("   did not fit the expected layout, length %d", len);
         }
@@ -256,9 +270,23 @@ static int __stdcall hook_recvfrom(UINT_PTR socket_handle, char *buf, int len, i
     return received;
 }
 
+int netlog_match_seed(uint32_t *seed)
+{
+    int known;
+
+    if (!g_installed)
+        return 0;
+    EnterCriticalSection(&g_lock);
+    known = g_match_seed_known;
+    *seed = g_match_seed;
+    LeaveCriticalSection(&g_lock);
+    return known;
+}
+
 void netlog_install(int observer)
 {
     InitializeCriticalSection(&g_lock);
+    g_installed = 1;
     spectator_install();
     g_og_sendto = *(sendto_fn *)IAT_SENDTO;
     g_og_recvfrom = *(recvfrom_fn *)IAT_RECVFROM;

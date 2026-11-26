@@ -1,5 +1,5 @@
-# Card rarity for offers, one line per card. Not read by the mod yet: rarity is planned (see
-# docs/roadmap.md, item 15), and these tiers are a draft for the community to balance.
+# Card rarity for offers, one line per card, built into the mod (see docs/design.md). These tiers
+# are a draft for the community to balance. Every card needs exactly one line.
 #
 # owner,id,rarity,name
 #   owner and id as in cards.csv. rarity: common, uncommon, rare or starter. name is the rest of

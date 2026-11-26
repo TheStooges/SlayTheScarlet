@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "internal.h"
+#include "netlog.h"
 
 /* What the last battle scene showed, kept for when the scene has gone, for each player: whether their
  * run deck was played, on which side, and against whom. */
@@ -13,14 +14,30 @@ static int g_match_score_left = 0;
 static int g_match_score_right = 0;
 int g_match_reward_due[RUN_PLAYERS];
 int g_match_new[RUN_PLAYERS];
-sts_match_result g_match_result[RUN_PLAYERS] = {{0, 0, 0, -1}, {0, 0, 0, -1}};
+sts_match_result g_match_result[RUN_PLAYERS] = {{0, 0, 0, -1, 0}, {0, 0, 0, -1, 0}};
 int g_match_no_offer = 0;
 
 /* Called when a scene after the battle starts: was that a finished match with a run deck? Each side
  * that played its player's run deck gets its own result and reward. */
+/* The roll that picks the rarity of this match's rewards, the same for both players: online from the
+ * match's seed, which the opponent's mod has too, and offline (both players on this machine) local. */
+static uint32_t match_tier_roll(void)
+{
+    LARGE_INTEGER ticks;
+    uint32_t seed;
+
+    if ((SokuLib::mainMode == SokuLib::BATTLE_MODE_VSCLIENT || SokuLib::mainMode == SokuLib::BATTLE_MODE_VSSERVER)
+        && netlog_match_seed(&seed))
+        return sts_match_tier_roll(seed);
+    QueryPerformanceCounter(&ticks);
+    return sts_match_tier_roll((uint32_t)ticks.QuadPart ^ (uint32_t)(ticks.QuadPart >> 32));
+}
+
 static void finish_match(void)
 {
     int left = g_match_score_left, right = g_match_score_right, player;
+    int rolled = 0;
+    uint32_t tier_roll = 0;
 
     for (player = 0; player < RUN_PLAYERS; player++) {
         sts_match_result *result = &g_match_result[player];
@@ -37,6 +54,11 @@ static void finish_match(void)
         result->rounds_lost = g_match_run_on_right[player] ? left : right;
         result->won = result->rounds_won > result->rounds_lost;
         result->opponent = g_match_opponent[player];
+        if (!rolled) {
+            tier_roll = match_tier_roll();
+            rolled = 1;
+        }
+        result->tier_roll = tier_roll;
         g_match_reward_due[player] = 1;
         g_match_new[player] = 1;
     }

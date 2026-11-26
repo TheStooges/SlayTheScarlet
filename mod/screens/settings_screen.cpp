@@ -369,22 +369,11 @@ static void move_settings_cursor(int direction)
 
 /* Whether the screen steps onto the setting's current value. Without the mod on both sides, a reward
  * cannot change the deck size, so the reward only steps between replacing a card and no offers. Some
- * values are left off the screen by decision, kept for items or a file to use: Mostly System, Skill,
- * and Spell card types, and an offer at random. A file can still set them, and the screen shows
- * them until stepped past. */
+ * values are left off the screen by decision, kept for items to use: Mostly System, Skill, and Spell
+ * card types, and an offer at random. The file takes the same values (sts_settings_value_offered). */
 static int value_on_screen(const settings_row *row)
 {
-    char value[64];
-
-    if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "mode") == 0)
-        return g_settings_edit.reward.mode == STS_REWARD_REPLACE || g_settings_edit.reward.mode == STS_REWARD_SKIP;
-    if (strcmp(row->section, "reward") == 0 && strcmp(row->key, "who_picks") == 0)
-        return g_settings_edit.who_picks != STS_WHO_RANDOM;
-    if (strcmp(row->key, "card_types") == 0) {
-        sts_settings_get(&g_settings_edit, row->section, row->key, value, sizeof value);
-        return strcmp(value, "weighted") == 0 || strcmp(value, "one_of_each") == 0 || strcmp(value, "random") == 0;
-    }
-    return 1;
+    return sts_settings_value_offered(&g_settings_edit, row->section, row->key);
 }
 
 static void change_setting(int direction)
@@ -477,6 +466,10 @@ static void describe_problem(sts_settings_problem problem, const sts_settings_pr
     case STS_PROBLEM_REWARD_COPY_LIMIT:
         _snprintf(out, size - 1, tr("Most copies cannot be above %d, the copies of one card a deck may hold."),
                   rules->copy_limit);
+        break;
+    case STS_PROBLEM_DRAFT_RARITY:
+    case STS_PROBLEM_REWARD_RARITY:
+        _snprintf(out, size - 1, "%s", tr("The rarity weights in settings.ini cannot all be 0. Change them in the file."));
         break;
     case STS_PROBLEM_RANDOM_CHANCE:
         _snprintf(out, size - 1, "%s", tr("The chance of an offer cannot be above 100."));

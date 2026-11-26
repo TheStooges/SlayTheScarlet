@@ -32,6 +32,44 @@ likely, the default and the old 1/1/1 weights, so its fingerprint is unchanged),
 read and ignored. The offer generator still has `type_mask`, `style` and `weights` inside, which
 `card_types` fills in; only code can set other values (shown as "custom").
 
+settings.ini matches the settings screen (by decision, 2026-11-26): it takes only the screen's
+settings, and only the values the screen offers. Deck size and copy limit, cards per pick and per
+offer, copies and copy odds, rarity and its weights, `random_chance`, `pick_visibility`,
+`opponent_deck`, items and `card_sounds` are settings only code sets, as are reward modes add and
+remove, `who_picks=random` and the mostly_* card types. A file from an older version that lists
+them still loads: the line is ignored and the setting keeps its default (`sts_settings_parse`).
+`sts_settings_parse_all` takes them all, for tests and for code such as items later. They are still
+in the fingerprint, and runs do not save them, since they cannot differ.
+
+Rarity (roadmap item 15, built after v0.6.1): every card has a rarity in `data/rarity.csv` (common,
+uncommon, rare or starter), built into the DLL like `cards.csv`, and the mod refuses to start if a
+card has none. With rarity on (the default, for the draft and rewards), each pick first rolls a tier
+for all its offers, as in Slay the Spire, from the tier weights, then the card type and the card
+within that tier as before. Starter cards count by type (`sts_card_tier`): Spiritual Strike Talisman
+and Divine Raiment of the Dragon Fish as rare, the starter skills and spells as common. The tier
+comes from the weights alone, whatever cards are left, and a tier with no card (or that runs out
+part way) hands over to the nearest one with a weight, the lower first (rare to uncommon, then
+common), so a pick is only short when no tier has cards left. A tier with weight 0 is never offered,
+and `sts_offer_is_valid` refuses a saved offer of one. Defaults, by decision: the draft 75/24/1 with
+at most one rare card (`draft_rare_max`; worked out from the deck, so the starter's rare cards do
+not count and nothing is saved), rewards 60/30/10. The settings are always hashed, since rarity on
+is the new default; the tiers themselves are not, being built into the DLL, which the version
+handshake covers.
+
+A reward's tier is the same for both players of a match (by decision, 2026-11-26): if the host is
+offered rare, so is the client. The match's tier roll comes from the `u32 seed` of the host's
+`GAME_MATCH` (`sts_match_tier_roll`), which the host sends and the client receives, so both mods
+get it without any packet of the mod's; offline, player 1 and player 2 share one local roll. Its
+remainder by the total weight picks the tier, so players with the same weights agree even when one
+of them has no cards of that tier and falls back. A match played while offers wait keeps its roll
+with the owed reward (save format 4). Only the tier is shared: cards and copies still come from each
+run's own random state. Re-rolled offers after a rule change use the run's own state.
+
+Copy odds (`copy_odds`, built with rarity): `even`, `falling` (4:3:2:1) or `halving` (8:4:2:1, the
+developer's choice for the default), over the copy range. A card that can only take part of the range
+(near the copy limit, or by_type's largest type) keeps the proportions of the numbers that fit:
+halving gives 1 or 2 copies 2:1, falling 4:3. The draft has none, its copies being always 1.
+
 Rule interpretations in `core/` that may need revisiting with the community:
 
 - `who_picks`, by decision (v0.3), says when this player gets an offer, from their own result alone:

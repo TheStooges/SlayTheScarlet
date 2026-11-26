@@ -21,8 +21,12 @@ previously run this format manually as an event called "Slay the Scarlet". This 
 
 ## Design principle: rules are settings
 
-The community has not settled the rules, so every rule variant is a setting (mod `.ini`), with
-defaults to be chosen after playtesting. Do not hardcode any of these:
+The community has not settled the rules, so every rule variant is a setting, with defaults to be
+chosen after playtesting. Do not hardcode any of these. By decision (2026-11-26), `settings.ini` is
+1-to-1 with the in-game settings screen: it takes only the screen's settings and the values the
+screen offers (`sts_settings_in_file`, `sts_settings_value_offered`). The other variants stay in
+the code as settings only code sets, at their defaults, for later use such as items; tests set
+them with `sts_settings_parse_all`.
 
 - Deck size (default 20; HandicapMod proves the engine accepts other sizes) and copy limit (default 4)
 - Number of offers per draft pick (the draft itself is fixed: one card per pick until the deck
@@ -109,8 +113,9 @@ mod/           Windows-only DLL, built only when MSVC is available. At the top: 
   net/         Online: packet hooks and logging (netlog), the handshake and delivery (peers),
                deck changes for players and spectators (spectator).
   lib/         The DirectX import libraries.
-data/          Data files: cards.csv (the card table, no text), card_sounds.csv, settings.ini (every
-               setting and its default), lang/ (translations of the mod's text, UTF-8).
+data/          Data files: cards.csv (the card table, no text), rarity.csv, card_sounds.csv,
+               settings.ini (every setting and its default), lang/ (translations of the mod's
+               text, UTF-8).
 docs/          design.md, findings.md, roadmap.md, building.md, and the README's images.
 tools/         Release scripts (build_release.bat, package_release.py).
 lib/           SokuLib, as a git submodule. Run: git submodule update --init

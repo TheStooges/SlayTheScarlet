@@ -7,6 +7,10 @@
  * takes no part in the mod's handshake (see peers.h). */
 void netlog_install(int observer);
 
+/* The seed of the last online match, from the host's GAME_MATCH: the same on host and client.
+ * Returns 0 if no match has been seen. */
+int netlog_match_seed(uint32_t *seed);
+
 /* Records which scene or menu is running, when it changes. Called every frame by the hooks. */
 void netlog_scene(const char *name);
 

@@ -18,6 +18,7 @@ file(GLOB_RECURSE STS_MOD_SOURCE_LIST ${CMAKE_SOURCE_DIR}/mod/*.cpp)
 list(JOIN STS_MOD_SOURCE_LIST "|" STS_MOD_SOURCE_PATHS)
 target_compile_definitions(sts_tests PRIVATE
   STS_CARDS_PATH="${CMAKE_SOURCE_DIR}/data/cards.csv"
+  STS_RARITY_PATH="${CMAKE_SOURCE_DIR}/data/rarity.csv"
   STS_SETTINGS_PATH="${CMAKE_SOURCE_DIR}/data/settings.ini"
   STS_CARD_SOUNDS_PATH="${CMAKE_SOURCE_DIR}/data/card_sounds.csv"
   STS_LANG_JA_PATH="${CMAKE_SOURCE_DIR}/data/lang/ja.txt"

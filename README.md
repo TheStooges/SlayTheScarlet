@@ -58,10 +58,16 @@ Each screen lists its buttons at the bottom, using your own key config.
    in use.
 4. **Take an offer after the match.** Choose 1 of 3 offers. An offer can give more than one copy
    of its card, and you then choose that many cards in your deck for it to replace. A card cannot
-   replace another copy of itself.
+   replace another copy of itself. More copies are rarer: 1 copy about half the time, and 4 about
+   1 time in 15.
 5. **Back to character select.** Your next match uses the changed deck.
 
 Decks are always 20 cards, with at most 4 copies of a card.
+
+Every card is common, uncommon, or rare, and the cards of one pick or offer are all of the same
+rarity, shown by the colour of the offer's outline. Rare cards are the strongest: they come up 1
+time in 10 after a match. The draft's first three picks are common, uncommon, and rare, and that
+rare is the only one the draft gives.
 
 A match on another character or deck slot is a normal match: no offer, and your deck is unchanged.
 
@@ -105,7 +111,8 @@ screen while you choose. Nothing about the online protocol changes.
 
 If your opponent has the mod too:
 
-- Each of you plays your own run and takes your own offers.
+- Each of you plays your own run and takes your own offers. Your offers after a match are of the
+  same rarity, so if one of you is offered rare cards, so is the other.
 - With "Share deck changes with your opponent" on for both of you (off by default), you both see
   the cards each deck gained and lost after the match. Whoever finishes first waits, with "Girls are
   now praying...", until the other is done.
@@ -135,8 +142,8 @@ Press F7 and choose **Settings**, under the characters. The settings are in four
 
 In a menu, up and down choose a setting, left and right change it, and the lines below explain it.
 Changes are kept across menus until you save. Saving writes only what changed to `settings.ini`, so
-the file keeps its comments and can be shared as a set of rules. The file lists and explains every
-setting, including a few that are only in the file.
+the file keeps its comments and can be shared as a set of rules. The file holds the same settings
+as the screen, and explains each one.
 
 The defaults are provisional, until the community has played with them.
 

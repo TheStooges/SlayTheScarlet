@@ -707,3 +707,231 @@ void test_offer_apply(void)
         CHECK_EACH_DONE();
     }
 }
+
+/* The tier a card counts in for offers, for this character. */
+static int tier_of(int character, uint16_t id)
+{
+    return sts_card_tier(sts_card_db_find(&g_db, character, id));
+}
+
+void test_offer_rarity(void)
+{
+    enum { ROLLS = 20000 };
+    sts_rules rules = open_rules();
+    sts_offer_settings offer_settings = add_settings();
+    sts_offer offer[8];
+    sts_deck deck;
+    sts_rng rng;
+    int character = 12;    /* Komachi */
+    int tier_picks[STS_TIER_COUNT];
+    int tier, wau, j, count;
+
+    sts_deck_clear(&deck);
+    sts_rng_seed(&rng, 77, 5);
+    offer_settings.rarity = 1;
+
+    /* One tier on its own: every offer is of it. */
+    for (tier = 0; tier < STS_TIER_COUNT; tier++) {
+        offer_settings.rarity_weights[0] = offer_settings.rarity_weights[1] = offer_settings.rarity_weights[2] = 0;
+        offer_settings.rarity_weights[tier] = 1;
+        for (j = 0; j < 300; j++) {
+            count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+            CHECK_EACH(count == 3);
+            for (wau = 0; wau < count; wau++)
+                CHECK_EACH(tier_of(character, offer[wau].id) == tier);
+        }
+        CHECK_EACH_DONE();
+    }
+
+    /* Every offer of a pick shares its tier, and the weights give each tier's share of the picks. */
+    offer_settings.rarity_weights[STS_RARITY_COMMON] = 60;
+    offer_settings.rarity_weights[STS_RARITY_UNCOMMON] = 30;
+    offer_settings.rarity_weights[STS_RARITY_RARE] = 10;
+    memset(tier_picks, 0, sizeof tier_picks);
+    for (j = 0; j < ROLLS; j++) {
+        count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+        CHECK_EACH(count == 3);
+        tier = tier_of(character, offer[0].id);
+        for (wau = 1; wau < count; wau++)
+            CHECK_EACH(tier_of(character, offer[wau].id) == tier);
+        tier_picks[tier]++;
+    }
+    CHECK_EACH_DONE();
+    CHECK(tier_picks[STS_RARITY_COMMON] > ROLLS * 6 / 10 * 95 / 100 && tier_picks[STS_RARITY_COMMON] < ROLLS * 6 / 10 * 105 / 100);
+    CHECK(tier_picks[STS_RARITY_UNCOMMON] > ROLLS * 3 / 10 * 9 / 10 && tier_picks[STS_RARITY_UNCOMMON] < ROLLS * 3 / 10 * 11 / 10);
+    CHECK(tier_picks[STS_RARITY_RARE] > ROLLS / 10 * 85 / 100 && tier_picks[STS_RARITY_RARE] < ROLLS / 10 * 115 / 100);
+
+    /* A tier with weight 0 is never offered, and the generator would not have made an offer of it. */
+    offer_settings.rarity_weights[STS_RARITY_RARE] = 0;
+    for (j = 0; j < 500; j++) {
+        count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+        for (wau = 0; wau < count; wau++)
+            CHECK_EACH(tier_of(character, offer[wau].id) != STS_RARITY_RARE);
+    }
+    CHECK_EACH_DONE();
+    {
+        sts_offer coin;
+
+        coin.id = 12;   /* A Penny Saved, rare */
+        coin.type = STS_CARD_SYSTEM;
+        coin.copies = 1;
+        CHECK(!sts_offer_is_valid(&g_db, character, &deck, &rules, &offer_settings, &coin));
+        offer_settings.rarity = 0;
+        CHECK(sts_offer_is_valid(&g_db, character, &deck, &rules, &offer_settings, &coin));
+        offer_settings.rarity = 1;
+        offer_settings.rarity_weights[STS_RARITY_RARE] = 10;
+        CHECK(sts_offer_is_valid(&g_db, character, &deck, &rules, &offer_settings, &coin));
+    }
+
+    /* A tier that runs short hands over to the nearest one with a weight, the lower first: with all
+     * but one rare card at the copy limit, a rare pick holds that card and then uncommon ones. */
+    {
+        const sts_card_list *lists[2];
+        uint16_t last_rare = 0;
+        int list_index, rare_picks = 0, found = 0;
+
+        lists[0] = &g_db.system;
+        lists[1] = &g_db.characters[character];
+        for (list_index = 0; list_index < 2; list_index++) {
+            for (wau = 0; wau < lists[list_index]->count; wau++) {
+                const sts_card *card = &lists[list_index]->cards[wau];
+
+                if (sts_card_tier(card) != STS_RARITY_RARE)
+                    continue;
+                if (found++)   /* the first is Spiritual Strike Talisman, card 0 */
+                    add_copies(&deck, last_rare, rules.copy_limit);
+                last_rare = card->id;
+            }
+        }
+        offer_settings.rarity_weights[STS_RARITY_COMMON] = 1;
+        offer_settings.rarity_weights[STS_RARITY_UNCOMMON] = 1;
+        offer_settings.rarity_weights[STS_RARITY_RARE] = 1;
+        for (j = 0; j < 600; j++) {
+            count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+            CHECK_EACH(count == 3);
+            if (offer[0].id != last_rare)
+                continue;
+            rare_picks++;
+            for (wau = 1; wau < count; wau++)
+                CHECK_EACH(tier_of(character, offer[wau].id) == STS_RARITY_UNCOMMON);
+        }
+        CHECK_EACH_DONE();
+        CHECK(rare_picks > 100);
+
+        /* With uncommon off, rare falls back to common instead. */
+        offer_settings.rarity_weights[STS_RARITY_UNCOMMON] = 0;
+        for (j = 0; j < 600; j++) {
+            count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+            CHECK_EACH(count == 3);
+            for (wau = 0; wau < count; wau++)
+                CHECK_EACH(offer[wau].id == last_rare || tier_of(character, offer[wau].id) == STS_RARITY_COMMON);
+        }
+        CHECK_EACH_DONE();
+
+        /* With only rare on, a pick holds what is left of it. */
+        offer_settings.rarity_weights[STS_RARITY_COMMON] = 0;
+        count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+        CHECK(count == 1 && offer[0].id == last_rare);
+        add_copies(&deck, last_rare, rules.copy_limit);
+        CHECK(sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8) == 0);
+    }
+
+    /* One of each tier: common, uncommon, rare in turn, whatever the weights. */
+    sts_deck_clear(&deck);
+    offer_settings.rarity = 1;
+    offer_settings.one_tier_each = 1;
+    offer_settings.rarity_weights[0] = offer_settings.rarity_weights[1] = offer_settings.rarity_weights[2] = 0;
+    for (j = 0; j < 300; j++) {
+        count = sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8);
+        CHECK_EACH(count == 3);
+        for (wau = 0; wau < count; wau++)
+            CHECK_EACH(tier_of(character, offer[wau].id) == wau);
+    }
+    CHECK_EACH_DONE();
+    {
+        sts_offer coin;
+
+        coin.id = 12;   /* rare, offered though its weight is 0 */
+        coin.type = STS_CARD_SYSTEM;
+        coin.copies = 1;
+        CHECK(sts_offer_is_valid(&g_db, character, &deck, &rules, &offer_settings, &coin));
+    }
+    offer_settings.one_tier_each = 0;
+
+    /* With rarity off, the weights do nothing. */
+    sts_deck_clear(&deck);
+    offer_settings.rarity = 0;
+    offer_settings.rarity_weights[0] = offer_settings.rarity_weights[1] = offer_settings.rarity_weights[2] = 0;
+    CHECK(sts_offer_generate(&g_db, character, &deck, &rules, &offer_settings, &rng, offer, 8) == 3);
+}
+
+/* Counts how often each number of copies comes up, over many offers. */
+static void count_copies(const sts_rules *rules, const sts_offer_settings *offer_settings, int rolls, int *counts)
+{
+    sts_offer offer[8];
+    sts_deck deck;
+    sts_rng rng;
+    int wau, j, count;
+
+    memset(counts, 0, sizeof(int) * 5);
+    sts_deck_clear(&deck);
+    sts_rng_seed(&rng, 31, 7);
+    for (j = 0; j < rolls; j++) {
+        count = sts_offer_generate(&g_db, 3, &deck, rules, offer_settings, &rng, offer, 8);
+        for (wau = 0; wau < count; wau++)
+            counts[offer[wau].copies]++;
+    }
+}
+
+/* 1 if count is within 7% of total * share / parts. */
+static int near_share(int count, int total, int share, int parts)
+{
+    long expected = (long)total * share / parts;
+    return count > expected * 93 / 100 && count < expected * 107 / 100;
+}
+
+void test_offer_copy_odds(void)
+{
+    enum { ROLLS = 20000, OFFERS = ROLLS * 3 };
+    sts_rules rules = open_rules();
+    sts_offer_settings offer_settings = add_settings();
+    int counts[5];
+
+    offer_settings.copies_max = 4;
+
+    /* Even: each number a quarter of the offers. */
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(near_share(counts[1], OFFERS, 1, 4) && near_share(counts[4], OFFERS, 1, 4));
+
+    /* Falling: 4:3:2:1. */
+    offer_settings.copy_odds = STS_COPY_ODDS_FALLING;
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(near_share(counts[1], OFFERS, 4, 10) && near_share(counts[2], OFFERS, 3, 10));
+    CHECK(near_share(counts[3], OFFERS, 2, 10) && near_share(counts[4], OFFERS, 1, 10));
+
+    /* Halving: 8:4:2:1. */
+    offer_settings.copy_odds = STS_COPY_ODDS_HALVING;
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(near_share(counts[1], OFFERS, 8, 15) && near_share(counts[2], OFFERS, 4, 15));
+    CHECK(near_share(counts[3], OFFERS, 2, 15) && near_share(counts[4], OFFERS, 1, 15));
+
+    /* A card that can take only some of the range keeps the proportions: at most 2 copies fit with a
+     * copy limit of 2, so halving gives 1 or 2 copies 2:1, and falling 4:3. */
+    rules.copy_limit = 2;
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(counts[3] == 0 && counts[4] == 0);
+    CHECK(near_share(counts[1], OFFERS, 2, 3) && near_share(counts[2], OFFERS, 1, 3));
+    offer_settings.copy_odds = STS_COPY_ODDS_FALLING;
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(near_share(counts[1], OFFERS, 4, 7) && near_share(counts[2], OFFERS, 3, 7));
+
+    /* A fixed count stays fixed, and a range that starts above 1 is weighed from its start. */
+    rules.copy_limit = 4;
+    offer_settings.copy_odds = STS_COPY_ODDS_HALVING;
+    offer_settings.copies_min = offer_settings.copies_max = 2;
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(counts[2] == OFFERS);
+    offer_settings.copies_max = 3;
+    count_copies(&rules, &offer_settings, ROLLS, counts);
+    CHECK(counts[1] == 0 && counts[4] == 0 && near_share(counts[2], OFFERS, 2, 3));
+}

@@ -32,7 +32,13 @@ typedef struct {
     int rounds_won;
     int rounds_lost;
     int opponent;   /* the opponent's character, or -1 if not known */
+    /* Picks the rarity of the reward's offers. The mod makes one per match, the same for both its
+     * players: online from the match's seed (sts_match_tier_roll), so both machines agree. */
+    uint32_t tier_roll;
 } sts_match_result;
+
+/* A match's tier roll from the seed its GAME_MATCH carries, which both machines have. */
+uint32_t sts_match_tier_roll(uint32_t match_seed);
 
 /* The most cards one reward can bring in or take out. */
 #define STS_RUN_CHANGE_MAX 8
@@ -66,6 +72,7 @@ typedef struct {
     int offer_count;
     /* Oldest first: whether each owed match was won. Only non-empty in REWARD. */
     uint8_t owed_won[STS_RUN_OWED_MAX];
+    uint32_t owed_roll[STS_RUN_OWED_MAX];   /* and each one's tier roll */
     int owed_count;
     /* Added in save format 3; a save from before it loads with these zero, has_rules 0 and an
      * empty history. */

@@ -19,6 +19,9 @@
 #ifndef STS_CARDS_PATH
 #define STS_CARDS_PATH "data/cards.csv"
 #endif
+#ifndef STS_RARITY_PATH
+#define STS_RARITY_PATH "data/rarity.csv"
+#endif
 #ifndef STS_SETTINGS_PATH
 #define STS_SETTINGS_PATH "data/settings.ini"
 #endif
@@ -50,13 +53,15 @@ extern const char *g_each_first_cond;
     g_each_failures = 0; \
 } while (0)
 
-/* The real card table. test_card_db_file loads it, so it must run before anything using this. */
+/* The real card table, with its rarities. test_card_db_file and test_rarity_file load it, so they
+ * must run before anything using this. */
 extern sts_card_db g_db;
 
 void fill_legal_deck(sts_deck *deck, int base);
 void add_copies(sts_deck *deck, uint16_t id, int count);
 int decks_equal(const sts_deck *first, const sts_deck *second);
 int count_type_in_deck(const sts_deck *deck, int character, int type);
+/* Parses settings text with sts_settings_parse_all, so tests can set what only code sets. */
 sts_settings_status parse_ini(const char *text, sts_settings *settings, int *line);
 sts_offer_settings add_settings(void);
 sts_rules open_rules(void);
@@ -71,10 +76,14 @@ void test_randomizer_output(void);
 void test_rng(void);
 void test_card_db_parse(void);
 void test_card_db_file(void);
+void test_rarity_parse(void);
+void test_rarity_file(void);
 void test_offer_basics(void);
 void test_offer_limits(void);
 void test_offer_fairness(void);
 void test_offer_one_of_each(void);
+void test_offer_rarity(void);
+void test_offer_copy_odds(void);
 void test_offer_no_self_replace(void);
 void test_offer_runs(void);
 void test_offer_apply(void);

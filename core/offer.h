@@ -36,6 +36,13 @@ typedef enum {
     STS_OFFER_BY_CARD       /* every card as likely as any other, so a type with more cards comes up more */
 } sts_offer_style;
 
+/* How likely each number of copies is, from copies_min up to copies_max. */
+typedef enum {
+    STS_COPY_ODDS_EVEN,     /* every number as likely */
+    STS_COPY_ODDS_FALLING,  /* 4:3:2:1 for 1 to 4 copies */
+    STS_COPY_ODDS_HALVING   /* 8:4:2:1: each extra copy half as likely as one fewer */
+} sts_copy_odds;
+
 /* Most offers one pick can show. */
 #define STS_OFFER_MAX 8
 
@@ -52,6 +59,15 @@ typedef struct {
     sts_replace_control replace;  /* REPLACE only */
     sts_offer_style style;
     int weights[3];       /* STS_OFFER_WEIGHTED only; indexed by sts_card_type */
+    /* With rarity on, each pick rolls one tier for all its offers, using rarity_weights (indexed by
+     * sts_rarity: common, uncommon, rare), and offers only cards of that tier (see sts_card_tier).
+     * A tier with weight 0 is never offered. */
+    int rarity;
+    int rarity_weights[STS_TIER_COUNT];
+    /* With rarity on: one offer of each tier instead, common, uncommon then rare (and round again past
+     * three), whatever the weights. Only code sets it; off by default. */
+    int one_tier_each;
+    sts_copy_odds copy_odds;
 } sts_offer_settings;
 
 typedef struct {
@@ -62,7 +78,13 @@ typedef struct {
 
 /* Fills out with up to min(offer_count, max_out) offers for distinct cards. A card is
  * only eligible if at least copies_min of it fit; copies are then rolled between
- * copies_min and the most that fit, so a card close to a limit gets fewer copies.
+ * copies_min and the most that fit, so a card close to a limit gets fewer copies. The
+ * copy odds weigh each number as they would over the whole range: with falling odds, a card
+ * that can only take 1 or 2 copies gets them 4:3.
+ *
+ * With rarity on, the tier is rolled from the weights. If it has no eligible card, or runs out
+ * part way, the rest come from the nearest tier with a weight and a card left, the lower one
+ * first: rare falls back to uncommon, then common.
  *
  * REPLACE counts the copy limit against the deck as it stands, before anything is
  * removed, so it stays legal whichever cards end up being replaced. With BY_TYPE, copies
@@ -74,8 +96,17 @@ int sts_offer_generate(const sts_card_db *db, int character, const sts_deck *dec
                        const sts_rules *rules, const sts_offer_settings *settings,
                        sts_rng *rng, sts_offer *out, int max_out);
 
+/* As sts_offer_generate, but the tier comes from tier_roll (any number; its remainder by the total
+ * weight picks the tier) instead of rng. Two players given the same roll and weights get the same
+ * tier, even when one of them then falls back for lack of cards. Cards and copies still come
+ * from rng. */
+int sts_offer_generate_rolled(const sts_card_db *db, int character, const sts_deck *deck,
+                              const sts_rules *rules, const sts_offer_settings *settings, uint32_t tier_roll,
+                              sts_rng *rng, sts_offer *out, int max_out);
+
 /* Returns 1 if the generator could have made this exact offer: used to check an offer made
- * earlier, such as one from a save, against the rules now. */
+ * earlier, such as one from a save, against the rules now. With rarity on, that includes the
+ * card's tier having a weight. */
 int sts_offer_is_valid(const sts_card_db *db, int character, const sts_deck *deck,
                        const sts_rules *rules, const sts_offer_settings *settings, const sts_offer *offer);
 

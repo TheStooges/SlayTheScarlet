@@ -68,13 +68,14 @@ static int split_fields(char *line, char *fields[NUM_FIELDS])
     }
 }
 
-static sts_db_status parse_line(char *line, sts_card_db *db)
+static sts_db_status parse_card_line(char *line, sts_card_db *db, void *context)
 {
     char *fields[NUM_FIELDS];
     sts_card_list *list;
     sts_card card;
     int id, cost, wau;
 
+    (void)context;
     if (split_fields(line, fields) != NUM_FIELDS)
         return STS_DB_BAD_LINE;
     list = list_for_owner(db, fields[0]);
@@ -83,6 +84,7 @@ static sts_db_status parse_line(char *line, sts_card_db *db)
         return STS_DB_BAD_LINE;
     card.id = (uint16_t)id;
     card.cost_or_slot = (uint8_t)cost;
+    card.rarity = STS_RARITY_COMMON;
 
     for (wau = 0; wau < list->count; wau++)
         if (list->cards[wau].id == card.id)
@@ -93,15 +95,17 @@ static sts_db_status parse_line(char *line, sts_card_db *db)
     return STS_DB_OK;
 }
 
-sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, int *err_line)
+typedef sts_db_status (*line_parser)(char *line, sts_card_db *db, void *context);
+
+/* Hands each line that is not blank or a comment to parse, stopping at the first error. */
+static sts_db_status parse_lines(const char *text, size_t len, sts_card_db *db, line_parser parse, void *context,
+                                 int *err_line)
 {
     size_t pos = 0;
-    int line_no = 0, wau;
+    int line_no = 0;
 
-    memset(out, 0, sizeof *out);
     if (err_line)
         *err_line = 0;
-
     while (pos < len) {
         char line[MAX_LINE];
         size_t start = pos, length;
@@ -123,14 +127,25 @@ sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, 
         }
         memcpy(line, text + start, length);
         line[length] = 0;
-        status = parse_line(line, out);
+        status = parse(line, db, context);
         if (status != STS_DB_OK) {
             if (err_line)
                 *err_line = line_no;
             return status;
         }
     }
+    return STS_DB_OK;
+}
 
+sts_db_status sts_card_db_parse(const char *text, size_t len, sts_card_db *out, int *err_line)
+{
+    sts_db_status status;
+    int wau;
+
+    memset(out, 0, sizeof *out);
+    status = parse_lines(text, len, out, parse_card_line, NULL, err_line);
+    if (status != STS_DB_OK)
+        return status;
     if (out->system.count == 0)
         return STS_DB_INCOMPLETE;
     for (wau = 0; wau < STS_NUM_CHARACTERS; wau++)
@@ -162,9 +177,113 @@ const char *sts_db_status_str(sts_db_status status)
     case STS_DB_BAD_LINE:   return "bad line";
     case STS_DB_DUPLICATE:  return "duplicate card";
     case STS_DB_OVERFLOW:   return "too many cards for one owner";
-    case STS_DB_INCOMPLETE: return "an owner has no cards";
+    case STS_DB_INCOMPLETE: return "an owner has no cards, or a card has no rarity";
+    case STS_DB_UNKNOWN_CARD: return "a rarity for a card that does not exist";
     }
     return "unknown";
+}
+
+/* ---------- rarity ---------- */
+
+/* Which cards have had a rarity line: the system list first, then each character's. */
+typedef struct {
+    unsigned char seen[STS_NUM_CHARACTERS + 1][STS_POOL_MAX_CARDS];
+} rarity_progress;
+
+static int parse_rarity_name(const char *text, uint8_t *out)
+{
+    if (strcmp(text, "common") == 0)
+        *out = STS_RARITY_COMMON;
+    else if (strcmp(text, "uncommon") == 0)
+        *out = STS_RARITY_UNCOMMON;
+    else if (strcmp(text, "rare") == 0)
+        *out = STS_RARITY_RARE;
+    else if (strcmp(text, "starter") == 0)
+        *out = STS_RARITY_STARTER;
+    else
+        return 0;
+    return 1;
+}
+
+/* owner,id,rarity, then the card's name, which may hold commas and is not read. */
+static sts_db_status parse_rarity_line(char *line, sts_card_db *db, void *context)
+{
+    rarity_progress *progress = (rarity_progress *)context;
+    char *fields[3];
+    char *cursor = line;
+    sts_card_list *list;
+    uint8_t rarity;
+    int id, wau, owner_index;
+
+    for (wau = 0; wau < 3; wau++) {
+        char *comma = strchr(cursor, ',');
+
+        fields[wau] = cursor;
+        if (comma) {
+            *comma = 0;
+            cursor = comma + 1;
+        } else if (wau < 2) {
+            return STS_DB_BAD_LINE;
+        } else {
+            cursor += strlen(cursor);
+        }
+    }
+    list = list_for_owner(db, fields[0]);
+    if (!list || !parse_uint(fields[1], 0xFFFF, &id) || !parse_rarity_name(fields[2], &rarity))
+        return STS_DB_BAD_LINE;
+    owner_index = list == &db->system ? 0 : (int)(list - db->characters) + 1;
+    for (wau = 0; wau < list->count; wau++) {
+        if (list->cards[wau].id == id) {
+            if (progress->seen[owner_index][wau])
+                return STS_DB_DUPLICATE;
+            progress->seen[owner_index][wau] = 1;
+            list->cards[wau].rarity = rarity;
+            return STS_DB_OK;
+        }
+    }
+    return STS_DB_UNKNOWN_CARD;
+}
+
+sts_db_status sts_rarity_parse(const char *text, size_t len, sts_card_db *db, int *err_line)
+{
+    rarity_progress progress;
+    sts_db_status status;
+    int owner_index, wau;
+
+    memset(&progress, 0, sizeof progress);
+    status = parse_lines(text, len, db, parse_rarity_line, &progress, err_line);
+    if (status != STS_DB_OK)
+        return status;
+    for (owner_index = 0; owner_index <= STS_NUM_CHARACTERS; owner_index++) {
+        const sts_card_list *list = owner_index == 0 ? &db->system : &db->characters[owner_index - 1];
+
+        for (wau = 0; wau < list->count; wau++)
+            if (!progress.seen[owner_index][wau])
+                return STS_DB_INCOMPLETE;
+    }
+    return STS_DB_OK;
+}
+
+sts_db_status sts_rarity_load(const char *path, sts_card_db *db, int *err_line)
+{
+    size_t size = 0;
+    char *buf = sts_read_file(path, &size);
+    sts_db_status status;
+
+    if (err_line)
+        *err_line = 0;
+    if (!buf)
+        return STS_DB_IO;
+    status = sts_rarity_parse(buf, size, db, err_line);
+    free(buf);
+    return status;
+}
+
+int sts_card_tier(const sts_card *card)
+{
+    if (card->rarity == STS_RARITY_STARTER)
+        return card->type == STS_CARD_SYSTEM ? STS_RARITY_RARE : STS_RARITY_COMMON;
+    return card->rarity < STS_TIER_COUNT ? card->rarity : STS_RARITY_COMMON;
 }
 
 static const sts_card *find_in_list(const sts_card_list *list, uint16_t id)

@@ -40,8 +40,8 @@ int load_data(void)
     sts_db_status db = STS_DB_IO;
     sts_settings_status status;
     const char *bad;
-    const char *cards;
-    size_t cards_length;
+    const char *cards, *rarity;
+    size_t cards_length, rarity_length;
 
     if (g_data_ok)
         return 1;
@@ -50,6 +50,13 @@ int load_data(void)
         db = sts_card_db_parse(cards, cards_length, &g_db, &line);
     if (db != STS_DB_OK) {
         set_error("cards.csv", sts_db_status_str(db));
+        return 0;
+    }
+    rarity = embedded_data("RARITY_CSV", &rarity_length);
+    db = rarity ? sts_rarity_parse(rarity, rarity_length, &g_db, &line) : STS_DB_IO;
+    if (db != STS_DB_OK) {
+        slog("rarity.csv: %s, line %d", sts_db_status_str(db), line);
+        set_error("rarity.csv", sts_db_status_str(db));
         return 0;
     }
     format_text(path, "%ssettings.ini", g_dir);

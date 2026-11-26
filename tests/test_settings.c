@@ -589,48 +589,52 @@ static void test_settings_rewrite(void)
     free(result);
 
     /* Changes rewrite only their own lines; every comment stays. */
-    CHECK(sts_settings_set(&settings, "draft", "offers", "2") == STS_SETTINGS_OK);
+    CHECK(sts_settings_set(&settings, "run", "matches", "5") == STS_SETTINGS_OK);
     CHECK(sts_settings_set(&settings, "starter", "enabled", "true") == STS_SETTINGS_OK);
     CHECK(sts_settings_set(&settings, "reward", "who_picks", "winner") == STS_SETTINGS_OK);
     result = rewrite_checked(shipped, &settings);
     if (result) {
-        CHECK(strstr(result, "\noffers=2\n") && strstr(result, "\nenabled=true\n") && strstr(result, "\nwho_picks=winner\n"));
+        CHECK(strstr(result, "\nmatches=5\n") && strstr(result, "\nenabled=true\n") && strstr(result, "\nwho_picks=winner\n"));
         CHECK(strstr(result, "\nwho_picks=both\n") == NULL);
-        /* 3 to 2 keeps the length, false to true is one shorter, both to winner two longer. */
+        /* 0 to 5 keeps the length, false to true is one shorter, both to winner two longer. */
         CHECK(strlen(result) == strlen(shipped) - 1 + 2);
-        CHECK(strstr(result, "# How many cards each pick offers. The screen fits up to 3. Not on the in-game screen.\noffers=2\n") != NULL);
+        CHECK(strstr(result, "the run ends and shows its score.\nmatches=5\n") != NULL);
         free(result);
     }
 
     /* Missing settings go after the last setting of their section, or into a new section at the end. */
     sts_settings_defaults(&settings);
     settings.draft_show_deck = 0;
-    settings.reward.offer_count = 4;
+    settings.reward.replace = STS_REPLACE_RANDOM;
     settings.starter_enabled = 1;
     result = rewrite_checked("[draft]\npicks=20\n\n# rewards\n[reward]\nmode=replace\n", &settings);
     if (result) {
-        CHECK(strcmp(result, "[draft]\npicks=20\nshow_deck=false\n\n# rewards\n[reward]\nmode=replace\noffers=4\n"
+        CHECK(strcmp(result, "[draft]\npicks=20\nshow_deck=false\n\n# rewards\n[reward]\nmode=replace\nreplacement=random\n"
                              "\n[starter]\nenabled=true\n") == 0);
         free(result);
     }
 
     /* Windows line endings are kept, for changed and added lines alike. */
-    result = rewrite_checked("[draft]\r\npicks = 20\r\n[reward]\r\noffers=3\r\n", &settings);
+    result = rewrite_checked("[draft]\r\npicks = 20\r\n[reward]\r\nreplacement=choose\r\n", &settings);
     if (result) {
-        CHECK(strcmp(result, "[draft]\r\npicks = 20\r\nshow_deck=false\r\n[reward]\r\noffers=4\r\n"
+        CHECK(strcmp(result, "[draft]\r\npicks = 20\r\nshow_deck=false\r\n[reward]\r\nreplacement=random\r\n"
                              "\r\n[starter]\r\nenabled=true\r\n") == 0);
         free(result);
     }
 
-    /* A last line without a newline, and spacing around the value. */
+    /* A last line without a newline, and spacing around the value. A setting the file no longer has
+     * is copied as it is, and never written. */
     sts_settings_defaults(&settings);
-    settings.rules.deck_max = 25;
-    settings.draft.offer_count = 4;
-    result = rewrite_checked("[deck]\n  size_max =  30\n[draft]\npicks=20", &settings);
+    settings.match_limit = 4;
+    result = rewrite_checked("[run]\n  matches =  6\n[deck]\nsize_max=30", &settings);
     if (result) {
-        CHECK(strcmp(result, "[deck]\n  size_max =  25\n[draft]\npicks=20\noffers=4\n") == 0);
+        CHECK(strcmp(result, "[run]\n  matches =  4\n[deck]\nsize_max=30") == 0);
         free(result);
     }
+    settings.rules.deck_max = 25;
+    result = sts_settings_rewrite("[draft]\noffers=3\n", strlen("[draft]\noffers=3\n"), &settings, NULL);
+    CHECK(result && strcmp(result, "[draft]\noffers=3\n\n[run]\nmatches=4\n") == 0);
+    free(result);
 
     /* Old card lists in a file are left as they are, and new settings go after them. */
     sts_settings_defaults(&settings);
@@ -656,25 +660,26 @@ static void test_settings_rewrite(void)
     }
 
     /* Text that does not parse is not rewritten. */
-    CHECK(sts_settings_rewrite("[draft]\noffers=many\n", strlen("[draft]\noffers=many\n"), &settings, NULL) == NULL);
+    CHECK(sts_settings_rewrite("[reward]\nmode=many\n", strlen("[reward]\nmode=many\n"), &settings, NULL) == NULL);
     CHECK(sts_settings_rewrite("[nowhere]\n", strlen("[nowhere]\n"), &settings, NULL) == NULL);
 
     /* Every steppable setting, changed at once, survives a rewrite of the shipped file. */
     sts_settings_defaults(&settings);
     for (wau = 0; wau < 2; wau++) {
         static const char *const keys[][2] = {
-            {"deck", "size_min"}, {"deck", "size_max"}, {"deck", "copy_limit"},
-            {"draft", "offers"}, {"draft", "show_deck"},
-            {"draft", "card_types"}, {"starter", "enabled"}, {"reward", "mode"}, {"reward", "who_picks"},
-            {"reward", "random_chance"}, {"reward", "offer_pick"},
-            {"reward", "offers"}, {"reward", "copies_min"}, {"reward", "copies_max"}, {"reward", "card_types"},
-            {"reward", "replacement"}, {"netplay", "pick_visibility"},
-            {"netplay", "opponent_deck"}, {"items", "enabled"}, {"run", "allow_rule_changes"},
+            {"draft", "show_deck"}, {"draft", "card_types"}, {"starter", "enabled"}, {"reward", "mode"},
+            {"reward", "who_picks"}, {"reward", "offer_pick"}, {"reward", "card_types"}, {"reward", "replacement"},
+            {"reward", "time_limit"}, {"reward", "roulette"}, {"netplay", "share_changes"},
+            {"netplay", "spectator_changes"}, {"run", "allow_rule_changes"}, {"run", "matches"}, {"run", "deck"},
         };
         int key;
 
-        for (key = 0; key < (int)(sizeof keys / sizeof keys[0]); key++)
+        /* Each onto a value the screen offers, as the screen steps. */
+        for (key = 0; key < (int)(sizeof keys / sizeof keys[0]); key++) {
             CHECK(sts_settings_step(&settings, keys[key][0], keys[key][1], wau == 0 ? -1 : 1));
+            while (!sts_settings_value_offered(&settings, keys[key][0], keys[key][1]))
+                sts_settings_step(&settings, keys[key][0], keys[key][1], wau == 0 ? -1 : 1);
+        }
         result = rewrite_checked(shipped, &settings);
         free(result);
     }
@@ -689,10 +694,10 @@ static void test_settings_rules_text(void)
     char text[64];
     int wau, line = 0, count = sts_settings_rule_count();
 
-    CHECK(count > 10);
-    CHECK(parse_ini("[draft]\nshow_deck=false\ncard_types=mostly_skill\n[reward]\nwho_picks=random\n"
-                    "random_chance=75\nreplacement=by_type\noffer_pick=random\n[starter]\nenabled=true\n"
-                    "[run]\nallow_rule_changes=true\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(count >= 8);
+    CHECK(parse_ini("[draft]\nshow_deck=false\ncard_types=one_of_each\n[reward]\nwho_picks=winner\n"
+                    "replacement=by_type\noffer_pick=random\n[starter]\nenabled=true\n"
+                    "[run]\nallow_rule_changes=true\nmatches=7\n", &settings, &line) == STS_SETTINGS_OK);
     sts_settings_defaults(&copy);
     for (wau = 0; wau < count; wau++) {
         CHECK(sts_settings_rule_text(&settings, wau, text, sizeof text));
@@ -709,8 +714,10 @@ static void test_settings_rules_text(void)
     CHECK(sts_settings_set_rule(&copy, "run.allow_rule_changes=true") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_set_rule(&copy, "deck.no_such_key=1") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_set_rule(&copy, "no dot or equals") == STS_SETTINGS_UNKNOWN_KEY);
-    CHECK(sts_settings_set_rule(&copy, "reward.random_chance=often") == STS_SETTINGS_BAD_VALUE);
-    CHECK(copy.random_chance == 75);
+    CHECK(sts_settings_set_rule(&copy, "reward.who_picks=often") == STS_SETTINGS_BAD_VALUE);
+    CHECK(copy.who_picks == STS_WHO_WINNER);
+    /* Settings only code sets are not saved with a run. */
+    CHECK(sts_settings_set_rule(&copy, "reward.random_chance=75") == STS_SETTINGS_UNKNOWN_KEY);
     CHECK(sts_settings_set_rule(&copy, "run.matches=12") == STS_SETTINGS_OK && copy.match_limit == 12);
 }
 
@@ -886,6 +893,143 @@ static void test_settings_share_changes(void)
     CHECK(parse_ini("[netplay]\nshare_changes=maybe\n", &settings, &line) != STS_SETTINGS_OK);
 }
 
+/* settings.ini has what the settings screen has, no more: the others load from an older file but are
+ * ignored, as are values the screen does not offer. */
+static void test_settings_file_matches_screen(void)
+{
+    static const char *const screen[][2] = {
+        {"draft", "show_deck"}, {"draft", "card_types"}, {"starter", "enabled"}, {"reward", "mode"},
+        {"reward", "who_picks"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
+        {"reward", "time_limit"}, {"reward", "roulette"}, {"netplay", "share_changes"},
+        {"netplay", "spectator_changes"}, {"run", "matches"}, {"run", "seed"}, {"run", "allow_rule_changes"},
+        {"run", "deck"},
+    };
+    static const char *const old_file =
+        "[deck]\nsize_min=15\nsize_max=25\ncopy_limit=2\n[draft]\noffers=2\nrare_weight=50\n"
+        "[reward]\nmode=add\nwho_picks=random\nrandom_chance=10\noffers=2\ncopies_min=2\ncopies_max=3\n"
+        "copy_odds=even\ncard_types=mostly_spell\nrarity=false\n[netplay]\npick_visibility=live\n"
+        "opponent_deck=full\n[items]\nenabled=true\n[sound]\ncard_sounds=off\n";
+    sts_settings defaults, settings;
+    size_t length = 0;
+    char *shipped = sts_read_file(STS_SETTINGS_PATH, &length);
+    int line = 0, wau, settings_in_file = 0;
+
+    sts_settings_defaults(&defaults);
+    CHECK(sts_settings_parse(old_file, strlen(old_file), &settings, &line) == STS_SETTINGS_OK);
+    CHECK(sts_settings_equal(&settings, &defaults) && sts_settings_hash(&settings) == sts_settings_hash(&defaults));
+    /* Other values are still checked, and typos still refused. */
+    CHECK(sts_settings_parse("[reward]\nmode=often\n", strlen("[reward]\nmode=often\n"), &settings, &line)
+          == STS_SETTINGS_BAD_VALUE);
+    CHECK(sts_settings_parse("[reward]\ncopies=2\n", strlen("[reward]\ncopies=2\n"), &settings, &line)
+          == STS_SETTINGS_UNKNOWN_KEY);
+    /* Code can still set them all. */
+    CHECK(parse_ini(old_file, &settings, &line) == STS_SETTINGS_OK);
+    CHECK(settings.rules.copy_limit == 2 && settings.reward.mode == STS_REWARD_ADD && settings.items_enabled == 1);
+
+    for (wau = 0; wau < (int)(sizeof screen / sizeof screen[0]); wau++)
+        CHECK_EACH(sts_settings_in_file(screen[wau][0], screen[wau][1]));
+    CHECK_EACH_DONE();
+    CHECK(!sts_settings_in_file("deck", "size_min") && !sts_settings_in_file("reward", "copy_odds")
+          && !sts_settings_in_file("sound", "card_sounds") && !sts_settings_in_file("reward", "random_chance"));
+
+    /* The shipped file lists each of them once, and nothing else. */
+    CHECK(shipped != NULL);
+    if (!shipped)
+        return;
+    {
+        char section[16] = "";
+        char *cursor = shipped;
+
+        while (*cursor) {
+            char *end = strchr(cursor, '\n');
+            char *equals;
+
+            if (end)
+                *end = 0;
+            if (cursor[0] == '[') {
+                size_t count = strlen(cursor);
+                if (count >= 2 && count - 2 < sizeof section) {
+                    memcpy(section, cursor + 1, count - 2);
+                    section[count - 2] = 0;
+                }
+            } else if (cursor[0] != '#' && (equals = strchr(cursor, '=')) != NULL) {
+                *equals = 0;
+                CHECK_EACH(sts_settings_in_file(section, cursor));
+                settings_in_file++;
+            }
+            if (!end)
+                break;
+            cursor = end + 1;
+        }
+    }
+    CHECK_EACH_DONE();
+    CHECK(settings_in_file == (int)(sizeof screen / sizeof screen[0]));
+    free(shipped);
+}
+
+static void test_settings_rarity(void)
+{
+    sts_settings defaults, settings;
+    sts_settings_problem_info info;
+    char text[64];
+    int line = 0, wau, found;
+
+    /* Defaults: rarity on for both; the draft never offers rare; rewards halve the odds of each extra copy. */
+    sts_settings_defaults(&defaults);
+    CHECK(defaults.draft.rarity == 1 && defaults.reward.rarity == 1);
+    CHECK(defaults.draft.rarity_weights[STS_RARITY_COMMON] == 75 && defaults.draft.rarity_weights[STS_RARITY_UNCOMMON] == 24
+          && defaults.draft.rarity_weights[STS_RARITY_RARE] == 1 && defaults.draft_rare_max == 1);
+    CHECK(defaults.reward.rarity_weights[STS_RARITY_COMMON] == 60 && defaults.reward.rarity_weights[STS_RARITY_UNCOMMON] == 30
+          && defaults.reward.rarity_weights[STS_RARITY_RARE] == 10);
+    CHECK(defaults.reward.copy_odds == STS_COPY_ODDS_HALVING);
+    CHECK(defaults.draft.one_tier_each == 0 && defaults.reward.one_tier_each == 0 && defaults.draft_opening_tiers == 1);
+
+    /* The file sets each of them; the draft has no copy odds, its copies being always 1. */
+    CHECK(parse_ini("[draft]\nrarity=false\nrare_weight=5\n[reward]\ncopy_odds=falling\ncommon_weight=1\n"
+                    "uncommon_weight=2\nrare_weight=3\n", &settings, &line) == STS_SETTINGS_OK);
+    CHECK(settings.draft.rarity == 0 && settings.draft.rarity_weights[STS_RARITY_RARE] == 5);
+    CHECK(settings.reward.copy_odds == STS_COPY_ODDS_FALLING && settings.reward.rarity_weights[STS_RARITY_COMMON] == 1
+          && settings.reward.rarity_weights[STS_RARITY_UNCOMMON] == 2 && settings.reward.rarity_weights[STS_RARITY_RARE] == 3);
+    CHECK(parse_ini("[reward]\ncopy_odds=even\n", &settings, &line) == STS_SETTINGS_OK && settings.reward.copy_odds == STS_COPY_ODDS_EVEN);
+    CHECK(parse_ini("[reward]\ncopy_odds=steep\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[reward]\nrare_weight=-1\n", &settings, &line) == STS_SETTINGS_BAD_VALUE);
+    CHECK(parse_ini("[draft]\ncopy_odds=even\n", &settings, &line) == STS_SETTINGS_UNKNOWN_KEY);
+    CHECK(sts_settings_get(&defaults, "reward", "copy_odds", text, sizeof text) && strcmp(text, "halving") == 0);
+    CHECK(sts_settings_get(&defaults, "draft", "uncommon_weight", text, sizeof text) && strcmp(text, "24") == 0);
+
+    /* With rarity on, some tier needs a weight; with it off the weights do not matter. */
+    settings = defaults;
+    settings.reward.rarity_weights[0] = settings.reward.rarity_weights[1] = settings.reward.rarity_weights[2] = 0;
+    CHECK(sts_settings_check(&settings, &info) == STS_PROBLEM_REWARD_RARITY);
+    CHECK(sts_settings_validate(&settings) != NULL);
+    settings.reward.rarity = 0;
+    CHECK(sts_settings_check(&settings, &info) == STS_PROBLEM_NONE);
+    settings = defaults;
+    settings.draft.rarity_weights[0] = settings.draft.rarity_weights[1] = settings.draft.rarity_weights[2] = 0;
+    CHECK(sts_settings_check(&settings, &info) == STS_PROBLEM_DRAFT_RARITY);
+
+    /* Each one is a rule: it changes the fingerprint, and runs save it. */
+    settings = defaults;
+    settings.reward.rarity_weights[STS_RARITY_RARE] = 11;
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&defaults));
+    settings = defaults;
+    settings.draft.rarity = 0;
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&defaults));
+    settings = defaults;
+    settings.reward.copy_odds = STS_COPY_ODDS_EVEN;
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&defaults));
+    settings = defaults;
+    settings.draft_rare_max = -1;
+    CHECK(sts_settings_hash(&settings) != sts_settings_hash(&defaults));
+    /* Only code sets them, so runs do not save them either. */
+    found = 0;
+    for (wau = 0; wau < sts_settings_rule_count(); wau++)
+        if (sts_settings_rule_text(&defaults, wau, text, sizeof text)
+            && (strstr(text, "copy_odds") || strstr(text, "_weight=") || strstr(text, ".rarity=")))
+            found++;
+    CHECK(found == 0);
+}
+
 void test_settings(void)
 {
     test_settings_defaults();
@@ -907,4 +1051,6 @@ void test_settings(void)
     test_settings_roulette();
     test_settings_card_sounds();
     test_settings_share_changes();
+    test_settings_rarity();
+    test_settings_file_matches_screen();
 }

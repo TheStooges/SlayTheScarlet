@@ -6,7 +6,7 @@
 
 /* 2 added the owed line; 3 the seed, restarts, offer time, rules and history. Versions 1 and 2 still
  * load. */
-#define RUN_FORMAT_VERSION 3
+#define RUN_FORMAT_VERSION 4
 #define CHECK_LINE_SIZE 15   /* "check " + 8 hex digits + newline */
 #define MAX_TOKEN 64         /* the longest is a rule, such as "reward.replacement=by_type" */
 
@@ -29,9 +29,15 @@ const char *sts_run_status_str(sts_run_status status)
     return "unknown";
 }
 
-static void roll_offers(sts_run *run, const sts_card_db *db, const sts_rules *rules, const sts_offer_settings *cfg)
+/* Rolls the offers on screen. With tier_roll, the tier comes from it rather than the run's random state,
+ * so the players of one match get the same tier. */
+static void roll_offers(sts_run *run, const sts_card_db *db, const sts_rules *rules, const sts_offer_settings *cfg,
+                        const uint32_t *tier_roll)
 {
-    int count = sts_offer_generate(db, run->character, &run->deck, rules, cfg, &run->rng, run->offers, STS_OFFER_MAX);
+    int count = tier_roll
+        ? sts_offer_generate_rolled(db, run->character, &run->deck, rules, cfg, *tier_roll, &run->rng, run->offers,
+                                    STS_OFFER_MAX)
+        : sts_offer_generate(db, run->character, &run->deck, rules, cfg, &run->rng, run->offers, STS_OFFER_MAX);
 
     run->offer_count = count > 0 ? count : 0;
     run->offer_frames = 0;
@@ -104,11 +110,65 @@ static void settle_reward(sts_run *run, const sts_deck *before)
     }
 }
 
+/* How many rare cards the draft has brought in: the deck's rare ones beyond its starter's. */
+static int drafted_rares(const sts_run *run, const sts_card_db *db, const sts_settings *settings)
+{
+    sts_deck starter;
+    int wau, j, count = 0;
+
+    sts_settings_starter(settings, run->character, &starter);
+    for (wau = 0; wau < run->deck.count; wau++) {
+        const sts_card *card = sts_card_db_find(db, run->character, run->deck.ids[wau]);
+
+        if (!card || sts_card_tier(card) != STS_RARITY_RARE)
+            continue;
+        for (j = 0; j < starter.count && starter.ids[j] != card->id; j++) {}
+        if (j < starter.count)
+            starter.ids[j] = starter.ids[--starter.count];   /* a starter copy: not drafted */
+        else
+            count++;
+    }
+    return count;
+}
+
+/* The draft's offer settings as this run stands: no more rare once it has brought in draft_rare_max. */
+static sts_offer_settings draft_offers(const sts_run *run, const sts_card_db *db, const sts_settings *settings)
+{
+    sts_offer_settings cfg = settings->draft;
+
+    if (cfg.rarity && settings->draft_rare_max >= 0 && drafted_rares(run, db, settings) >= settings->draft_rare_max)
+        cfg.rarity_weights[STS_RARITY_RARE] = 0;
+    return cfg;
+}
+
+/* The draft's first picks show each tier in turn, common, uncommon then rare, with draft_opening_tiers:
+ * the roll that lands on this pick's tier. Returns 0 for a pick that rolls as usual. A tier with
+ * weight 0 cannot be landed on, so it rolls as usual too. */
+static int opening_tier_roll(const sts_run *run, const sts_settings *settings, const sts_offer_settings *cfg,
+                             uint32_t *roll)
+{
+    int tier;
+
+    if (!settings->draft_opening_tiers || !cfg->rarity || cfg->one_tier_each || run->picks_done >= STS_TIER_COUNT
+        || cfg->rarity_weights[run->picks_done] <= 0)
+        return 0;
+    *roll = 0;
+    for (tier = 0; tier < run->picks_done; tier++)
+        if (cfg->rarity_weights[tier] > 0)
+            *roll += (uint32_t)cfg->rarity_weights[tier];
+    return 1;
+}
+
 /* Rolls the next draft offers or finishes the draft, which ends when the deck reaches size_min. */
 static sts_run_status advance_draft(sts_run *run, const sts_card_db *db, const sts_settings *settings)
 {
     if (run->deck.count < settings->rules.deck_min) {
-        roll_offers(run, db, &settings->rules, &settings->draft);
+        sts_offer_settings cfg = draft_offers(run, db, settings);
+        uint32_t opening_roll;
+
+        int opening = opening_tier_roll(run, settings, &cfg, &opening_roll);
+
+        roll_offers(run, db, &settings->rules, &cfg, opening ? &opening_roll : NULL);
         if (run->offer_count > 0)
             return STS_RUN_OK;
     }
@@ -232,7 +292,7 @@ int sts_run_random_offer(sts_run *run)
 
 /* The reward for one match, from READY, before it is recorded. */
 static void decide_reward(sts_run *run, const sts_card_db *db, const sts_settings *settings,
-                          int won, sts_reward_outcome *outcome)
+                          int won, uint32_t tier_roll, sts_reward_outcome *outcome)
 {
     int gets_offer;
 
@@ -249,7 +309,7 @@ static void decide_reward(sts_run *run, const sts_card_db *db, const sts_setting
     if (!gets_offer)
         return;
 
-    roll_offers(run, db, &settings->rules, &settings->reward);
+    roll_offers(run, db, &settings->rules, &settings->reward, &tier_roll);
     if (run->offer_count == 0)
         return;
     if (settings->offer_pick == STS_OFFER_PICK_RANDOM) {
@@ -299,7 +359,7 @@ static int limit_reached(const sts_settings *settings, int match)
 /* The reward for one match, from READY. Unless offers wait, it is settled at once. The last match
  * of the match limit has no reward, as its card would never be played: it finishes the run. */
 static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_settings *settings,
-                             int won, sts_reward_outcome *outcome)
+                             int won, uint32_t tier_roll, sts_reward_outcome *outcome)
 {
     sts_deck before = run->deck;
 
@@ -308,7 +368,7 @@ static void reward_for_match(sts_run *run, const sts_card_db *db, const sts_sett
         *outcome = STS_REWARD_FINISHED;
         return;
     }
-    decide_reward(run, db, settings, won, outcome);
+    decide_reward(run, db, settings, won, tier_roll, outcome);
     if (*outcome != STS_REWARD_OFFERS)
         settle_reward(run, &before);
 }
@@ -320,10 +380,12 @@ static void start_owed_rewards(sts_run *run, const sts_card_db *db, const sts_se
 
     while (run->phase == STS_PHASE_READY && run->owed_count > 0) {
         int won = run->owed_won[0];
+        uint32_t tier_roll = run->owed_roll[0];
 
         run->owed_count--;
         memmove(run->owed_won, run->owed_won + 1, (size_t)run->owed_count);
-        reward_for_match(run, db, settings, won, &outcome);
+        memmove(run->owed_roll, run->owed_roll + 1, (size_t)run->owed_count * sizeof run->owed_roll[0]);
+        reward_for_match(run, db, settings, won, tier_roll, &outcome);
     }
 }
 
@@ -340,6 +402,7 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
             return STS_RUN_WRONG_PHASE;
         run->matches_played++;
         add_to_history(run, result);
+        run->owed_roll[run->owed_count] = result->tier_roll;
         run->owed_won[run->owed_count++] = (uint8_t)(result->won != 0);
         *outcome = STS_REWARD_OFFERS;
         return STS_RUN_OK;
@@ -348,7 +411,7 @@ sts_run_status sts_run_begin_reward(sts_run *run, const sts_card_db *db, const s
         return STS_RUN_WRONG_PHASE;
     run->matches_played++;
     add_to_history(run, result);
-    reward_for_match(run, db, settings, result->won, outcome);
+    reward_for_match(run, db, settings, result->won, result->tier_roll, outcome);
     return STS_RUN_OK;
 }
 
@@ -481,7 +544,7 @@ size_t sts_run_serialize(const sts_run *run, char *buf, size_t cap)
     PUT("\n");
     PUT("owed %d", run->owed_count);
     for (wau = 0; wau < run->owed_count; wau++)
-        PUT(" %d", (int)run->owed_won[wau]);
+        PUT(" %d %08x", (int)run->owed_won[wau], (unsigned)run->owed_roll[wau]);
     PUT("\n");
     PUT("seed %08x %08x\n", (unsigned)(run->seed >> 32), (unsigned)(run->seed & 0xFFFFFFFFu));
     PUT("restarts %d\n", run->restarts);
@@ -735,6 +798,9 @@ sts_run_status sts_run_parse(const char *text, size_t len, sts_run *out)
             if (!read_int(&stream, 1, &value))
                 return STS_RUN_DAMAGED;
             out->owed_won[wau] = (uint8_t)value;
+            /* Version 4 added each owed match's tier roll. */
+            if (version >= 4 && !read_hex32(&stream, &out->owed_roll[wau]))
+                return STS_RUN_DAMAGED;
         }
         out->owed_count = count;
     }
@@ -840,7 +906,8 @@ sts_run_status sts_run_validate(const sts_run *run, const sts_card_db *db, const
 
 sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const sts_settings *settings)
 {
-    const sts_offer_settings *cfg = run->phase == STS_PHASE_DRAFT ? &settings->draft : &settings->reward;
+    sts_offer_settings draft_cfg = draft_offers(run, db, settings);
+    const sts_offer_settings *cfg = run->phase == STS_PHASE_DRAFT ? &draft_cfg : &settings->reward;
     sts_run updated = *run;
     sts_run_status status;
     int wau, offers_valid = 1;
@@ -869,7 +936,8 @@ sts_run_status sts_run_adopt_rules(sts_run *run, const sts_card_db *db, const st
             if (status != STS_RUN_OK)
                 return status;
         } else {
-            roll_offers(&updated, db, &settings->rules, cfg);
+            /* Not the match's own tier roll, which is not kept once its offers are on screen. */
+            roll_offers(&updated, db, &settings->rules, cfg, NULL);
             if (updated.offer_count == 0) {
                 /* Nothing can be offered under the new rules, so this reward ends with no change. */
                 settle_reward(&updated, &updated.deck);
@@ -922,4 +990,13 @@ int sts_run_deck_after(const sts_run *run, int index, sts_deck *out)
     }
     sts_deck_sort(out);
     return 1;
+}
+
+uint32_t sts_match_tier_roll(uint32_t match_seed)
+{
+    sts_rng rng;
+
+    /* Its own stream, so the roll says nothing about the match's other uses of the seed. */
+    sts_rng_seed(&rng, match_seed, 0x7469657255ull);
+    return sts_rng_next(&rng);
 }

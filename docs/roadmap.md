@@ -329,8 +329,8 @@ above 4; both need patches to the game's checks, and full mode online.
    able to turn it off (not built yet). A player can still delete the run's save by hand; that stays
    the way out of an emergency such as a misclick, and is not counted.
 
-15. (idea, 2026-11-25, not designed yet) Card rarity, as in Slay the Spire: Common, Uncommon and Rare,
-   a tier for every card chosen and balanced by the community for strength, NOT the game's own rarity
+15. (idea, 2026-11-25; offers built 2026-11-26, the look not yet) Card rarity, as in Slay the
+   Spire: Common, Uncommon and Rare, a tier for every card chosen and balanced by the community for strength, NOT the game's own rarity
    column (that drives unlocks and says nothing about strength). Rare cards are the strong ones a deck is
    built around (e.g. Sakuya's Killing Doll and Private Square); without tiers a strong card turns up as
    often as any other and is an instant pick every time. Decided so far: Rare appears less often than

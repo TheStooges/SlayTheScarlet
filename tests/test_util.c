@@ -38,7 +38,7 @@ int count_type_in_deck(const sts_deck *deck, int character, int type)
 
 sts_settings_status parse_ini(const char *text, sts_settings *settings, int *line)
 {
-    return sts_settings_parse(text, strlen(text), settings, line);
+    return sts_settings_parse_all(text, strlen(text), settings, line);
 }
 
 sts_offer_settings add_settings(void)
@@ -54,6 +54,12 @@ sts_offer_settings add_settings(void)
     offer_settings.weights[STS_CARD_SYSTEM] = 1;
     offer_settings.weights[STS_CARD_SKILL] = 1;
     offer_settings.weights[STS_CARD_SPELL] = 1;
+    offer_settings.rarity = 0;
+    offer_settings.rarity_weights[STS_RARITY_COMMON] = 1;
+    offer_settings.rarity_weights[STS_RARITY_UNCOMMON] = 1;
+    offer_settings.rarity_weights[STS_RARITY_RARE] = 1;
+    offer_settings.copy_odds = STS_COPY_ODDS_EVEN;
+    offer_settings.one_tier_each = 0;
     return offer_settings;
 }
 

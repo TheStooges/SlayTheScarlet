@@ -74,6 +74,9 @@ static int card_types_of(const sts_offer_settings *offer_settings)
     }
     return -1;
 }
+static const named_value g_copy_odds[] = {
+    {"even", STS_COPY_ODDS_EVEN}, {"falling", STS_COPY_ODDS_FALLING}, {"halving", STS_COPY_ODDS_HALVING}, {NULL, 0}
+};
 static const named_value g_visibility[] = {
     {"hidden", STS_VISIBILITY_HIDDEN}, {"after_confirm", STS_VISIBILITY_AFTER_CONFIRM},
     {"live", STS_VISIBILITY_LIVE}, {NULL, 0}
@@ -154,6 +157,13 @@ void sts_settings_defaults(sts_settings *settings)
     settings->draft.copies_max = 1;
     settings->draft.type_mask = STS_TYPE_ALL;
     settings->draft.replace = STS_REPLACE_RANDOM;
+    /* Rare seldom in the draft, and at most once (draft_rare_max), by decision. */
+    settings->draft.rarity = 1;
+    settings->draft.rarity_weights[STS_RARITY_COMMON] = 75;
+    settings->draft.rarity_weights[STS_RARITY_UNCOMMON] = 24;
+    settings->draft.rarity_weights[STS_RARITY_RARE] = 1;
+    settings->draft_rare_max = 1;
+    settings->draft_opening_tiers = 1;
 
     settings->reward.mode = STS_REWARD_REPLACE;
     settings->reward.offer_count = 3;
@@ -161,6 +171,11 @@ void sts_settings_defaults(sts_settings *settings)
     settings->reward.copies_max = 4;
     settings->reward.type_mask = STS_TYPE_ALL;
     settings->reward.replace = STS_REPLACE_CHOOSE;
+    settings->reward.rarity = 1;
+    settings->reward.rarity_weights[STS_RARITY_COMMON] = 60;
+    settings->reward.rarity_weights[STS_RARITY_UNCOMMON] = 30;
+    settings->reward.rarity_weights[STS_RARITY_RARE] = 10;
+    settings->reward.copy_odds = STS_COPY_ODDS_HALVING;
 
     settings->who_picks = STS_WHO_BOTH;
     settings->random_chance = 50;
@@ -231,6 +246,27 @@ static int character_key(const char *key)
     return -1;
 }
 
+int sts_settings_in_file(const char *section, const char *key)
+{
+    static const char *const offer_keys[] = {
+        "offers", "copies_min", "copies_max", "copy_odds", "rarity", "common_weight", "uncommon_weight", "rare_weight",
+        NULL
+    };
+    int wau;
+
+    if (strcmp(section, "deck") == 0 || strcmp(section, "items") == 0 || strcmp(section, "sound") == 0)
+        return 0;
+    if (strcmp(section, "draft") == 0 || strcmp(section, "reward") == 0)
+        for (wau = 0; offer_keys[wau]; wau++)
+            if (strcmp(key, offer_keys[wau]) == 0)
+                return 0;
+    if (strcmp(section, "reward") == 0 && strcmp(key, "random_chance") == 0)
+        return 0;
+    if (strcmp(section, "netplay") == 0 && (strcmp(key, "pick_visibility") == 0 || strcmp(key, "opponent_deck") == 0))
+        return 0;
+    return 1;
+}
+
 /* What kind of value a setting holds, and where it lives in sts_settings. Every setting is found
  * through find_setting, so parsing, the settings screen and rewriting the file agree on them. */
 typedef enum { KIND_INT, KIND_BOOL, KIND_NAMED, KIND_CARD_TYPES, KIND_SEED } value_kind;
@@ -270,6 +306,16 @@ static int find_offer_setting(sts_offer_settings *offer_settings, const sts_rule
         set_ref(ref, KIND_INT, &offer_settings->copies_max, NULL, offer_settings->copies_min, copy_limit);
     else if (strcmp(key, "card_types") == 0)
         set_ref(ref, KIND_CARD_TYPES, offer_settings, g_card_types, 0, 0);
+    else if (strcmp(key, "rarity") == 0)
+        set_ref(ref, KIND_BOOL, &offer_settings->rarity, g_bool, 0, 0);
+    else if (strcmp(key, "common_weight") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->rarity_weights[STS_RARITY_COMMON], NULL, 0, 100);
+    else if (strcmp(key, "uncommon_weight") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->rarity_weights[STS_RARITY_UNCOMMON], NULL, 0, 100);
+    else if (strcmp(key, "rare_weight") == 0)
+        set_ref(ref, KIND_INT, &offer_settings->rarity_weights[STS_RARITY_RARE], NULL, 0, 100);
+    else if (strcmp(key, "copy_odds") == 0)
+        set_ref(ref, KIND_NAMED, &offer_settings->copy_odds, g_copy_odds, 0, 0);
     else
         return 0;
     return 1;
@@ -292,7 +338,7 @@ static int find_setting(sts_settings *settings, const char *section, const char 
     }
     if (strcmp(section, "draft") == 0) {
         /* The draft's copies are always 1. */
-        if (strcmp(key, "copies_min") == 0 || strcmp(key, "copies_max") == 0)
+        if (strcmp(key, "copies_min") == 0 || strcmp(key, "copies_max") == 0 || strcmp(key, "copy_odds") == 0)
             return 0;
         if (strcmp(key, "show_deck") == 0)
             set_ref(ref, KIND_BOOL, &settings->draft_show_deck, g_bool, 0, 0);
@@ -517,8 +563,11 @@ static char *trim(char *text)
     return text;
 }
 
-static sts_settings_status parse_line(char *line, char *section, size_t section_size, sts_settings *out)
+static sts_settings_status parse_line(char *line, char *section, size_t section_size, sts_settings *out, int all)
 {
+    static sts_settings scratch_settings;
+    setting_ref scratch_ref;
+    char before[VALUE_SIZE];
     char *equals, *key, *value;
     int result;
 
@@ -548,17 +597,28 @@ static sts_settings_status parse_line(char *line, char *section, size_t section_
         return STS_SETTINGS_UNKNOWN_KEY;   /* a key before any section */
     if (obsolete_key(section, key))
         return STS_SETTINGS_OK;
+    /* The file has only what the screen has. A file listing one of the others still loads, as from
+     * the versions that had them, and the setting keeps its default. */
+    if (!all && find_setting(&scratch_settings, section, key, &scratch_ref) && !sts_settings_in_file(section, key))
+        return STS_SETTINGS_OK;
     /* Up to 0.2, who_picks=nobody was an automatic swap. That is offer_pick and replacement now,
      * and in 0.3's first builds it acted as both, so a file that still says it reads as both. */
     if (strcmp(section, "reward") == 0 && strcmp(key, "who_picks") == 0 && strcmp(value, "nobody") == 0)
         strcpy(value, "both");
+    if (!all && !sts_settings_get(out, section, key, before, sizeof before))
+        return STS_SETTINGS_UNKNOWN_KEY;
     result = set_key(out, section, key, value);
     if (result < 0)
         return STS_SETTINGS_UNKNOWN_KEY;
-    return result ? STS_SETTINGS_OK : STS_SETTINGS_BAD_VALUE;
+    if (!result)
+        return STS_SETTINGS_BAD_VALUE;
+    /* Likewise a value the screen does not offer: the setting stays as it was. */
+    if (!all && !sts_settings_value_offered(out, section, key))
+        set_key(out, section, key, before);
+    return STS_SETTINGS_OK;
 }
 
-sts_settings_status sts_settings_parse(const char *text, size_t len, sts_settings *out, int *err_line)
+static sts_settings_status parse_text(const char *text, size_t len, sts_settings *out, int *err_line, int all)
 {
     char section[16] = "";
     size_t pos = 0;
@@ -591,7 +651,7 @@ sts_settings_status sts_settings_parse(const char *text, size_t len, sts_setting
         }
         memcpy(line, text + start, length);
         line[length] = 0;
-        status = parse_line(line, section, sizeof section, out);
+        status = parse_line(line, section, sizeof section, out, all);
         if (status != STS_SETTINGS_OK) {
             if (err_line)
                 *err_line = line_no;
@@ -599,6 +659,16 @@ sts_settings_status sts_settings_parse(const char *text, size_t len, sts_setting
         }
     }
     return STS_SETTINGS_OK;
+}
+
+sts_settings_status sts_settings_parse(const char *text, size_t len, sts_settings *out, int *err_line)
+{
+    return parse_text(text, len, out, err_line, 0);
+}
+
+sts_settings_status sts_settings_parse_all(const char *text, size_t len, sts_settings *out, int *err_line)
+{
+    return parse_text(text, len, out, err_line, 1);
 }
 
 sts_settings_status sts_settings_load(const char *path, sts_settings *out, int *err_line)
@@ -641,6 +711,9 @@ static int check_offer(const sts_offer_settings *offer_settings, const sts_rules
         return 1;
     if (offer_settings->copies_max > rules->copy_limit)
         return 2;
+    if (offer_settings->rarity && offer_settings->rarity_weights[STS_RARITY_COMMON] <= 0
+        && offer_settings->rarity_weights[STS_RARITY_UNCOMMON] <= 0 && offer_settings->rarity_weights[STS_RARITY_RARE] <= 0)
+        return 3;
     return -1;
 }
 
@@ -753,6 +826,8 @@ const char *sts_settings_validate(const sts_settings *settings)
     case STS_PROBLEM_REWARD_COPIES:     return "copies_min must be at least 1 and not above copies_max";
     case STS_PROBLEM_DRAFT_COPY_LIMIT:
     case STS_PROBLEM_REWARD_COPY_LIMIT: return "copies_max cannot be above copy_limit";
+    case STS_PROBLEM_DRAFT_RARITY:
+    case STS_PROBLEM_REWARD_RARITY:     return "with rarity on, common_weight, uncommon_weight and rare_weight cannot all be 0";
     case STS_PROBLEM_REWARD_SIZE:       return "reward mode add or remove needs size_min below size_max";
     case STS_PROBLEM_RANDOM_CHANCE:     return "random_chance cannot be above 100";
     case STS_PROBLEM_MATCH_LIMIT:       return "matches cannot be above 20";
@@ -815,7 +890,13 @@ static uint32_t hash_offer(uint32_t hash, const sts_offer_settings *offer_settin
     hash = hash_int(hash, (int)offer_settings->style);
     hash = hash_int(hash, offer_settings->weights[STS_CARD_SYSTEM]);
     hash = hash_int(hash, offer_settings->weights[STS_CARD_SKILL]);
-    return hash_int(hash, offer_settings->weights[STS_CARD_SPELL]);
+    hash = hash_int(hash, offer_settings->weights[STS_CARD_SPELL]);
+    hash = hash_int(hash, offer_settings->rarity);
+    hash = hash_int(hash, offer_settings->rarity_weights[STS_RARITY_COMMON]);
+    hash = hash_int(hash, offer_settings->rarity_weights[STS_RARITY_UNCOMMON]);
+    hash = hash_int(hash, offer_settings->rarity_weights[STS_RARITY_RARE]);
+    hash = hash_int(hash, offer_settings->one_tier_each);
+    return hash_int(hash, (int)offer_settings->copy_odds);
 }
 
 static uint32_t hash_starter_list(uint32_t hash, const sts_starter_list *list)
@@ -839,6 +920,8 @@ uint32_t sts_settings_hash(const sts_settings *settings)
     hash = hash_int(hash, settings->rules.deck_min);
     hash = hash_offer(hash, &settings->draft);
     hash = hash_offer(hash, &settings->reward);
+    hash = hash_int(hash, settings->draft_rare_max);
+    hash = hash_int(hash, settings->draft_opening_tiers);
     hash = hash_int(hash, (int)settings->who_picks);
     hash = hash_int(hash, (int)settings->pick_visibility);
     hash = hash_int(hash, (int)settings->opponent_deck);
@@ -884,10 +967,13 @@ typedef struct {
 
 static const setting_key g_keys[] = {
     {"deck", "size_min"}, {"deck", "size_max"}, {"deck", "copy_limit"},
-    {"draft", "offers"}, {"draft", "show_deck"}, {"draft", "card_types"},
+    {"draft", "offers"}, {"draft", "show_deck"}, {"draft", "card_types"}, {"draft", "rarity"},
+    {"draft", "common_weight"}, {"draft", "uncommon_weight"}, {"draft", "rare_weight"},
     {"starter", "enabled"},
     {"reward", "mode"}, {"reward", "who_picks"}, {"reward", "random_chance"}, {"reward", "offers"}, {"reward", "copies_min"},
-    {"reward", "copies_max"}, {"reward", "card_types"}, {"reward", "offer_pick"}, {"reward", "replacement"},
+    {"reward", "copies_max"}, {"reward", "copy_odds"}, {"reward", "card_types"}, {"reward", "rarity"},
+    {"reward", "common_weight"}, {"reward", "uncommon_weight"}, {"reward", "rare_weight"},
+    {"reward", "offer_pick"}, {"reward", "replacement"},
     {"reward", "time_limit"}, {"reward", "roulette"},
     {"netplay", "pick_visibility"}, {"netplay", "opponent_deck"}, {"netplay", "share_changes"},
     {"netplay", "spectator_changes"},
@@ -948,6 +1034,21 @@ sts_settings_status sts_settings_set(sts_settings *settings, const char *section
         return STS_SETTINGS_BAD_VALUE;
     *settings = trial;
     return STS_SETTINGS_OK;
+}
+
+int sts_settings_value_offered(const sts_settings *settings, const char *section, const char *key)
+{
+    char value[VALUE_SIZE];
+
+    if (strcmp(section, "reward") == 0 && strcmp(key, "mode") == 0)
+        return settings->reward.mode == STS_REWARD_REPLACE || settings->reward.mode == STS_REWARD_SKIP;
+    if (strcmp(section, "reward") == 0 && strcmp(key, "who_picks") == 0)
+        return settings->who_picks != STS_WHO_RANDOM;
+    if (strcmp(key, "card_types") == 0) {
+        sts_settings_get(settings, section, key, value, sizeof value);
+        return strcmp(value, "weighted") == 0 || strcmp(value, "one_of_each") == 0 || strcmp(value, "random") == 0;
+    }
+    return 1;
 }
 
 int sts_settings_step(sts_settings *settings, const char *section, const char *key, int direction)
@@ -1023,7 +1124,8 @@ int sts_settings_equal(const sts_settings *first, const sts_settings *second)
 /* Settings that say how to play rather than being rules, so a run does not save them. */
 static int is_rule_key(int index)
 {
-    return !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
+    return sts_settings_in_file(g_keys[index].section, g_keys[index].key)
+        && !(strcmp(g_keys[index].section, "draft") == 0 && strcmp(g_keys[index].key, "show_deck") == 0)
         && !(strcmp(g_keys[index].section, "reward") == 0 && strcmp(g_keys[index].key, "roulette") == 0)
         && strcmp(g_keys[index].section, "sound") != 0
         && !(strcmp(g_keys[index].section, "netplay") == 0 && strcmp(g_keys[index].key, "share_changes") == 0)
@@ -1142,8 +1244,8 @@ static int key_index_of(sts_settings *scratch, const char *section, const char *
     char name[KEY_NAME_SIZE];
     int wau;
 
-    if (!find_setting(scratch, section, key, &ref))
-        return -1;
+    if (!find_setting(scratch, section, key, &ref) || !sts_settings_in_file(section, key))
+        return -1;   /* not a setting of the file: its line is copied as it is */
     for (wau = 0; wau < KEY_COUNT; wau++) {
         const char *other_section = key_at(wau, name);
 
@@ -1178,7 +1280,7 @@ static int missing_and_changed(int index, int section, const int *present, const
     char old_value[VALUE_SIZE];
     const char *key_section = key_at(index, key);
 
-    if (present[index] || strcmp(key_section, g_sections[section]) != 0)
+    if (present[index] || strcmp(key_section, g_sections[section]) != 0 || !sts_settings_in_file(key_section, key))
         return 0;
     sts_settings_get(original, key_section, key, old_value, VALUE_SIZE);
     sts_settings_get(settings, key_section, key, new_value, VALUE_SIZE);

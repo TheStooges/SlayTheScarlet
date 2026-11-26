@@ -166,3 +166,111 @@ void test_card_db_file(void)
     CHECK(sts_deck_cards_legal(&g_db, 4, &deck, &bad));
     CHECK(!sts_deck_cards_legal(&g_db, 0, &deck, &bad) && bad == 213);
 }
+
+/* Writes rarities for the minimal table: Spiritual Strike Talisman a starter, each character's spell
+ * rare, except that `reimu` replaces Reimu's line (an empty string leaves it out). */
+static size_t minimal_rarity_text(char *out, const char *reimu)
+{
+    size_t count = 0;
+    int character;
+
+    count += (size_t)sprintf(out + count, "# owner,id,rarity,name\nsystem,0,starter,Spiritual Strike Talisman\n");
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        if (character == 0)
+            count += (size_t)sprintf(out + count, "%s", reimu);
+        else
+            count += (size_t)sprintf(out + count, "%s,200,rare,Sign \"One, Two\"\r\n", sts_character_name(character));
+    }
+    return count;
+}
+
+/* Parses the minimal table, then rarities with Reimu's line replaced. Returns the rarity status. */
+static sts_db_status parse_rarity_with(const char *reimu, int *err_line)
+{
+    static char rarity[4096];
+    size_t count = minimal_db_text(g_text);
+    size_t rarity_count;
+
+    if (sts_card_db_parse(g_text, count, &g_db2, NULL) != STS_DB_OK)
+        return STS_DB_IO;
+    rarity_count = minimal_rarity_text(rarity, reimu);
+    return sts_rarity_parse(rarity, rarity_count, &g_db2, err_line);
+}
+
+void test_rarity_parse(void)
+{
+    int err = 0;
+
+    /* Before any rarity, every card is common. */
+    CHECK(sts_card_db_parse(g_text, minimal_db_text(g_text), &g_db2, &err) == STS_DB_OK);
+    CHECK(sts_card_db_find(&g_db2, 0, 200)->rarity == STS_RARITY_COMMON);
+
+    /* Names may hold commas and quotes, or be left out. */
+    CHECK(parse_rarity_with("Reimu,200,uncommon\n", &err) == STS_DB_OK);
+    CHECK(sts_card_db_find(&g_db2, 0, 200)->rarity == STS_RARITY_UNCOMMON);
+    CHECK(sts_card_db_find(&g_db2, 16, 200)->rarity == STS_RARITY_RARE);
+    CHECK(sts_card_db_find(&g_db2, 0, 0)->rarity == STS_RARITY_STARTER);
+
+    /* Offers count a starter system card as rare, and a starter skill or spell as common. */
+    CHECK(sts_card_tier(sts_card_db_find(&g_db2, 0, 0)) == STS_RARITY_RARE);
+    CHECK(parse_rarity_with("Reimu,200,starter,Spirit Sign \"Fantasy Orb\"\n", &err) == STS_DB_OK);
+    CHECK(sts_card_tier(sts_card_db_find(&g_db2, 0, 200)) == STS_RARITY_COMMON);
+    CHECK(sts_card_tier(sts_card_db_find(&g_db2, 16, 200)) == STS_RARITY_RARE);
+
+    /* Each kind of damage is reported, on the right line. */
+    CHECK(parse_rarity_with("Reimu,200,legendary,X\n", &err) == STS_DB_BAD_LINE && err == 3);
+    CHECK(parse_rarity_with("Reimu,200\n", &err) == STS_DB_BAD_LINE && err == 3);
+    CHECK(parse_rarity_with("Nobody,200,rare\n", &err) == STS_DB_BAD_LINE);
+    CHECK(parse_rarity_with("Reimu,2x0,rare\n", &err) == STS_DB_BAD_LINE);
+    CHECK(parse_rarity_with("Reimu,200,rare\nReimu,999,rare,Not a card\n", &err) == STS_DB_UNKNOWN_CARD && err == 4);
+    CHECK(parse_rarity_with("Reimu,200,rare\nReimu,200,common\n", &err) == STS_DB_DUPLICATE && err == 4);
+    /* A card with no rarity is incomplete, with no line to point to. */
+    CHECK(parse_rarity_with("", &err) == STS_DB_INCOMPLETE && err == 0);
+
+    CHECK(sts_rarity_load("no/such/file.csv", &g_db2, &err) == STS_DB_IO);
+    CHECK(strcmp(sts_db_status_str(STS_DB_UNKNOWN_CARD), "a rarity for a card that does not exist") == 0);
+}
+
+/* Checks data/rarity.csv, and loads it into the real table for the tests after this. */
+void test_rarity_file(void)
+{
+    sts_settings defaults;
+    sts_deck starter;
+    int err = 0, character, wau;
+    sts_db_status status = sts_rarity_load(STS_RARITY_PATH, &g_db, &err);
+
+    if (status != STS_DB_OK)
+        printf("rarity file: %s (line %d)\n", sts_db_status_str(status), err);
+    CHECK(status == STS_DB_OK);
+    if (status != STS_DB_OK) return;
+
+    /* A Penny Saved is the rare system card; the two starter system cards count as rare too. */
+    CHECK(sts_card_db_find(&g_db, 0, 12)->rarity == STS_RARITY_RARE);
+    CHECK(sts_card_db_find(&g_db, 0, 0)->rarity == STS_RARITY_STARTER);
+    CHECK(sts_card_db_find(&g_db, 0, 13)->rarity == STS_RARITY_STARTER);
+
+    /* The cards marked starter are exactly the built-in starting deck's. */
+    sts_settings_defaults(&defaults);
+    defaults.starter_enabled = 1;
+    for (character = 0; character < STS_NUM_CHARACTERS; character++) {
+        const sts_card_list *lists[2];
+        int list_index, tiers[STS_TIER_COUNT];
+
+        lists[0] = &g_db.system;
+        lists[1] = &g_db.characters[character];
+        sts_settings_starter(&defaults, character, &starter);
+        memset(tiers, 0, sizeof tiers);
+        for (list_index = 0; list_index < 2; list_index++) {
+            for (wau = 0; wau < lists[list_index]->count; wau++) {
+                const sts_card *card = &lists[list_index]->cards[wau];
+
+                CHECK_EACH((card->rarity == STS_RARITY_STARTER) == (sts_deck_count_of(&starter, card->id) > 0));
+                tiers[sts_card_tier(card)]++;
+            }
+        }
+        /* Every tier has enough cards for a pick of 3 without falling back. */
+        for (wau = 0; wau < STS_TIER_COUNT; wau++)
+            CHECK_EACH(tiers[wau] >= 3);
+    }
+    CHECK_EACH_DONE();
+}

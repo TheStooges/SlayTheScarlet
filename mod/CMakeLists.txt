@@ -8,11 +8,11 @@ add_compile_options(/wd4819)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/SokuLib ${CMAKE_BINARY_DIR}/SokuLib)
 
-# cards.csv, the translations, and the card sounds are built into the DLL as resources.
+# cards.csv, rarity.csv, the translations, and the card sounds are built into the DLL as resources.
 set(STS_DATA_DIR ${CMAKE_SOURCE_DIR}/data)
 configure_file(embedded.rc.in ${CMAKE_CURRENT_BINARY_DIR}/embedded.rc @ONLY)
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/embedded.rc PROPERTIES
-  OBJECT_DEPENDS "${STS_DATA_DIR}/cards.csv;${STS_DATA_DIR}/lang/ja.txt;${STS_DATA_DIR}/card_sounds.csv")
+  OBJECT_DEPENDS "${STS_DATA_DIR}/cards.csv;${STS_DATA_DIR}/rarity.csv;${STS_DATA_DIR}/lang/ja.txt;${STS_DATA_DIR}/card_sounds.csv")
 
 # The top of mod/ has the entry points and what every part shares (logging, text, card sounds);
 # run/ keeps the run deck in the game, screens/ draws and drives the mod's screens, and net/ is

@@ -67,6 +67,12 @@ typedef struct {
      * towards size_max later): mode is always ADD and copies always 1. Only the offers, card types and their weights can be set. */
     sts_offer_settings draft;
     sts_offer_settings reward;
+    /* The most rare cards a draft may bring in, -1 for no limit: once the deck holds this many beyond
+     * its starter's, no more draft picks are rare. Only code sets it. */
+    int draft_rare_max;
+    /* 1: the draft's first three picks are common, uncommon and rare, in that order, then they roll as
+     * usual. Only code sets it. */
+    int draft_opening_tiers;
     sts_who_picks who_picks;
     int random_chance;   /* out of 100, for STS_WHO_RANDOM */
     /* Seconds to take a reward, 0 for no limit. When it runs out, what is left to choose is chosen at
@@ -130,6 +136,22 @@ void sts_settings_defaults(sts_settings *settings);
  * sts_settings_validate for that. */
 sts_settings_status sts_settings_parse(const char *text, size_t len, sts_settings *out, int *err_line);
 
+/* As sts_settings_parse, but also takes the settings and values only code sets (see
+ * sts_settings_in_file): for tests, and for rules that code writes. */
+sts_settings_status sts_settings_parse_all(const char *text, size_t len, sts_settings *out, int *err_line);
+
+/* 1 if settings.ini has this setting. By decision (2026-11-26) the file has exactly what the
+ * settings screen has. The others (deck size and copy limit, cards per pick and per offer, copies
+ * and copy odds, rarity, random_chance, pick_visibility, opponent_deck, items, card_sounds) keep
+ * their defaults unless code sets them, and the code behind them stays, for later use such as
+ * items. A file that lists one still loads, and the line is ignored. Runs do not save them. */
+int sts_settings_in_file(const char *section, const char *key);
+
+/* 1 if the setting's value is one the settings screen offers. The file takes only those, and keeps
+ * the setting as it was for any other: reward mode replace or skip, who_picks anything but random,
+ * card_types weighted, one_of_each or random. */
+int sts_settings_value_offered(const sts_settings *settings, const char *section, const char *key);
+
 sts_settings_status sts_settings_load(const char *path, sts_settings *out, int *err_line);
 
 const char *sts_settings_status_str(sts_settings_status status);
@@ -144,11 +166,13 @@ typedef enum {
     STS_PROBLEM_DRAFT_OFFERS,       /* offers outside 1 to STS_OFFER_MAX */
     STS_PROBLEM_DRAFT_COPIES,       /* copies_min below 1 or above copies_max (not settable for the draft) */
     STS_PROBLEM_DRAFT_COPY_LIMIT,   /* copies_max above copy_limit (not settable for the draft) */
+    STS_PROBLEM_DRAFT_RARITY,       /* rarity on, with every tier's weight 0 */
     STS_PROBLEM_STARTER_TOO_BIG,    /* the character's starter is above size_max */
     STS_PROBLEM_STARTER_COPIES,     /* number: the card with more than copy_limit copies */
     STS_PROBLEM_REWARD_OFFERS,
     STS_PROBLEM_REWARD_COPIES,
     STS_PROBLEM_REWARD_COPY_LIMIT,
+    STS_PROBLEM_REWARD_RARITY,
     STS_PROBLEM_REWARD_SIZE,        /* add or remove with a fixed deck size */
     STS_PROBLEM_RANDOM_CHANCE,      /* random_chance above 100 */
     STS_PROBLEM_MATCH_LIMIT,        /* matches above STS_MATCH_LIMIT_MAX */

@@ -18,10 +18,14 @@ int main(void)
     test_rng();
     test_card_db_parse();
     test_card_db_file();
+    test_rarity_parse();
+    test_rarity_file();
     test_offer_basics();
     test_offer_limits();
     test_offer_fairness();
     test_offer_one_of_each();
+    test_offer_rarity();
+    test_offer_copy_odds();
     test_offer_no_self_replace();
     test_offer_runs();
     test_offer_apply();
